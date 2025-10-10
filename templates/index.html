@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mood Meter</title>
+  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <h1 class="title">Mood Meter</h1>
+    </header>
+    <main class="main">
+      <div class="axes-layout">
+        <div class="y-axis-label">High Energy</div>
+        <div class="grid-wrapper">
+          <div class="grid" role="grid" aria-label="Mood grid">
+            {% for y in range(size) %}
+              <div class="row" role="row">
+                {% for x in range(size) %}
+                  {% set label = grid[y][x] %}
+                  <button
+                    class="cell"
+                    role="gridcell"
+                    data-x="{{ x }}"
+                    data-y="{{ y }}"
+                    data-label="{{ label }}"
+                    title="{{ label }} (x={{ x }}, y={{ y }})"
+                    aria-label="{{ label }}">
+                    <span class="cell-label">{{ label }}</span>
+                  </button>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+          <div class="x-axis">
+            <span class="x-left">Unpleasant</span>
+            <span class="x-right">Pleasant</span>
+          </div>
+        </div>
+        <div class="y-axis-label y-bottom">Low Energy</div>
+      </div>
+    </main>
+  </div>
+  <script>
+    window.MOOD_GRID_SIZE = {{ size|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
