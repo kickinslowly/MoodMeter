@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teacher Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <style>
+    .dash-container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+    .dash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .columns { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    .card { background: #1f2227; color: #e8eaeF; padding: 12px; border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06); }
+    .filters { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 8px; margin: 12px 0 12px; }
+    .filter-form label { font-size: 12px; opacity: .8; display:block; margin-bottom:4px; }
+    .filter-form input, .filter-form select { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid #3a3f47; background: #121418; color: #e8eaef; }
+    .btn { background: #2f3540; color: #e8eaef; border: 1px solid #3a3f47; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .grid .cell { position: relative; }
+    .heat-count { position: absolute; right: 6px; bottom: 4px; font-size: 12px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+    details summary { cursor: pointer; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="dash-container">
+    <div class="dash-header">
+      <h1>Teacher Dashboard</h1>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <a class="btn" href="{{ url_for('index') }}">Mood Meter</a>
+        <a class="btn" href="{{ url_for('dashboard', self=1) }}">Self Report</a>
+        <form method="post" action="{{ url_for('logout_view') }}"><button class="btn" type="submit">Logout</button></form>
+      </div>
+    </div>
+
+    <!-- Tabs UI -->
+    <style>
+      /* Tabs styling */
+      .tabbar { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+      .tab-btn { background:#2f3540; color:#e8eaef; border:1px solid #3a3f47; padding:8px 12px; border-radius:8px; cursor:pointer; opacity:.85; }
+      .tab-btn.active { opacity:1; box-shadow:0 0 0 2px rgba(255,255,255,0.12) inset; }
+      .tab-panels { width:100%; }
+      .tab-panel { display:none; width:100%; min-height: calc(100vh - 160px); }
+      .tab-panel.active { display:block; }
+      /* Hide old two-column layout when tabs are present */
+      .columns { display:none; }
+    </style>
+
+    <div class="tabbar" role="tablist" aria-label="Teacher dashboard sections">
+      <button class="tab-btn" data-tab="group" role="tab" aria-selected="true">Group Data</button>
+      <button class="tab-btn" data-tab="manage" role="tab" aria-selected="false">Manage Groups and Users</button>
+      <button class="tab-btn" data-tab="individual" role="tab" aria-selected="false">Individual Data</button>
+    </div>
+
+    <div class="tab-panels">
+      <!-- Group Data Panel -->
+      <section class="tab-panel" data-tab="group">
+        <div class="card">
+          <form class="filter-form" method="get" action="{{ url_for('dashboard') }}">
+            <div class="filters">
+              <div>
+                <label for="group_id_tab">Group</label>
+                <select id="group_id_tab" name="group_id">
+                  <option value="">All students (in selected group if chosen)</option>
+                  {% for g in groups %}
+                    <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label for="date_from_tab">From date</label>
+                <input type="date" id="date_from_tab" name="date_from" value="{{ filters.date_from or '' }}" />
+              </div>
+              <div>
+                <label for="date_to_tab">To date</label>
+                <input type="date" id="date_to_tab" name="date_to" value="{{ filters.date_to or '' }}" />
+              </div>
+              <div style="grid-column: span 4;">
+                <details {% if filters.time_from or filters.time_to %}open{% endif %}>
+                  <summary>Time options (UTC)</summary>
+                  <div style="display:grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap:8px; margin-top:8px;">
+                    <div>
+                      <label for="time_from_tab">From time (UTC)</label>
+                      <input type="time" id="time_from_tab" name="time_from" value="{{ filters.time_from or '' }}" />
+                    </div>
+                    <div>
+                      <label for="time_to_tab">To time (UTC)</label>
+                      <input type="time" id="time_to_tab" name="time_to" value="{{ filters.time_to or '' }}" />
+                    </div>
+                  </div>
+                </details>
+              </div>
+              <div style="grid-column: span 4; display:flex; gap:8px;">
+                <button class="btn" type="submit">Apply filters</button>
+                <a class="btn" href="{{ url_for('dashboard') }}">Reset</a>
+              </div>
+            </div>
+          </form>
+
+          <div class="stats-grid">
+            <div class="card"><strong>Most common mood:</strong> {{ stats.most_common_mood or '—' }}</div>
+            <div class="card"><strong>Best hour (UTC):</strong> {{ stats.best_hour if stats.best_hour is not none else '—' }}</div>
+            <div class="card"><strong>Worst hour (UTC):</strong> {{ stats.worst_hour if stats.worst_hour is not none else '—' }}</div>
+            <div class="card"><strong>Best month:</strong> {{ stats.best_month if stats.best_month is not none else '—' }}</div>
+            <div class="card"><strong>Worst month:</strong> {{ stats.worst_month if stats.worst_month is not none else '—' }}</div>
+            <div class="card"><strong>Best day of week (0=Mon):</strong> {{ stats.best_dow if stats.best_dow is not none else '—' }}</div>
+            <div class="card"><strong>Worst day of week (0=Mon):</strong> {{ stats.worst_dow if stats.worst_dow is not none else '—' }}</div>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <h3 style="margin-bottom:10px">Group heatmap</h3>
+            <div class="axes-layout">
+              <div class="axis-y" aria-hidden="true">
+                <svg class="axis-y-svg" viewBox="0 0 16 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                  <defs>
+                    <marker id="arrowhead-y" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                      <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                    </marker>
+                  </defs>
+                  <line x1="8" y1="6" x2="8" y2="94" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-y)" marker-end="url(#arrowhead-y)"></line>
+                </svg>
+                <div class="axis-label axis-label-y">Energy</div>
+              </div>
+              <div class="grid-wrapper">
+                <div class="grid" role="grid" aria-label="Heatmap grid">
+                  {% set maxc = stats.max_count or 0 %}
+                  {% for y in range(size) %}
+                    <div class="row" role="row">
+                      {% for x in range(size) %}
+                        {% set c = stats.heatmap[y][x] %}
+                        {% set t = (c / maxc) if maxc else 0 %}
+                        {% set label = grid[y][x] %}
+                        <div class="cell" data-x="{{ x }}" data-y="{{ y }}" data-intensity="{{ t }}">
+                          <span class="cell-label">{{ label }}</span>
+                          {% if c %}<span class="heat-count">{{ c }}</span>{% endif %}
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="axis-x" aria-hidden="true">
+                <svg class="axis-x-svg" viewBox="0 0 100 16" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                  <defs>
+                    <marker id="arrowhead-x" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                      <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                    </marker>
+                  </defs>
+                  <line x1="6" y1="8" x2="94" y2="8" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-x)" marker-end="url(#arrowhead-x)"></line>
+                </svg>
+                <div class="axis-label axis-label-x">Pleasantness</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Manage Groups and Users Panel -->
+      <section class="tab-panel" data-tab="manage">
+        <div class="card" style="margin-bottom:12px;">
+          <details id="createGroupDetailsManage">
+            <summary>Create New Group</summary>
+            <form method="post" action="{{ url_for('groups_view') }}" style="display:flex; gap:8px; margin-top:8px;">
+              <input type="text" name="name" placeholder="Group name" required />
+              <button class="btn" type="submit">Create</button>
+            </form>
+          </details>
+        </div>
+
+        <div class="card">
+          <h3>Manage members</h3>
+          {% if groups %}
+            <form id="addMemberForm2" method="post" action="{{ url_for('add_member', group_id=(current_group_id or groups[0].id)) }}" style="display:grid; grid-template-columns: 1fr auto; gap:8px;">
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                <div>
+                  <label for="manage_group">Target group</label>
+                  <select id="manage_group" name="group_id" onchange="document.getElementById('addMemberForm2').action='/groups/' + this.value + '/members'">
+                    {% for g in groups %}
+                      <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label for="student_email2">Student email</label>
+                  <input id="student_email2" type="email" name="email" placeholder="student@email" required />
+                </div>
+              </div>
+              <div style="display:flex; align-items:end;">
+                <button class="btn" type="submit">Add</button>
+              </div>
+            </form>
+          {% else %}
+            <p>No groups yet.</p>
+          {% endif %}
+          {% if current_group %}
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <h3 style="margin:0;">Members of {{ current_group.name }}</h3>
+            <button class="btn" id="deleteGroupBtn" data-group-id="{{ current_group.id }}" style="background:#7a2f34; border-color:#8a3a3f;">Delete Group</button>
+          </div>
+          {% if current_members %}
+            <div style="overflow:auto; margin-top:10px;">
+              <table class="dataframe" style="width:100%; border-collapse:collapse;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Name</th>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Email</th>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for u in current_members %}
+                    <tr>
+                      <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ u.name or '—' }}</td>
+                      <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ u.email }}</td>
+                      <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">
+                        <button class="btn remove-member" data-student-id="{{ u.id }}" data-group-id="{{ current_group.id }}">Remove</button>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p style="margin-top:8px;">No members in this group yet.</p>
+          {% endif %}
+        </div>
+          {% endif %}
+      </section>
+
+      <!-- Individual Data Panel -->
+      <section class="tab-panel" data-tab="individual">
+        <div class="card">
+          <h3>Individual Data</h3>
+          <form id="studentSelectForm" method="get" action="{{ url_for('dashboard') }}" style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
+            <input type="hidden" name="group_id" value="{{ current_group_id or '' }}" />
+            <input type="hidden" name="date_from" value="{{ filters.date_from or '' }}" />
+            <input type="hidden" name="date_to" value="{{ filters.date_to or '' }}" />
+            <input type="hidden" name="time_from" value="{{ filters.time_from or '' }}" />
+            <input type="hidden" name="time_to" value="{{ filters.time_to or '' }}" />
+
+            <label for="userSearch">Search students</label>
+            <input id="userSearch" type="text" placeholder="Type to filter by name or email" />
+
+            <label for="userSelect">Select student</label>
+            <select id="userSelect" name="student_id" required>
+              <option value="">-- Choose a student --</option>
+              {% for s in all_students %}
+                {% set label = (s.name or s.email) %}
+                <option value="{{ s.id }}" {% if student_user and s.id == student_user.id %}selected{% endif %}>{{ label }}{% if s.name and s.email %} ({{ s.email }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            <div style="display:flex; gap:8px;">
+              <button class="btn" type="submit">View</button>
+              <a class="btn" href="{{ url_for('dashboard') }}#individual">Clear</a>
+            </div>
+          </form>
+
+          {% if student_user %}
+            <div style="margin-top:12px;"><h4>{{ student_user.name or student_user.email }}</h4></div>
+          {% endif %}
+
+          {% if student_stats %}
+            <div class="stats-grid" style="margin-top:10px;">
+              <div class="card"><strong>Most common mood:</strong> {{ student_stats.most_common_mood or '—' }}</div>
+              <div class="card"><strong>Best hour:</strong> {{ student_stats.best_hour if student_stats.best_hour is not none else '—' }}</div>
+              <div class="card"><strong>Best month:</strong> {{ student_stats.best_month if student_stats.best_month is not none else '—' }}</div>
+            </div>
+            <div class="axes-layout" style="margin-top:8px;">
+              <div class="axis-y" aria-hidden="true">
+                <svg class="axis-y-svg" viewBox="0 0 16 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                  <defs>
+                    <marker id="arrowhead-y" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                      <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                    </marker>
+                  </defs>
+                  <line x1="8" y1="6" x2="8" y2="94" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-y)" marker-end="url(#arrowhead-y)"></line>
+                </svg>
+                <div class="axis-label axis-label-y">Energy</div>
+              </div>
+              <div class="grid-wrapper">
+                <div class="grid">
+                  {% set maxc = student_stats.max_count or 0 %}
+                  {% for y in range(size) %}
+                    <div class="row">
+                      {% for x in range(size) %}
+                        {% set c = student_stats.heatmap[y][x] %}
+                        {% set t = (c / maxc) if maxc else 0 %}
+                        {% set label = grid[y][x] %}
+                        <div class="cell" data-x="{{ x }}" data-y="{{ y }}" data-intensity="{{ t }}">
+                          <span class="cell-label">{{ label }}</span>
+                          {% if c %}<span class="heat-count">{{ c }}</span>{% endif %}
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="axis-x" aria-hidden="true">
+                <svg class="axis-x-svg" viewBox="0 0 100 16" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                  <defs>
+                    <marker id="arrowhead-x" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                      <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                    </marker>
+                  </defs>
+                  <line x1="6" y1="8" x2="94" y2="8" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-x)" marker-end="url(#arrowhead-x)"></line>
+                </svg>
+                <div class="axis-label axis-label-x">Pleasantness</div>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+
+    <script>
+      // Tabs behavior, manage tab actions, and student search filtering
+      (function(){
+        // Ensure axis arrowheads point outward on both ends
+        try { document.querySelectorAll('marker#arrowhead-x, marker#arrowhead-y').forEach(m => m.setAttribute('orient','auto-start-reverse')); } catch {}
+        const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
+        const panels = Array.from(document.querySelectorAll('.tab-panel'));
+        function activate(tab){
+          for (const b of tabBtns){ b.classList.toggle('active', b.dataset.tab===tab); b.setAttribute('aria-selected', String(b.dataset.tab===tab)); }
+          for (const p of panels){ p.classList.toggle('active', p.dataset.tab===tab); }
+          if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
+          try { localStorage.setItem('teacher_tab', tab); } catch {}
+        }
+        for (const b of tabBtns){ b.addEventListener('click', ()=> activate(b.dataset.tab)); }
+        let initial = (location.hash||'').replace('#','') || (localStorage.getItem('teacher_tab')||'group');
+        if (!['group','manage','individual'].includes(initial)) initial = 'group';
+        activate(initial);
+
+        // Manage tab: group selection reload to show members
+        const manageSelect = document.getElementById('manage_group');
+        if (manageSelect){
+          manageSelect.addEventListener('change', function(){
+            const gid = this.value;
+            // keep on manage tab after reload
+            window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#manage';
+          });
+        }
+
+        // Manage tab: intercept Add Member form to use fetch
+        const addForm = document.getElementById('addMemberForm2');
+        if (addForm){
+          addForm.addEventListener('submit', async function(ev){
+            ev.preventDefault();
+            const fd = new FormData(addForm);
+            const gid = (document.getElementById('manage_group')||{}).value || '';
+            const email = (document.getElementById('student_email2')||{}).value || '';
+            if (!gid || !email){ return; }
+            try {
+              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/members`, {
+                method: 'POST',
+                body: new URLSearchParams({ email })
+              });
+              const json = await resp.json().catch(()=>({}));
+              if (resp.ok && json.ok){
+                // reload to show updated member list
+                window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#manage';
+              } else {
+                alert('Failed to add member' + (json.detail ? (': ' + json.detail) : ''));
+              }
+            } catch (e){
+              alert('Network error while adding member');
+            }
+          });
+        }
+
+        // Manage tab: remove member buttons
+        document.addEventListener('click', async function(ev){
+          const btn = ev.target.closest('.remove-member');
+          if (!btn) return;
+          const gid = btn.getAttribute('data-group-id');
+          const sid = btn.getAttribute('data-student-id');
+          if (!gid || !sid) return;
+          if (!confirm('Remove this user from the group?')) return;
+          try {
+            const resp = await fetch(`/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(sid)}/remove`, { method: 'POST' });
+            const json = await resp.json().catch(()=>({}));
+            if (resp.ok && json.ok){
+              window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#manage';
+            } else {
+              alert('Failed to remove member' + (json.detail ? (': ' + json.detail) : ''));
+            }
+          } catch (e){
+            alert('Network error while removing member');
+          }
+        });
+
+        // Manage tab: delete group
+        const delBtn = document.getElementById('deleteGroupBtn');
+        if (delBtn){
+          delBtn.addEventListener('click', async function(){
+            const gid = this.getAttribute('data-group-id');
+            if (!gid) return;
+            if (!confirm('Delete this group and remove all its memberships?')) return;
+            try {
+              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/delete`, { method: 'POST' });
+              const json = await resp.json().catch(()=>({}));
+              if (resp.ok && json.ok){
+                window.location.href = '/dashboard#manage';
+              } else {
+                alert('Failed to delete group' + (json.detail ? (': ' + json.detail) : ''));
+              }
+            } catch (e){
+              alert('Network error while deleting group');
+            }
+          });
+        }
+
+        // Individual search filter
+        const search = document.getElementById('userSearch');
+        const select = document.getElementById('userSelect');
+        if (search && select){
+          const all = Array.from(select.querySelectorAll('option')).map(o => ({ value:o.value, text:o.textContent }));
+          function applyFilter(){
+            const q = (search.value||'').toLowerCase().trim();
+            const filtered = q ? all.filter(o => o.text.toLowerCase().includes(q)) : all;
+            const current = select.value;
+            select.innerHTML = '';
+            for (const o of filtered){
+              const opt = document.createElement('option');
+              opt.value = o.value; opt.textContent = o.text; select.appendChild(opt);
+            }
+            if (filtered.some(o => o.value===current)) select.value = current; else select.value = '';
+          }
+          search.addEventListener('input', applyFilter);
+        }
+      })();
+    </script>
+
+    <div class="columns">
+      <div class="card">
+        <form class="filter-form" method="get" action="{{ url_for('dashboard') }}">
+          <div class="filters">
+            <div>
+              <label for="group_id">Group</label>
+              <select id="group_id" name="group_id">
+                <option value="">All students (in selected group if chosen)</option>
+                {% for g in groups %}
+                  <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label for="date_from">From date</label>
+              <input type="date" id="date_from" name="date_from" value="{{ filters.date_from or '' }}" />
+            </div>
+            <div>
+              <label for="date_to">To date</label>
+              <input type="date" id="date_to" name="date_to" value="{{ filters.date_to or '' }}" />
+            </div>
+            <div style="grid-column: span 4;">
+              <details {% if filters.time_from or filters.time_to %}open{% endif %}>
+                <summary>Time options (UTC)</summary>
+                <div style="display:grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap:8px; margin-top:8px;">
+                  <div>
+                    <label for="time_from">From time (UTC)</label>
+                    <input type="time" id="time_from" name="time_from" value="{{ filters.time_from or '' }}" />
+                  </div>
+                  <div>
+                    <label for="time_to">To time (UTC)</label>
+                    <input type="time" id="time_to" name="time_to" value="{{ filters.time_to or '' }}" />
+                  </div>
+                </div>
+              </details>
+            </div>
+            <div style="grid-column: span 4; display:flex; gap:8px;">
+              <button class="btn" type="submit">Apply filters</button>
+              <a class="btn" href="{{ url_for('dashboard') }}">Reset</a>
+            </div>
+          </div>
+        </form>
+
+        <div class="stats-grid">
+          <div class="card"><strong>Most common mood:</strong> {{ stats.most_common_mood or '—' }}</div>
+          <div class="card"><strong>Best hour (UTC):</strong> {{ stats.best_hour if stats.best_hour is not none else '—' }}</div>
+          <div class="card"><strong>Worst hour (UTC):</strong> {{ stats.worst_hour if stats.worst_hour is not none else '—' }}</div>
+          <div class="card"><strong>Best month:</strong> {{ stats.best_month if stats.best_month is not none else '—' }}</div>
+          <div class="card"><strong>Worst month:</strong> {{ stats.worst_month if stats.worst_month is not none else '—' }}</div>
+          <div class="card"><strong>Best day of week (0=Mon):</strong> {{ stats.best_dow if stats.best_dow is not none else '—' }}</div>
+          <div class="card"><strong>Worst day of week (0=Mon):</strong> {{ stats.worst_dow if stats.worst_dow is not none else '—' }}</div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <h3 style="margin-bottom:10px">Group heatmap</h3>
+          <div class="axes-layout">
+            <div class="axis-y" aria-hidden="true">
+              <svg class="axis-y-svg" viewBox="0 0 16 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                <defs>
+                  <marker id="arrowhead-y" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                  </marker>
+                </defs>
+                <line x1="8" y1="6" x2="8" y2="94" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-y)" marker-end="url(#arrowhead-y)"></line>
+              </svg>
+              <div class="axis-label axis-label-y">Energy</div>
+            </div>
+            <div class="grid-wrapper">
+              <div class="grid" role="grid" aria-label="Heatmap grid">
+                {% set maxc = stats.max_count or 0 %}
+                {% for y in range(size) %}
+                  <div class="row" role="row">
+                    {% for x in range(size) %}
+                      {% set c = stats.heatmap[y][x] %}
+                      {% set t = (c / maxc) if maxc else 0 %}
+                      {% set label = grid[y][x] %}
+                      <div class="cell" data-x="{{ x }}" data-y="{{ y }}" data-intensity="{{ t }}">
+                        <span class="cell-label">{{ label }}</span>
+                        {% if c %}<span class="heat-count">{{ c }}</span>{% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="axis-x" aria-hidden="true">
+              <svg class="axis-x-svg" viewBox="0 0 100 16" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                <defs>
+                  <marker id="arrowhead-x" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                  </marker>
+                </defs>
+                <line x1="6" y1="8" x2="94" y2="8" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-x)" marker-end="url(#arrowhead-x)"></line>
+              </svg>
+              <div class="axis-label axis-label-x">Pleasantness</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:12px;">
+          <details id="createGroupDetailsLegacy">
+            <summary>Create New Group</summary>
+            <form method="post" action="{{ url_for('groups_view') }}" style="display:flex; gap:8px; margin-top:8px;">
+              <input type="text" name="name" placeholder="Group name" required />
+              <button class="btn" type="submit">Create</button>
+            </form>
+          </details>
+        </div>
+
+        <div class="card">
+          <h3>Manage members</h3>
+          {% if groups %}
+            <p style="margin:6px 0 8px;">Add student by email to selected group:</p>
+            <form id="addMemberForm" method="post" action="{{ url_for('add_member', group_id=(current_group_id or groups[0].id)) }}" style="display:flex; gap:8px;">
+              <input type="email" name="email" placeholder="student@email" required />
+              <button class="btn" type="submit">Add</button>
+            </form>
+            <p style="opacity:.7; font-size:12px; margin-top:8px;">Tip: Select a group at left first to target additions.</p>
+          {% else %}
+            <p>No groups yet.</p>
+          {% endif %}
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <details>
+            <summary>View individual student</summary>
+            <form method="get" action="{{ url_for('dashboard') }}" style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
+              <input type="hidden" name="group_id" value="{{ current_group_id or '' }}" />
+              <label>Email to view (must exist):</label>
+              <input type="text" name="student_email" placeholder="student@email" />
+              <div style="display:flex; gap:8px;">
+                <button class="btn" type="submit">Load</button>
+                <a class="btn" href="{{ url_for('dashboard', group_id=current_group_id) }}">Clear</a>
+              </div>
+            </form>
+            {% if request.args.get('student_email') %}
+              {% set s = (all_students|selectattr('email','equalto', request.args.get('student_email'))|list|first) %}
+              {% if s %}
+                <div style="margin-top:12px;">
+                  <h4>{{ s.name or s.email }}</h4>
+                </div>
+              {% else %}
+                <p style="color:#f99">Student not found.</p>
+              {% endif %}
+            {% endif %}
+            {% if student_stats %}
+              <div class="stats-grid" style="margin-top:10px;">
+                <div class="card"><strong>Most common mood:</strong> {{ student_stats.most_common_mood or '—' }}</div>
+                <div class="card"><strong>Best hour:</strong> {{ student_stats.best_hour if student_stats.best_hour is not none else '—' }}</div>
+                <div class="card"><strong>Best month:</strong> {{ student_stats.best_month if student_stats.best_month is not none else '—' }}</div>
+              </div>
+              <div class="axes-layout" style="margin-top:8px;">
+                <div class="axis-y" aria-hidden="true">
+                  <svg class="axis-y-svg" viewBox="0 0 16 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                    <defs>
+                      <marker id="arrowhead-y" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                      </marker>
+                    </defs>
+                    <line x1="8" y1="6" x2="8" y2="94" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-y)" marker-end="url(#arrowhead-y)"></line>
+                  </svg>
+                  <div class="axis-label axis-label-y">Energy</div>
+                </div>
+                <div class="grid-wrapper">
+                  <div class="grid">
+                    {% set maxc = student_stats.max_count or 0 %}
+                    {% for y in range(size) %}
+                      <div class="row">
+                        {% for x in range(size) %}
+                          {% set c = student_stats.heatmap[y][x] %}
+                          {% set t = (c / maxc) if maxc else 0 %}
+                          {% set label = grid[y][x] %}
+                          <div class="cell" data-x="{{ x }}" data-y="{{ y }}" data-intensity="{{ t }}">
+                            <span class="cell-label">{{ label }}</span>
+                            {% if c %}<span class="heat-count">{{ c }}</span>{% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                <div class="axis-x" aria-hidden="true">
+                  <svg class="axis-x-svg" viewBox="0 0 100 16" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+                    <defs>
+                      <marker id="arrowhead-x" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+                      </marker>
+                    </defs>
+                    <line x1="6" y1="8" x2="94" y2="8" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-x)" marker-end="url(#arrowhead-x)"></line>
+                  </svg>
+                  <div class="axis-label axis-label-x">Pleasantness</div>
+                </div>
+              </div>
+            {% endif %}
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      const size = Number('{{ size|tojson }}');
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+      function bilinearColor(tX, tY, c00, c10, c01, c11) {
+        const top = [
+          lerp(c00[0], c10[0], tX),
+          lerp(c00[1], c10[1], tX),
+          lerp(c00[2], c10[2], tX),
+        ];
+        const bottom = [
+          lerp(c01[0], c11[0], tX),
+          lerp(c01[1], c11[1], tX),
+          lerp(c01[2], c11[2], tX),
+        ];
+        return [
+          Math.round(lerp(top[0], bottom[0], tY)),
+          Math.round(lerp(top[1], bottom[1], tY)),
+          Math.round(lerp(top[2], bottom[2], tY)),
+        ];
+      }
+      function mix(c0, c1, t){
+        return [
+          Math.round(lerp(c0[0], c1[0], t)),
+          Math.round(lerp(c0[1], c1[1], t)),
+          Math.round(lerp(c0[2], c1[2], t))
+        ];
+      }
+      function rgb(c){ return `rgb(${c[0]}, ${c[1]}, ${c[2]})`; }
+      const C_TL = [224, 56, 56];
+      const C_TR = [246, 223, 95];
+      const C_BL = [70, 112, 214];
+      const C_BR = [74, 201, 129];
+      // Quadrant-based color with sharp midline boundaries, gradient within quadrants
+      function quadrantColor(tX, tY) {
+        const left = tX <= 0.5;
+        const top = tY <= 0.5;
+        const qX = left ? (tX / 0.5) : ((tX - 0.5) / 0.5);
+        const qY = top ? (tY / 0.5) : ((tY - 0.5) / 0.5);
+        if (top && left) {
+          const anchor0 = C_TL;
+          const anchor1 = [235, 120, 80];
+          const horiz = [220, 70, 70];
+          const mixH = [
+            Math.round(lerp(anchor0[0], horiz[0], qX)),
+            Math.round(lerp(anchor0[1], horiz[1], qX)),
+            Math.round(lerp(anchor0[2], horiz[2], qX)),
+          ];
+          return [
+            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+          ];
+        }
+        if (top && !left) {
+          const anchor0 = C_TR;
+          const anchor1 = [255, 200, 80];
+          const horiz = [248, 230, 120];
+          const mixH = [
+            Math.round(lerp(anchor0[0], horiz[0], qX)),
+            Math.round(lerp(anchor0[1], horiz[1], qX)),
+            Math.round(lerp(anchor0[2], horiz[2], qX)),
+          ];
+          return [
+            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+          ];
+        }
+        if (!top && left) {
+          const anchor0 = C_BL;
+          const anchor1 = [110, 150, 230];
+          const horiz = [80, 130, 220];
+          const mixH = [
+            Math.round(lerp(anchor0[0], horiz[0], qX)),
+            Math.round(lerp(anchor0[1], horiz[1], qX)),
+            Math.round(lerp(anchor0[2], horiz[2], qX)),
+          ];
+          return [
+            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+          ];
+        }
+        // bottom-right
+        const anchor0 = C_BR;
+        const anchor1 = [120, 220, 150];
+        const horiz = [90, 210, 140];
+        const mixH = [
+          Math.round(lerp(anchor0[0], horiz[0], qX)),
+          Math.round(lerp(anchor0[1], horiz[1], qX)),
+          Math.round(lerp(anchor0[2], horiz[2], qX)),
+        ];
+        return [
+          Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+          Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+          Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+        ];
+      }
+      const NEUTRAL = [34, 36, 43];
+      function applyHeatColors(root) {
+        const cells = root.querySelectorAll('.cell[data-x][data-y]');
+        for (const cell of cells) {
+          const x = parseInt(cell.dataset.x, 10) || 0;
+          const y = parseInt(cell.dataset.y, 10) || 0;
+          const t = Math.max(0, Math.min(1, parseFloat(cell.dataset.intensity || '0')));
+          const tX = size > 1 ? x / (size - 1) : 0;
+          const tY = size > 1 ? y / (size - 1) : 0;
+          const base = quadrantColor(tX, tY);
+          const strength = 0.25 + 0.75 * t; // ensure faint color even at low intensity
+          const mixed = mix(NEUTRAL, base, strength);
+          const bg = `linear-gradient(140deg, ${rgb(mixed)}, rgba(0,0,0,0.15))`;
+          cell.style.background = bg;
+          cell.style.filter = `saturate(${0.7 + 0.8 * t}) brightness(${0.9 + 0.2 * t})`;
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          for (const grid of document.querySelectorAll('.grid')) applyHeatColors(grid);
+        });
+      } else {
+        for (const grid of document.querySelectorAll('.grid')) applyHeatColors(grid);
+      }
+    })();
+  </script>
+</body>
+</html>

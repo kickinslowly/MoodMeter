@@ -8,13 +8,44 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
 </head>
 <body>
-  <div class="page">
+  <div class="page mood-meter-page">
     <header class="header">
+      <div class="auth-actions">
+        {% if current_user.is_authenticated %}
+          <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
+          <span class="user-name">{{ current_user.name or current_user.email }}</span>
+          <a href="{{ url_for('dashboard') }}" class="google-login-btn" title="Go to Dashboard">Dashboard</a>
+          <span style="margin-left:8px; font-size:12px; opacity:.8;">Role: {{ current_user.role or 'student' }}</span>
+          <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
+            <button type="submit" class="logout-btn" title="Sign out">Logout</button>
+          </form>
+          <form method="post" action="{{ url_for('set_role') }}" style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
+            <label for="role" style="font-size:12px;">Set role</label>
+            <select name="role" id="role">
+              <option value="student" {% if current_user.role != 'teacher' %}selected{% endif %}>Student</option>
+              <option value="teacher" {% if current_user.role == 'teacher' %}selected{% endif %}>Teacher</option>
+            </select>
+            <button type="submit" class="logout-btn">Save</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('login_view') }}" class="google-login-btn" title="Sign in with Google">Sign in with Google</a>
+        {% endif %}
+      </div>
       <h1 class="title">Mood Meter</h1>
     </header>
     <main class="main">
       <div class="axes-layout">
-        <div class="y-axis-label">High Energy</div>
+        <div class="axis-y" aria-hidden="true">
+          <svg class="axis-y-svg" viewBox="0 0 16 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+            <defs>
+              <marker id="arrowhead-y" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+              </marker>
+            </defs>
+            <line x1="8" y1="6" x2="8" y2="94" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-y)" marker-end="url(#arrowhead-y)"></line>
+          </svg>
+          <div class="axis-label axis-label-y">Energy</div>
+        </div>
         <div class="grid-wrapper">
           <div class="grid" role="grid" aria-label="Mood grid">
             {% for y in range(size) %}
@@ -35,14 +66,25 @@
               </div>
             {% endfor %}
           </div>
-          <div class="x-axis">
-            <span class="x-left">Unpleasant</span>
-            <span class="x-right">Pleasant</span>
-          </div>
         </div>
-        <div class="y-axis-label y-bottom">Low Energy</div>
+        <div class="axis-x" aria-hidden="true">
+          <svg class="axis-x-svg" viewBox="0 0 100 16" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+            <defs>
+              <marker id="arrowhead-x" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+              </marker>
+            </defs>
+            <line x1="6" y1="8" x2="94" y2="8" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-x)" marker-end="url(#arrowhead-x)"></line>
+          </svg>
+          <div class="axis-label axis-label-x">Pleasantness</div>
+        </div>
       </div>
     </main>
+    <footer class="footer">
+      <div id="last-entry-footer" class="footer-last-entry">
+        {% if current_user.is_authenticated and last_entry %}Last Mood Meter entry: {{ last_entry }}{% endif %}
+      </div>
+    </footer>
   </div>
   <script>
     window.MOOD_GRID_SIZE = {{ size|tojson }};

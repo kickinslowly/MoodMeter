@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Groups</title>
+  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body>
+  <div style="max-width:900px;margin:0 auto;padding:16px;">
+    <h1>Your Groups</h1>
+    <p><a href="{{ url_for('dashboard') }}">Back to dashboard</a></p>
+    <ul>
+      {% for g in groups %}
+        <li>{{ g.name }} (ID: {{ g.id }})</li>
+      {% else %}
+        <li>No groups yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</body>
+</html>

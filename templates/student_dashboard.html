@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Student Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <style>
+    .dash-container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .dash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .filters { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 8px; margin: 12px 0 20px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .card { background: #1f2227; color: #e8eaeF; padding: 12px; border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06); }
+    .grid .cell { position: relative; }
+    .heat-count { position: absolute; right: 6px; bottom: 4px; font-size: 12px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .link-btn { color: #72d5ff; text-decoration: none; border: 1px solid #3a3f47; padding: 6px 10px; border-radius: 8px; }
+    .filter-form label { font-size: 12px; opacity: .8; display:block; margin-bottom:4px; }
+    .filter-form input { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid #3a3f47; background: #121418; color: #e8eaef; }
+    .filter-actions { grid-column: span 4; display: flex; gap: 8px; }
+    .btn { background: #2f3540; color: #e8eaef; border: 1px solid #3a3f47; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+
+    /* Collapsible filter styles */
+    .filter-collapsible { border: 1px solid #333842; border-radius: 10px; background: #1b1f25; padding: 8px 10px; }
+    .filter-collapsible > summary { list-style: none; cursor: pointer; font-weight: 600; color: #e8eaef; outline: none; }
+    .filter-collapsible > summary::-webkit-details-marker { display: none; }
+    .filter-collapsible[open] { padding-bottom: 10px; }
+    .filter-collapsible .filters { margin-top: 10px; }
+
+    /* Stats grouping sections */
+    .stat-sections { display: grid; gap: 14px; margin-bottom: 20px; }
+    .stat-section { border: 1px solid #333842; border-radius: 12px; padding: 10px; background: #1b1f25; }
+    .stat-section.energy-theme { border-color: rgba(74, 201, 129, 0.45); background: linear-gradient(180deg, rgba(74,201,129,0.08), transparent 60%) #1b1f25; }
+    .stat-section.pleasant-theme { border-color: rgba(246, 223, 95, 0.5); background: linear-gradient(180deg, rgba(246,223,95,0.10), transparent 60%) #1b1f25; }
+    .section-title { margin: 0 0 8px; font-size: 16px; opacity: .95; }
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .stat-stack { display: grid; gap: 8px; }
+    @media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 580px) { .stat-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="dash-container">
+    <div class="dash-header">
+      <h1>Student Dashboard</h1>
+      <div class="header-actions">
+        <a class="link-btn" href="{{ url_for('index') }}">Mood Meter</a>
+        <form method="post" action="{{ url_for('logout_view') }}">
+          <button type="submit" class="btn">Logout</button>
+        </form>
+      </div>
+    </div>
+
+    <form class="filter-form" method="get" action="{{ url_for('dashboard') }}">
+      {% if request.args.get('self') %}
+        <input type="hidden" name="self" value="1" />
+      {% endif %}
+      <details class="filter-collapsible" {% if filters.date_from or filters.date_to or filters.time_from or filters.time_to %}open{% endif %}>
+        <summary>Filter by day and time</summary>
+        <div class="filters">
+          <div>
+            <label for="date_from">From date</label>
+            <input type="date" id="date_from" name="date_from" value="{{ filters.date_from or '' }}" />
+          </div>
+          <div>
+            <label for="date_to">To date</label>
+            <input type="date" id="date_to" name="date_to" value="{{ filters.date_to or '' }}" />
+          </div>
+          <div>
+            <label for="time_from">From time</label>
+            <input type="time" id="time_from" name="time_from" value="{{ filters.time_from or '' }}" />
+          </div>
+          <div>
+            <label for="time_to">To time</label>
+            <input type="time" id="time_to" name="time_to" value="{{ filters.time_to or '' }}" />
+          </div>
+          <div class="filter-actions">
+            <button class="btn" type="submit">Apply filters</button>
+            <a class="btn" href="{{ url_for('dashboard') }}{% if request.args.get('self') %}?self=1{% endif %}">Reset</a>
+          </div>
+        </div>
+      </details>
+    </form>
+
+    <div class="stats">
+      <div class="card"><strong>Most common mood:</strong> {{ stats.most_common_mood or '—' }}</div>
+    </div>
+
+    {% set month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] %}
+    {% set day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+    {% macro hour12(h) -%}
+      {%- if h is not none -%}
+        {{ (h % 12) if (h % 12) else 12 }}:00 {{ 'PM' if h >= 12 else 'AM' }}
+      {%- else -%}
+        —
+      {%- endif -%}
+    {%- endmacro %}
+
+    <div class="stat-sections">
+      <section class="stat-section energy-theme" aria-labelledby="energy-stats-title">
+        <h3 id="energy-stats-title" class="section-title">Energy stats</h3>
+        <div class="stat-grid">
+          <div class="stat-stack">
+            <div class="card"><strong>Highest energy month:</strong> {{ month_names[stats.month_high_energy] if stats.month_high_energy is not none else '—' }}</div>
+            <div class="card"><strong>Lowest energy month:</strong> {{ month_names[stats.month_low_energy] if stats.month_low_energy is not none else '—' }}</div>
+          </div>
+          <div class="stat-stack">
+            <div class="card"><strong>Highest energy day:</strong> {{ day_names[stats.day_high_energy] if stats.day_high_energy is not none else '—' }}</div>
+            <div class="card"><strong>Lowest energy day:</strong> {{ day_names[stats.day_low_energy] if stats.day_low_energy is not none else '—' }}</div>
+          </div>
+          <div class="stat-stack">
+            <div class="card"><strong>Highest energy hour:</strong> {{ hour12(stats.time_high_energy) }}</div>
+            <div class="card"><strong>Lowest energy hour:</strong> {{ hour12(stats.time_low_energy) }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="stat-section pleasant-theme" aria-labelledby="pleasant-stats-title">
+        <h3 id="pleasant-stats-title" class="section-title">Pleasantness stats</h3>
+        <div class="stat-grid">
+          <div class="stat-stack">
+            <div class="card"><strong>Most pleasant month:</strong> {{ month_names[stats.month_most_pleasant] if stats.month_most_pleasant is not none else '—' }}</div>
+            <div class="card"><strong>Least pleasant month:</strong> {{ month_names[stats.month_least_pleasant] if stats.month_least_pleasant is not none else '—' }}</div>
+          </div>
+          <div class="stat-stack">
+            <div class="card"><strong>Most pleasant day:</strong> {{ day_names[stats.day_most_pleasant] if stats.day_most_pleasant is not none else '—' }}</div>
+            <div class="card"><strong>Least pleasant day:</strong> {{ day_names[stats.day_least_pleasant] if stats.day_least_pleasant is not none else '—' }}</div>
+          </div>
+          <div class="stat-stack">
+            <div class="card"><strong>Most pleasant hour:</strong> {{ hour12(stats.time_most_pleasant) }}</div>
+            <div class="card"><strong>Least pleasant hour:</strong> {{ hour12(stats.time_least_pleasant) }}</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:10px">Your heatmap</h3>
+      <div class="axes-layout">
+        <div class="axis-y" aria-hidden="true">
+          <svg class="axis-y-svg" viewBox="0 0 16 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+            <defs>
+              <marker id="arrowhead-y" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+              </marker>
+            </defs>
+            <line x1="8" y1="6" x2="8" y2="94" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-y)" marker-end="url(#arrowhead-y)"></line>
+          </svg>
+          <div class="axis-label axis-label-y">Energy</div>
+        </div>
+        <div class="grid-wrapper">
+          <div class="grid" role="grid" aria-label="Heatmap grid">
+            {% set maxc = stats.max_count or 0 %}
+            {% for y in range(size) %}
+              <div class="row" role="row">
+                {% for x in range(size) %}
+                  {% set c = stats.heatmap[y][x] %}
+                  {% set t = (c / maxc) if maxc else 0 %}
+                  {% set label = grid[y][x] %}
+                  <div class="cell" data-x="{{ x }}" data-y="{{ y }}" data-intensity="{{ t }}">
+                    <span class="cell-label">{{ label }}</span>
+                    {% if c %}<span class="heat-count">{{ c }}</span>{% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="axis-x" aria-hidden="true">
+          <svg class="axis-x-svg" viewBox="0 0 100 16" preserveAspectRatio="none" focusable="false" aria-hidden="true">
+            <defs>
+              <marker id="arrowhead-x" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L6,3 L0,6 z" fill="currentColor"></path>
+              </marker>
+            </defs>
+            <line x1="6" y1="8" x2="94" y2="8" stroke="currentColor" stroke-width="2" marker-start="url(#arrowhead-x)" marker-end="url(#arrowhead-x)"></line>
+          </svg>
+          <div class="axis-label axis-label-x">Pleasantness</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      // Ensure axis arrowheads point outward on both ends
+      try { document.querySelectorAll('marker#arrowhead-x, marker#arrowhead-y').forEach(m => m.setAttribute('orient','auto-start-reverse')); } catch {}
+      const size = Number('{{ size|tojson }}');
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+      function bilinearColor(tX, tY, c00, c10, c01, c11) {
+        const top = [
+          lerp(c00[0], c10[0], tX),
+          lerp(c00[1], c10[1], tX),
+          lerp(c00[2], c10[2], tX),
+        ];
+        const bottom = [
+          lerp(c01[0], c11[0], tX),
+          lerp(c01[1], c11[1], tX),
+          lerp(c01[2], c11[2], tX),
+        ];
+        return [
+          Math.round(lerp(top[0], bottom[0], tY)),
+          Math.round(lerp(top[1], bottom[1], tY)),
+          Math.round(lerp(top[2], bottom[2], tY)),
+        ];
+      }
+      function mix(c0, c1, t){
+        return [
+          Math.round(lerp(c0[0], c1[0], t)),
+          Math.round(lerp(c0[1], c1[1], t)),
+          Math.round(lerp(c0[2], c1[2], t))
+        ];
+      }
+      function rgb(c){ return `rgb(${c[0]}, ${c[1]}, ${c[2]})`; }
+      const C_TL = [224, 56, 56];
+      const C_TR = [246, 223, 95];
+      const C_BL = [70, 112, 214];
+      const C_BR = [74, 201, 129];
+      // Quadrant-based color with sharp midline boundaries, gradient within quadrants
+      function quadrantColor(tX, tY) {
+        const left = tX <= 0.5;
+        const top = tY <= 0.5;
+        const qX = left ? (tX / 0.5) : ((tX - 0.5) / 0.5);
+        const qY = top ? (tY / 0.5) : ((tY - 0.5) / 0.5);
+        if (top && left) {
+          const anchor0 = C_TL;
+          const anchor1 = [235, 120, 80];
+          const horiz = [220, 70, 70];
+          const mixH = [
+            Math.round(lerp(anchor0[0], horiz[0], qX)),
+            Math.round(lerp(anchor0[1], horiz[1], qX)),
+            Math.round(lerp(anchor0[2], horiz[2], qX)),
+          ];
+          return [
+            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+          ];
+        }
+        if (top && !left) {
+          const anchor0 = C_TR;
+          const anchor1 = [255, 200, 80];
+          const horiz = [248, 230, 120];
+          const mixH = [
+            Math.round(lerp(anchor0[0], horiz[0], qX)),
+            Math.round(lerp(anchor0[1], horiz[1], qX)),
+            Math.round(lerp(anchor0[2], horiz[2], qX)),
+          ];
+          return [
+            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+          ];
+        }
+        if (!top && left) {
+          const anchor0 = C_BL;
+          const anchor1 = [110, 150, 230];
+          const horiz = [80, 130, 220];
+          const mixH = [
+            Math.round(lerp(anchor0[0], horiz[0], qX)),
+            Math.round(lerp(anchor0[1], horiz[1], qX)),
+            Math.round(lerp(anchor0[2], horiz[2], qX)),
+          ];
+          return [
+            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+          ];
+        }
+        // bottom-right
+        const anchor0 = C_BR;
+        const anchor1 = [120, 220, 150];
+        const horiz = [90, 210, 140];
+        const mixH = [
+          Math.round(lerp(anchor0[0], horiz[0], qX)),
+          Math.round(lerp(anchor0[1], horiz[1], qX)),
+          Math.round(lerp(anchor0[2], horiz[2], qX)),
+        ];
+        return [
+          Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
+          Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
+          Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
+        ];
+      }
+      const NEUTRAL = [34, 36, 43];
+      function applyHeatColors(root) {
+        const cells = root.querySelectorAll('.cell[data-x][data-y]');
+        for (const cell of cells) {
+          const x = parseInt(cell.dataset.x, 10) || 0;
+          const y = parseInt(cell.dataset.y, 10) || 0;
+          const t = Math.max(0, Math.min(1, parseFloat(cell.dataset.intensity || '0')));
+          const tX = size > 1 ? x / (size - 1) : 0;
+          const tY = size > 1 ? y / (size - 1) : 0;
+          const base = quadrantColor(tX, tY);
+          const strength = 0.25 + 0.75 * t; // ensure faint color even at low intensity
+          const mixed = mix(NEUTRAL, base, strength);
+          const bg = `linear-gradient(140deg, ${rgb(mixed)}, rgba(0,0,0,0.15))`;
+          cell.style.background = bg;
+          cell.style.filter = `saturate(${0.7 + 0.8 * t}) brightness(${0.9 + 0.2 * t})`;
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          for (const grid of document.querySelectorAll('.grid')) applyHeatColors(grid);
+        });
+      } else {
+        for (const grid of document.querySelectorAll('.grid')) applyHeatColors(grid);
+      }
+    })();
+  </script>
+</body>
+</html>
