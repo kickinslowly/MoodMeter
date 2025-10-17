@@ -170,12 +170,22 @@
           <h3>Manage members</h3>
           {% if groups %}
             <form id="addMemberForm2" method="post" action="{{ url_for('add_member', group_id=(current_group_id or groups[0].id)) }}" style="display:grid; grid-template-columns: 1fr auto; gap:8px;">
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
                 <div>
                   <label for="manage_group">Target group</label>
                   <select id="manage_group" name="group_id" onchange="document.getElementById('addMemberForm2').action='/groups/' + this.value + '/members'">
                     {% for g in groups %}
                       <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label for="student_select2">Existing student</label>
+                  <select id="student_select2">
+                    <option value="">-- Choose student --</option>
+                    {% for s in all_students %}
+                      {% set label = (s.name or s.email) %}
+                      <option value="{{ s.email }}">{{ label }}{% if s.name and s.email %} ({{ s.email }}){% endif %}</option>
                     {% endfor %}
                   </select>
                 </div>
@@ -342,6 +352,15 @@
           });
         }
 
+        // Manage tab: existing student dropdown populates email field
+        const studentSelect2 = document.getElementById('student_select2');
+        if (studentSelect2){
+          studentSelect2.addEventListener('change', function(){
+            const emailInput = document.getElementById('student_email2');
+            if (emailInput) emailInput.value = this.value || '';
+          });
+        }
+
         // Manage tab: intercept Add Member form to use fetch
         const addForm = document.getElementById('addMemberForm2');
         if (addForm){
@@ -354,12 +373,17 @@
             try {
               const resp = await fetch(`/groups/${encodeURIComponent(gid)}/members`, {
                 method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
                 body: new URLSearchParams({ email })
               });
               const json = await resp.json().catch(()=>({}));
               if (resp.ok && json.ok){
-                // reload to show updated member list
-                window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#manage';
+                // force reload to show updated member list (cache-busted)
+                window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#manage');
               } else {
                 alert('Failed to add member' + (json.detail ? (': ' + json.detail) : ''));
               }
@@ -378,10 +402,16 @@
           if (!gid || !sid) return;
           if (!confirm('Remove this user from the group?')) return;
           try {
-            const resp = await fetch(`/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(sid)}/remove`, { method: 'POST' });
+            const resp = await fetch(`/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(sid)}/remove`, { 
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+              }
+            });
             const json = await resp.json().catch(()=>({}));
             if (resp.ok && json.ok){
-              window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#manage';
+              window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#manage');
             } else {
               alert('Failed to remove member' + (json.detail ? (': ' + json.detail) : ''));
             }
@@ -398,10 +428,16 @@
             if (!gid) return;
             if (!confirm('Delete this group and remove all its memberships?')) return;
             try {
-              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/delete`, { method: 'POST' });
+              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/delete`, { 
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest'
+                }
+              });
               const json = await resp.json().catch(()=>({}));
               if (resp.ok && json.ok){
-                window.location.href = '/dashboard#manage';
+                window.location.assign('/dashboard?r=' + Date.now() + '#manage');
               } else {
                 alert('Failed to delete group' + (json.detail ? (': ' + json.detail) : ''));
               }
