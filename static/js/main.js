@@ -15,26 +15,6 @@
   function lerp(a, b, t) { return a + (b - a) * t; }
   function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 
-  // Bilinear blend between four corner colors (in RGB arrays)
-  function bilinearColor(x, y, c00, c10, c01, c11) {
-    const tX = clamp01(x);
-    const tY = clamp01(y);
-    const top = [
-      lerp(c00[0], c10[0], tX),
-      lerp(c00[1], c10[1], tX),
-      lerp(c00[2], c10[2], tX),
-    ];
-    const bottom = [
-      lerp(c01[0], c11[0], tX),
-      lerp(c01[1], c11[1], tX),
-      lerp(c01[2], c11[2], tX),
-    ];
-    return [
-      Math.round(lerp(top[0], bottom[0], tY)),
-      Math.round(lerp(top[1], bottom[1], tY)),
-      Math.round(lerp(top[2], bottom[2], tY)),
-    ];
-  }
 
   function rgb(r, g, b) { return `rgb(${r}, ${g}, ${b})`; }
 
@@ -192,12 +172,13 @@
     // Browser local timezone info
     const tzOffset = -new Date().getTimezoneOffset(); // minutes offset from UTC (e.g., -420 for PDT)
     const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    const sid = (typeof window.getActiveSessionId === 'function') ? window.getActiveSessionId() : null;
 
     try {
       const res = await fetch('/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ x, y, label, ts, tzOffset, tzName })
+        body: JSON.stringify({ x, y, label, ts, tzOffset, tzName, session_id: sid })
       });
       const data = await res.json();
       if (!data.ok) {
@@ -467,9 +448,116 @@
     }, 30000);
   }
 
+  function isMobileViewport() {
+    return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+  }
+
+  function buildQuadrantMap() {
+    const mid = Math.floor(size / 2);
+    const cells = Array.from(document.querySelectorAll('.grid .cell'));
+    const map = { red: [], yellow: [], blue: [], green: [] };
+    for (const c of cells) {
+      const x = parseInt(c.dataset.x, 10);
+      const y = parseInt(c.dataset.y, 10);
+      const label = c.dataset.label || (c.textContent || '').trim();
+      const top = y < mid;
+      const left = x < mid;
+      let q;
+      if (top && left) q = 'red';
+      else if (top && !left) q = 'yellow';
+      else if (!top && left) q = 'blue';
+      else q = 'green';
+      map[q].push({ x, y, label });
+    }
+    for (const k of Object.keys(map)) {
+      map[k] = map[k]
+        .filter(it => it.label && it.label.length > 0)
+        .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    }
+    return map;
+  }
+
+  function initMobileMoodUI() {
+    const root = document.getElementById('mobile-mood-ui');
+    if (!root) return;
+    const drill = document.getElementById('mobile-drilldown');
+    const drillTitle = drill ? drill.querySelector('.mobile-drilldown-title') : null;
+    const drillList = drill ? drill.querySelector('.mobile-drilldown-list') : null;
+    const backBtn = drill ? drill.querySelector('.back-btn') : null;
+
+    function showDrill(quadrant, titleText, quadMap) {
+      if (!drill || !drillTitle || !drillList) return;
+      drillTitle.textContent = titleText || '';
+      drillList.innerHTML = '';
+      const items = quadMap[quadrant] || [];
+      for (const item of items) {
+        const btn = document.createElement('button');
+        btn.className = 'mobile-mood-item';
+        btn.type = 'button';
+        btn.setAttribute('role', 'gridcell');
+        btn.textContent = item.label;
+        btn.dataset.x = String(item.x);
+        btn.dataset.y = String(item.y);
+        btn.dataset.label = item.label;
+        btn.ariaLabel = item.label;
+        try {
+          const base = computeCellColor(item.x, item.y);
+          btn.style.background = `linear-gradient(140deg, ${base}, rgba(0,0,0,0.15))`;
+          btn.style.filter = 'saturate(1.05)';
+        } catch (_) { /* ignore coloring errors */ }
+        const handlePick = () => {
+          const selector = `.grid .cell[data-x="${item.x}"][data-y="${item.y}"]`;
+          const cell = document.querySelector(selector);
+          if (cell) {
+            try { onCellClick(cell); } catch (_) {}
+          }
+          drill.hidden = true;
+        };
+        btn.addEventListener('click', handlePick);
+        btn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handlePick();
+          }
+        });
+        drillList.appendChild(btn);
+      }
+      drill.hidden = false;
+      try {
+        const first = drillList.querySelector('.mobile-mood-item');
+        if (first) first.focus();
+      } catch (_) { /* ignore focus errors */ }
+    }
+
+    function setup() {
+      const mobile = isMobileViewport();
+      root.hidden = !mobile;
+      if (!mobile) return;
+      if (root.dataset.ready === '1') return;
+
+      const quadMap = buildQuadrantMap();
+      const redBtn = root.querySelector('[data-quadrant="red"]');
+      const yellowBtn = root.querySelector('[data-quadrant="yellow"]');
+      const blueBtn = root.querySelector('[data-quadrant="blue"]');
+      const greenBtn = root.querySelector('[data-quadrant="green"]');
+
+      if (redBtn) redBtn.addEventListener('click', () => showDrill('red', 'Angry', quadMap));
+      if (yellowBtn) yellowBtn.addEventListener('click', () => showDrill('yellow', 'Happy', quadMap));
+      if (blueBtn) blueBtn.addEventListener('click', () => showDrill('blue', 'Sad', quadMap));
+      if (greenBtn) greenBtn.addEventListener('click', () => showDrill('green', 'Calm', quadMap));
+      if (backBtn) backBtn.addEventListener('click', () => { if (drill) drill.hidden = true; });
+
+      root.dataset.ready = '1';
+    }
+
+    setup();
+    window.addEventListener('resize', setup);
+  }
+
   function initAll() {
     initGrid();
     initLastEntryPolling();
+    try { initMobileMoodUI(); } catch (_) {}
   }
 
   if (document.readyState === 'loading') {
@@ -575,3 +663,263 @@ function showNeonWarning(message, options) {
   }
   window.addEventListener('keydown', onKey);
 }
+
+
+// --- Session management and aggregated heat rendering ---
+(function(){
+  function getActiveSession(){
+    try {
+      const id = localStorage.getItem('session_id');
+      const pin = localStorage.getItem('session_pin');
+      return id ? { id: parseInt(id, 10), pin: pin || null } : null;
+    } catch { return null; }
+  }
+  window.getActiveSessionId = function(){ const s = getActiveSession(); return s ? s.id : null; };
+
+  function setActiveSession(id, pin){
+    try { localStorage.setItem('session_id', String(id)); if (pin) localStorage.setItem('session_pin', String(pin)); } catch {}
+    updateSessionUI();
+    startSessionPolling();
+  }
+  function clearActiveSession(){
+    try { localStorage.removeItem('session_id'); localStorage.removeItem('session_pin'); } catch {}
+    updateSessionUI();
+    stopSessionPolling();
+    applySessionHeat(null, 0);
+  }
+
+  async function createSession(){
+    const res = await fetch('/api/session/create', { method: 'POST' });
+    const j = await res.json().catch(()=>null);
+    if (res.ok && j && j.ok){
+      setActiveSession(j.session_id, j.pin);
+      try { await navigator.clipboard.writeText(String(j.pin)); } catch {}
+      return { id: j.session_id, pin: j.pin };
+    }
+    throw new Error((j && j.error) || 'CREATE_FAILED');
+  }
+  async function joinSession(pin){
+    const res = await fetch('/api/session/join', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: String(pin).trim() })
+    });
+    const j = await res.json().catch(()=>null);
+    if (res.ok && j && j.ok){
+      setActiveSession(j.session_id, String(pin).trim());
+      return { id: j.session_id, pin: String(pin).trim() };
+    }
+    const err = (j && j.error) || 'JOIN_FAILED';
+    const e = new Error(err); e.code = err; throw e;
+  }
+
+  function updateSessionUI(){
+    const btn = document.getElementById('sessionBtn');
+    const status = document.getElementById('sessionStatus');
+    const s = getActiveSession();
+    if (!btn) return;
+    if (s){
+      btn.textContent = 'Session ' + (s.pin || ('#' + s.id));
+      btn.classList.add('active');
+      if (status) status.textContent = 'PIN ' + (s.pin || '—');
+    } else {
+      btn.textContent = 'Session';
+      btn.classList.remove('active');
+      if (status) status.textContent = '';
+    }
+  }
+  function onSessionBtn(e){
+    if (e && e.preventDefault) e.preventDefault();
+    openSessionMenu();
+  }
+
+  // In-page Session Menu (popover)
+  let sessionMenuEl = null;
+  function ensureSessionMenu(){
+    if (!sessionMenuEl){
+      sessionMenuEl = document.createElement('div');
+      sessionMenuEl.id = 'sessionMenu';
+      sessionMenuEl.className = 'session-menu';
+      sessionMenuEl.setAttribute('role', 'dialog');
+      sessionMenuEl.setAttribute('aria-modal', 'true');
+      sessionMenuEl.style.display = 'none';
+      document.body.appendChild(sessionMenuEl);
+    }
+    return sessionMenuEl;
+  }
+  function openSessionMenu(){
+    const el = ensureSessionMenu();
+    renderSessionMenu(el);
+    el.style.display = 'block';
+    positionSessionMenu();
+    document.addEventListener('click', onSessionDocClick, true);
+    window.addEventListener('resize', positionSessionMenu);
+    window.addEventListener('keydown', onSessionKey);
+  }
+  function closeSessionMenu(){
+    if (!sessionMenuEl) return;
+    sessionMenuEl.style.display = 'none';
+    document.removeEventListener('click', onSessionDocClick, true);
+    window.removeEventListener('resize', positionSessionMenu);
+    window.removeEventListener('keydown', onSessionKey);
+  }
+  function onSessionDocClick(e){
+    const btn = document.getElementById('sessionBtn');
+    if (!sessionMenuEl) return;
+    if (sessionMenuEl.contains(e.target)) return;
+    if (btn && (btn === e.target || btn.contains(e.target))) return;
+    closeSessionMenu();
+  }
+  function onSessionKey(e){ if (e.key === 'Escape'){ e.preventDefault(); closeSessionMenu(); } }
+  function positionSessionMenu(){
+    const btn = document.getElementById('sessionBtn'); if (!btn || !sessionMenuEl) return;
+    const r = btn.getBoundingClientRect();
+    const top = r.bottom + 8;
+    let left = r.left;
+    // Ensure width is measured
+    sessionMenuEl.style.visibility = 'hidden';
+    sessionMenuEl.style.display = 'block';
+    const menuWidth = sessionMenuEl.offsetWidth || 280;
+    sessionMenuEl.style.display = '';
+    sessionMenuEl.style.visibility = '';
+    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+    if (left + menuWidth > vw - 8) left = vw - menuWidth - 8;
+    sessionMenuEl.style.top = Math.round(top) + 'px';
+    sessionMenuEl.style.left = Math.round(left) + 'px';
+  }
+  function renderSessionMenu(root){
+    const s = getActiveSession();
+    if (!s){
+      root.innerHTML = `
+        <h4>Session</h4>
+        <div class="actions">
+          <button type="button" id="createSessionBtn">Create a session</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <input id="joinPinInput" type="text" inputmode="numeric" pattern="\\d*" maxlength="6" placeholder="Enter PIN" />
+          <button type="button" id="joinSessionBtn">Join</button>
+        </div>
+        <div class="note" id="sessionNote">Create to generate a PIN to share, or join with a PIN.</div>
+      `;
+      const createBtn = root.querySelector('#createSessionBtn');
+      const joinBtn = root.querySelector('#joinSessionBtn');
+      const pinInput = root.querySelector('#joinPinInput');
+      const note = root.querySelector('#sessionNote');
+      createBtn.addEventListener('click', async ()=>{
+        createBtn.disabled = true;
+        try {
+          const out = await createSession();
+          note.textContent = `Session created. PIN ${out.pin} was copied to clipboard.`;
+          // Re-render to show active actions
+          renderSessionMenu(root);
+        } catch (_e) {
+          note.textContent = 'Failed to create session. Please try again.';
+        } finally {
+          createBtn.disabled = false;
+        }
+      });
+      joinBtn.addEventListener('click', async ()=>{
+        const pin = pinInput.value.trim();
+        if (!pin){ note.textContent = 'Please enter a PIN.'; pinInput.focus(); return; }
+        joinBtn.disabled = true; pinInput.disabled = true;
+        try {
+          await joinSession(pin);
+          closeSessionMenu();
+        } catch (e) {
+          note.textContent = (e && e.code === 'NOT_FOUND') ? 'Session not found or inactive.' : 'Failed to join session.';
+          pinInput.disabled = false; joinBtn.disabled = false; pinInput.focus();
+        }
+      });
+      pinInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ e.preventDefault(); root.querySelector('#joinSessionBtn').click(); } });
+      setTimeout(()=>{ pinInput.focus(); }, 0);
+    } else {
+      const pin = s.pin || '';
+      root.innerHTML = `
+        <h4>Session active</h4>
+        <div class="note">PIN: <strong>${pin || '—'}</strong></div>
+        <div class="actions" style="margin-top:8px;">
+          <button type="button" id="copyPinBtn">Copy PIN</button>
+          <button type="button" id="leaveSessionBtn">Leave session</button>
+        </div>
+      `;
+      const copyBtn = root.querySelector('#copyPinBtn');
+      copyBtn.addEventListener('click', async ()=>{
+        try { await navigator.clipboard.writeText(String(pin)); } catch {}
+        const n = document.createElement('div'); n.className = 'note'; n.textContent = 'PIN copied to clipboard.'; root.appendChild(n);
+        setTimeout(()=>{ if (n.isConnected) n.remove(); }, 1800);
+      });
+      root.querySelector('#leaveSessionBtn').addEventListener('click', ()=>{
+        clearActiveSession();
+        closeSessionMenu();
+      });
+    }
+    positionSessionMenu();
+  }
+
+  // Polling aggregated stats for active session
+  let pollTimer = null;
+  function startSessionPolling(){
+    const s = getActiveSession();
+    if (!s || !s.id) return;
+    stopSessionPolling();
+    const intervalMs = 2000;
+    const tick = async () => {
+      const cur = getActiveSession();
+      if (!cur || !cur.id){ stopSessionPolling(); return; }
+      try {
+        const res = await fetch(`/api/session/${encodeURIComponent(cur.id)}/stats`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+        const j = await res.json().catch(()=>null);
+        if (res.ok && j && j.ok){
+          applySessionHeat(j.heatmap, j.max_count || 0);
+        }
+      } catch {}
+    };
+    pollTimer = setInterval(tick, intervalMs);
+    tick();
+  }
+  function stopSessionPolling(){ if (pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
+
+  function ensureCountBadge(cell){
+    let b = cell.querySelector('.count-badge');
+    if (!b){ b = document.createElement('span'); b.className = 'count-badge'; cell.appendChild(b); }
+    return b;
+  }
+  function applySessionHeat(heat, maxCount){
+    const cells = document.querySelectorAll('.grid .cell');
+    if (!cells.length) return;
+    if (!heat){
+      for (const cell of cells){
+        cell.classList.remove('session-glow');
+        cell.style.removeProperty('--session-glow');
+        const b = cell.querySelector('.count-badge'); if (b) b.remove();
+      }
+      return;
+    }
+    for (const cell of cells){
+      const x = parseInt(cell.dataset.x, 10);
+      const y = parseInt(cell.dataset.y, 10);
+      const c = (heat[y] && heat[y][x]) ? heat[y][x] : 0;
+      const t = maxCount ? Math.sqrt(c / maxCount) : 0;
+      if (c > 0){
+        cell.classList.add('session-glow');
+        cell.style.setProperty('--session-glow', String(t));
+        const badge = ensureCountBadge(cell);
+        badge.textContent = String(c);
+        badge.style.display = '';
+      } else {
+        cell.classList.remove('session-glow');
+        cell.style.removeProperty('--session-glow');
+        const badge = cell.querySelector('.count-badge'); if (badge) badge.style.display = 'none';
+      }
+    }
+  }
+
+  function initSession(){
+    const btn = document.getElementById('sessionBtn');
+    if (btn){ btn.addEventListener('click', onSessionBtn); }
+    updateSessionUI();
+    const s = getActiveSession();
+    if (s && s.id){ startSessionPolling(); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSession); else initSession();
+})();

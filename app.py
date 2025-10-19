@@ -4,11 +4,13 @@ from pathlib import Path
 import os
 from datetime import datetime, timezone, timedelta
 import uuid
+import random
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+from flask_migrate import Migrate, upgrade as alembic_upgrade
 from flask_login import LoginManager, UserMixin, current_user, logout_user, login_user
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
+from functools import lru_cache
 
 # Load environment variables from a .env file if present
 load_dotenv()
@@ -59,6 +61,28 @@ migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 
 
+def _auto_upgrade_db():
+    """Attempt to auto-apply Alembic migrations on startup.
+    Safe to run multiple times; no-op if already up-to-date.
+    Any failure is logged but won't crash the app.
+    """
+    try:
+        with app.app_context():
+            alembic_upgrade()
+            app.logger.info("Database schema is up to date (auto-upgrade successful).")
+    except Exception as e:
+        # Log and continue; app might still work if schema already compatible
+        try:
+            app.logger.warning(f"Auto DB upgrade failed: {e}")
+        except Exception:
+            # logger might not be ready in some contexts; ignore
+            pass
+
+
+# Run migrations right after extensions initialization, before any DB usage
+_auto_upgrade_db()
+
+
 # Models
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
@@ -93,6 +117,16 @@ class GroupMember(db.Model):
     student = db.relationship('User')
 
 
+class Session(db.Model):
+    __tablename__ = 'sessions'
+    id = db.Column(db.Integer, primary_key=True)
+    pin = db.Column(db.String(10), unique=True, nullable=False, index=True)
+    owner_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, index=True)
+    owner = db.relationship('User')
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 class MoodSubmission(db.Model):
     __tablename__ = 'mood_submissions'
     id = db.Column(db.Integer, primary_key=True)
@@ -101,9 +135,10 @@ class MoodSubmission(db.Model):
     x = db.Column(db.Integer, nullable=False)
     y = db.Column(db.Integer, nullable=False)
     label = db.Column(db.String(255), nullable=True)
-    chosen_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    chosen_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
     ip = db.Column(db.String(45), nullable=True)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('sessions.id'), nullable=True, index=True)
 
 
 @login_manager.user_loader
@@ -119,6 +154,16 @@ def get_client_ip() -> str | None:
         # X-Forwarded-For may contain a list; use first (original client)
         return xfwd.split(',')[0].strip()
     return request.remote_addr
+
+
+def get_last_submission(user_id: str):
+    """Return the latest MoodSubmission for the given user_id, or None."""
+    return (
+        MoodSubmission.query
+        .filter(MoodSubmission.user_id == user_id)
+        .order_by(MoodSubmission.created_at.desc())
+        .first()
+    )
 
 
 def load_grid_from_csv(csv_path: Path):
@@ -154,6 +199,21 @@ def load_grid_from_csv(csv_path: Path):
     elif len(grid) > 10:
         grid = grid[:10]
     return grid
+
+
+@lru_cache(maxsize=1)
+def _load_grid_cached(path_str: str, mtime):
+    return load_grid_from_csv(Path(path_str))
+
+
+def get_label_grid() -> list[list[str]]:
+    """Return the 10x10 label grid from CSV with simple mtime-based caching."""
+    csv_path = Path(__file__).parent / 'Mood_Meter_DataFrame.csv'
+    try:
+        mtime = os.path.getmtime(csv_path)
+    except Exception:
+        mtime = None
+    return _load_grid_cached(str(csv_path), mtime)
 
 
 def _ordinal(n: int) -> str:
@@ -193,18 +253,12 @@ def format_last_entry(dt: datetime) -> str:
 
 @app.route('/')
 def index():
-    csv_path = Path(__file__).parent / 'Mood_Meter_DataFrame.csv'
-    grid = load_grid_from_csv(csv_path)
+    grid = get_label_grid()
     size = 10 if grid else 0
     # Determine last entry for the logged-in user (if any)
     last_entry_str = None
     if getattr(current_user, 'is_authenticated', False):
-        last = (
-            MoodSubmission.query
-            .filter(MoodSubmission.user_id == current_user.get_id())
-            .order_by(MoodSubmission.created_at.desc())
-            .first()
-        )
+        last = get_last_submission(current_user.get_id())
         if last and last.chosen_at:
             last_entry_str = format_last_entry(last.chosen_at)
     return render_template('index.html', grid=grid, size=size, last_entry=last_entry_str)
@@ -218,12 +272,7 @@ def api_last_entry():
     try:
         if not getattr(current_user, 'is_authenticated', False):
             return jsonify({"ok": True, "last_entry": None, "chosen_at": None, "created_at": None, "id": None})
-        last = (
-            MoodSubmission.query
-            .filter(MoodSubmission.user_id == current_user.get_id())
-            .order_by(MoodSubmission.created_at.desc())
-            .first()
-        )
+        last = get_last_submission(current_user.get_id())
         if not last:
             return jsonify({"ok": True, "last_entry": None, "chosen_at": None, "created_at": None, "id": None})
         formatted = format_last_entry(last.chosen_at) if last.chosen_at else None
@@ -257,12 +306,7 @@ def record_click():
     # Enforce 10-minute per-user throttle for authenticated users
     user_id = current_user.get_id() if getattr(current_user, 'is_authenticated', False) else None
     if user_id:
-        last = (
-            MoodSubmission.query
-            .filter(MoodSubmission.user_id == user_id)
-            .order_by(MoodSubmission.created_at.desc())
-            .first()
-        )
+        last = get_last_submission(user_id)
         if last is not None and last.created_at is not None:
             now_utc = datetime.now(timezone.utc)
             last_created = last.created_at
@@ -302,6 +346,17 @@ def record_click():
         chosen_at = datetime.now(timezone.utc)
 
     try:
+        # Optional session association via provided session_id
+        valid_session_id = None
+        raw_sid = data.get('session_id') or data.get('sessionId')
+        try:
+            raw_sid_int = int(raw_sid) if raw_sid is not None else None
+        except Exception:
+            raw_sid_int = None
+        if isinstance(raw_sid_int, int):
+            s = db.session.get(Session, raw_sid_int)
+            if s and getattr(s, 'active', True):
+                valid_session_id = raw_sid_int
         sub = MoodSubmission(
             user_id=user_id,
             x=x,
@@ -309,6 +364,7 @@ def record_click():
             label=label,
             chosen_at=chosen_at,
             ip=get_client_ip(),
+            session_id=valid_session_id,
         )
         db.session.add(sub)
         db.session.commit()
@@ -419,7 +475,6 @@ def _apply_filters(query, date_from: Optional[str], date_to: Optional[str], time
             end = datetime.strptime(date_to, '%Y-%m-%d').replace(tzinfo=timezone.utc)
             # add one day
             end = end.replace(hour=0, minute=0, second=0, microsecond=0)
-            from datetime import timedelta
             end = end + timedelta(days=1)
             query = query.filter(MoodSubmission.chosen_at < end)
         except Exception:
@@ -457,10 +512,18 @@ def _compute_stats(submissions: Iterable[MoodSubmission]):
     by_month_energy: dict[int, list[int]] = defaultdict(list)
     by_dow_energy: dict[int, list[int]] = defaultdict(list)
 
+    # Overall average accumulators (within bounds only)
+    sum_x = 0
+    sum_y = 0
+    n_valid = 0
+
     for s in submissions:
         total += 1
         if 0 <= s.x < 10 and 0 <= s.y < 10:
             heat[s.y][s.x] += 1
+            sum_x += s.x
+            sum_y += s.y
+            n_valid += 1
         if s.label:
             labels.append(s.label)
         dt = s.chosen_at
@@ -517,12 +580,14 @@ def _compute_stats(submissions: Iterable[MoodSubmission]):
     worst_dow = worst_key(by_dow_vals)
 
     # New energy (y) and pleasantness (x) extremes for month/day/time
-    month_high_energy = best_key(by_month_energy)
-    month_low_energy = worst_key(by_month_energy)
-    day_high_energy = best_key(by_dow_energy)
-    day_low_energy = worst_key(by_dow_energy)
-    time_high_energy = best_key(by_hour_energy)
-    time_low_energy = worst_key(by_hour_energy)
+    # Note: y=0 is highest energy (top of grid), larger y = lower energy. So
+    # highest energy corresponds to MIN average y, lowest energy to MAX average y.
+    month_high_energy = worst_key(by_month_energy)  # min y = higher energy
+    month_low_energy = best_key(by_month_energy)    # max y = lower energy
+    day_high_energy = worst_key(by_dow_energy)
+    day_low_energy = best_key(by_dow_energy)
+    time_high_energy = worst_key(by_hour_energy)
+    time_low_energy = best_key(by_hour_energy)
 
     month_most_pleasant = best_key(by_month_vals)
     month_least_pleasant = worst_key(by_month_vals)
@@ -533,6 +598,39 @@ def _compute_stats(submissions: Iterable[MoodSubmission]):
 
     # max for heat normalization
     max_count = max((c for row in heat for c in row), default=0)
+
+    # Compute overall average and its quadrant meaning
+    avg_x = (sum_x / n_valid) if n_valid > 0 else None
+    avg_y = (sum_y / n_valid) if n_valid > 0 else None
+    avg_tx = None
+    avg_ty = None
+    avg_quadrant = None
+    avg_quadrant_label = None
+    avg_meaning = None
+    if avg_x is not None and avg_y is not None:
+        # normalized to [0,1] based on cell centers
+        size = 10
+        avg_tx = ((avg_x + 0.5) / size)
+        avg_ty = ((avg_y + 0.5) / size)
+        # Determine quadrant based on midlines between 4 and 5
+        left = avg_x < 5
+        top = avg_y < 5  # y=0 is top/high energy
+        if top and left:
+            avg_quadrant = 'red'
+            avg_quadrant_label = 'Red (High energy, unpleasant)'
+            avg_meaning = 'Tends toward high energy and unpleasant feelings.'
+        elif top and not left:
+            avg_quadrant = 'yellow'
+            avg_quadrant_label = 'Yellow (High energy, pleasant)'
+            avg_meaning = 'Tends toward high energy and pleasant feelings.'
+        elif (not top) and left:
+            avg_quadrant = 'blue'
+            avg_quadrant_label = 'Blue (Low energy, unpleasant)'
+            avg_meaning = 'Tends toward low energy and unpleasant feelings.'
+        else:
+            avg_quadrant = 'green'
+            avg_quadrant_label = 'Green (Low energy, pleasant)'
+            avg_meaning = 'Tends toward low energy and pleasant feelings.'
 
     return {
         'total': total,
@@ -559,6 +657,15 @@ def _compute_stats(submissions: Iterable[MoodSubmission]):
         'time_least_pleasant': time_least_pleasant,
         'heatmap': heat,
         'max_count': max_count,
+        # average anchor
+        'avg_x': avg_x,
+        'avg_y': avg_y,
+        'avg_tx': avg_tx,
+        'avg_ty': avg_ty,
+        'avg_count': n_valid,
+        'avg_quadrant': avg_quadrant,
+        'avg_quadrant_label': avg_quadrant_label,
+        'avg_meaning': avg_meaning,
     }
 
 
@@ -566,8 +673,7 @@ def _compute_stats(submissions: Iterable[MoodSubmission]):
 def dashboard():
     if not getattr(current_user, 'is_authenticated', False):
         return redirect(url_for('login_view'))
-    csv_path = Path(__file__).parent / 'Mood_Meter_DataFrame.csv'
-    grid = load_grid_from_csv(csv_path)
+    grid = get_label_grid()
 
     df, dt, tf, tt = _parse_dt_filters()
 
@@ -798,6 +904,131 @@ def delete_group(group_id: int):
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
+# --- API: heatmap cell entries ---
+@app.route('/api/cell-entries', methods=['GET'])
+def api_cell_entries():
+    """Return list of mood submissions (dates/times) for a specific heatmap cell.
+    Query params:
+      - x, y: required cell coordinates (0..9)
+      - date_from, date_to (YYYY-MM-DD)
+      - time_from, time_to (HH:MM 24h)
+      - Optional (teacher): group_id, student_id
+    """
+    try:
+        if not getattr(current_user, 'is_authenticated', False):
+            return jsonify({"ok": False, "error": "UNAUTHENTICATED"}), 401
+        x = request.args.get('x', type=int)
+        y = request.args.get('y', type=int)
+        if x is None or y is None or not (0 <= x < 10) or not (0 <= y < 10):
+            return jsonify({"ok": False, "error": "BAD_COORDS"}), 400
+
+        # Parse filters
+        df, dt, tf, tt = _parse_dt_filters()
+
+        q = MoodSubmission.query.filter(MoodSubmission.x == x, MoodSubmission.y == y)
+
+        # Context: teacher vs student
+        if getattr(current_user, 'role', 'student') == 'teacher':
+            group_id = request.args.get('group_id', type=int)
+            student_id = request.args.get('student_id')
+            # If student_id provided, filter to that student
+            if student_id:
+                q = q.filter(MoodSubmission.user_id == student_id)
+            elif group_id:
+                # Ensure teacher owns this group
+                g = db.session.get(Group, group_id)
+                if not g or g.teacher_id != current_user.get_id():
+                    return jsonify({"ok": False, "error": "FORBIDDEN"}), 403
+                member_ids = [m.student_id for m in GroupMember.query.filter_by(group_id=group_id).all()]
+                if member_ids:
+                    q = q.filter(MoodSubmission.user_id.in_(member_ids))
+                else:
+                    # No members -> no results
+                    q = q.filter(False)
+            else:
+                # No extra restriction: teacher may view all students, consistent with dashboard
+                pass
+        else:
+            # Students can only view their own entries
+            q = q.filter(MoodSubmission.user_id == current_user.get_id())
+
+        q = _apply_filters(q, df, dt, tf, tt)
+        # Order newest first
+        subs = q.order_by(MoodSubmission.chosen_at.desc()).all()
+
+        # Resolve label for this cell from cached CSV grid
+        grid = get_label_grid()
+        cell_label = grid[y][x] if grid and 0 <= y < len(grid) and 0 <= x < len(grid[0]) else ''
+
+        entries = []
+        for s in subs:
+            entries.append({
+                'id': s.id,
+                'x': s.x,
+                'y': s.y,
+                'label': s.label,
+                'chosen_at': (s.chosen_at.isoformat() if s.chosen_at else None),
+                'created_at': (s.created_at.isoformat() if s.created_at else None),
+                'user_id': s.user_id,
+            })
+
+        return jsonify({
+            'ok': True,
+            'cell': {'x': x, 'y': y, 'label': cell_label, 'count': len(entries)},
+            'entries': entries,
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": "SERVER_ERROR", "detail": str(e)}), 500
+
+
+# --- Session APIs ---
+@app.route('/api/session/create', methods=['POST'])
+def api_session_create():
+    try:
+        # generate a unique 6-digit PIN
+        pin = None
+        for _ in range(10):
+            candidate = f"{random.randint(0, 999999):06d}"
+            exists = Session.query.filter_by(pin=candidate, active=True).first()
+            if not exists:
+                pin = candidate
+                break
+        if not pin:
+            return jsonify({'ok': False, 'error': 'PIN_COLLISION'}), 500
+        owner_id = current_user.get_id() if getattr(current_user, 'is_authenticated', False) else None
+        s = Session(pin=pin, owner_id=owner_id, active=True, created_at=datetime.now(timezone.utc))
+        db.session.add(s)
+        db.session.commit()
+        return jsonify({'ok': True, 'session_id': s.id, 'pin': pin})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/session/join', methods=['POST'])
+def api_session_join():
+    data = request.get_json(force=True, silent=True) or {}
+    pin = (data.get('pin') or '').strip()
+    if not pin:
+        return jsonify({'ok': False, 'error': 'PIN_REQUIRED'}), 400
+    s = Session.query.filter_by(pin=pin, active=True).first()
+    if not s:
+        return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+    return jsonify({'ok': True, 'session_id': s.id})
+
+
+@app.route('/api/session/<int:session_id>/stats', methods=['GET'])
+def api_session_stats(session_id: int):
+    s = db.session.get(Session, session_id)
+    if not s or not s.active:
+        return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+    subs = MoodSubmission.query.filter(MoodSubmission.session_id == session_id).all()
+    stats = _compute_stats(subs)
+    return jsonify({'ok': True, 'heatmap': stats['heatmap'], 'max_count': stats['max_count'], 'total': stats['total']})
+
+
 if __name__ == '__main__':
     # Debug for local development; in deployment use a WSGI server
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+

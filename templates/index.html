@@ -10,6 +10,10 @@
 <body>
   <div class="page mood-meter-page">
     <header class="header">
+      <div class="session-actions">
+        <button id="sessionBtn" class="session-btn" title="Create or join a session">Session</button>
+        <span id="sessionStatus" class="session-status" aria-live="polite"></span>
+      </div>
       <div class="auth-actions">
         {% if current_user.is_authenticated %}
           <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
@@ -34,6 +38,22 @@
       <h1 class="title">Mood Meter</h1>
     </header>
     <main class="main">
+      <section id="mobile-mood-ui" class="mobile-mood" hidden>
+        <h2 class="mobile-mood-title">How are you feeling?</h2>
+        <div class="mobile-quad-grid" role="grid" aria-label="Quick mood quadrants">
+          <button type="button" class="mobile-quad q-red" data-quadrant="red" aria-label="Angry"><span>Angry</span></button>
+          <button type="button" class="mobile-quad q-yellow" data-quadrant="yellow" aria-label="Happy"><span>Happy</span></button>
+          <button type="button" class="mobile-quad q-blue" data-quadrant="blue" aria-label="Sad"><span>Sad</span></button>
+          <button type="button" class="mobile-quad q-green" data-quadrant="green" aria-label="Calm"><span>Calm</span></button>
+        </div>
+        <div id="mobile-drilldown" class="mobile-drilldown" hidden>
+          <div class="mobile-drilldown-header">
+            <button type="button" class="back-btn" aria-label="Back to quadrants">Back</button>
+            <div class="mobile-drilldown-title" aria-live="polite"></div>
+          </div>
+          <div class="mobile-drilldown-list" role="grid"></div>
+        </div>
+      </section>
       <div class="axes-layout">
         <div class="axis-y" aria-hidden="true">
           <svg class="axis-y-svg" viewBox="0 0 16 100" preserveAspectRatio="none" focusable="false" aria-hidden="true">
