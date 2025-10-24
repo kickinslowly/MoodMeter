@@ -985,6 +985,8 @@ def api_cell_entries():
 @app.route('/api/session/create', methods=['POST'])
 def api_session_create():
     try:
+        if not getattr(current_user, 'is_authenticated', False):
+            return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
         # generate a unique 6-digit PIN
         pin = None
         for _ in range(10):
@@ -1007,6 +1009,8 @@ def api_session_create():
 
 @app.route('/api/session/join', methods=['POST'])
 def api_session_join():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
     data = request.get_json(force=True, silent=True) or {}
     pin = (data.get('pin') or '').strip()
     if not pin:

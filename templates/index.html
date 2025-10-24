@@ -10,10 +10,12 @@
 <body>
   <div class="page mood-meter-page">
     <header class="header">
+      {% if current_user.is_authenticated %}
       <div class="session-actions">
         <button id="sessionBtn" class="session-btn" title="Create or join a session">Session</button>
         <span id="sessionStatus" class="session-status" aria-live="polite"></span>
       </div>
+      {% endif %}
       <div class="auth-actions">
         {% if current_user.is_authenticated %}
           <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
