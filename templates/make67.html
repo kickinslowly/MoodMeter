@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Make67</title>
+  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body>
+  <div class="page make67-page">
+    <header class="header">
+      <div class="auth-actions">
+        {% if current_user.is_authenticated %}
+          <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
+          <span class="user-name">{{ current_user.name or current_user.email }}</span>
+          <a href="{{ url_for('dashboard') }}" class="google-login-btn" title="Go to Dashboard">Dashboard</a>
+          <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
+            <button type="submit" class="logout-btn" title="Sign out">Logout</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('login_view') }}" class="google-login-btn" title="Sign in with Google">Sign in with Google</a>
+        {% endif %}
+      </div>
+      <h1 class="title">Make67</h1>
+      <div class="subtitle" style="opacity:.85; margin-top:6px;">Use + − × ÷ to combine all 4 cards and make 67</div>
+    </header>
+
+    <main class="main">
+      <div class="make67-container">
+        <div class="score-box" aria-live="polite">
+          <div class="score-label">Solved</div>
+          <div id="m67Score" class="score-value">0</div>
+        </div>
+
+        <div class="cards-grid" role="grid" aria-label="Number cards">
+          <button class="card" data-index="0" role="gridcell" aria-label="Card 1"><span>0</span></button>
+          <button class="card" data-index="1" role="gridcell" aria-label="Card 2"><span>0</span></button>
+          <button class="card" data-index="2" role="gridcell" aria-label="Card 3"><span>0</span></button>
+          <button class="card" data-index="3" role="gridcell" aria-label="Card 4"><span>0</span></button>
+        </div>
+
+        <div class="ops" aria-label="Operations">
+          <button class="op-btn" data-op="+">＋</button>
+          <button class="op-btn" data-op="-">−</button>
+          <button class="op-btn" data-op="*">×</button>
+          <button class="op-btn" data-op="/">÷</button>
+          <button id="resetBtn" class="op-btn ghost" title="Reset puzzle">↺</button>
+        </div>
+
+        <div class="note" id="m67Hint" aria-live="polite"></div>
+      </div>
+
+      <!-- Success overlay -->
+      <div class="m67-overlay-root" hidden>
+        <div class="m67-overlay">
+          <div class="m67-overlay__backdrop"></div>
+          <div class="m67-overlay__panel">
+            <div class="m67-overlay__glow"></div>
+            <div class="m67-overlay__icon">🎉</div>
+            <div class="m67-overlay__title">67! Nicely done</div>
+            <button id="nextPuzzleBtn" class="neon-btn" style="margin-top:14px;">New puzzle</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <a class="google-login-btn" href="{{ url_for('index') }}" title="Back to Mood Meter">← Back to Mood Meter</a>
+    </footer>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/make67.js') }}"></script>
+</body>
+</html>
