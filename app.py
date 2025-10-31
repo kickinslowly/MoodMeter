@@ -264,6 +264,14 @@ def index():
     return render_template('index.html', grid=grid, size=size, last_entry=last_entry_str)
 
 
+@app.route('/make67')
+def make67_page():
+    """Fun math mini-game: Make 67 from 4 cards using + - * /.
+    Standalone page; does not affect the rest of the site.
+    """
+    return render_template('make67.html')
+
+
 @app.route('/api/last-entry', methods=['GET'])
 def api_last_entry():
     """Return the latest mood entry info for the current authenticated user.
