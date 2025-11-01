@@ -45,14 +45,24 @@ def upgrade():
     # This index drop is fine on SQLite
     op.drop_index(op.f('ix_mood_submissions_chosen_at'), table_name='mood_submissions')
 
-    # Use batch mode to update unique/index on users.email in a SQLite-compatible way
-    with op.batch_alter_table('users', recreate='always') as batch:
+    # Update unique/index on users.email
+    if is_sqlite:
+        # On SQLite, use batch mode with table recreation to emulate constraint changes
+        with op.batch_alter_table('users', recreate='always') as batch:
+            try:
+                batch.drop_constraint(op.f('uq_users_email'), type_='unique')
+            except Exception:
+                # Some SQLite schemas may not have a separately named unique constraint
+                pass
+            batch.create_index(op.f('ix_users_email'), ['email'], unique=True)
+    else:
+        # On PostgreSQL and others, avoid table recreation to prevent dropping PK referenced by FKs
         try:
-            batch.drop_constraint(op.f('uq_users_email'), type_='unique')
+            op.drop_constraint(op.f('uq_users_email'), 'users', type_='unique')
         except Exception:
-            # Some SQLite schemas may not have a separately named unique constraint
+            # Constraint may not exist if schema already aligned
             pass
-        batch.create_index(op.f('ix_users_email'), ['email'], unique=True)
+        op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
 
 
 def downgrade():
