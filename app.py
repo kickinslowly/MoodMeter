@@ -24,6 +24,19 @@ def get_database_url() -> str:
     # Normalize legacy postgres URL scheme
     if url.startswith('postgres://'):
         url = url.replace('postgres://', 'postgresql://', 1)
+    # Ensure SSL is required for Postgres if not explicitly set
+    try:
+        from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
+        parsed = urlparse(url)
+        if parsed.scheme.startswith('postgresql'):
+            qs = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            if 'sslmode' not in qs:
+                qs['sslmode'] = 'require'
+                new_query = urlencode(qs)
+                url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+    except Exception:
+        # If parsing fails, just return original url
+        pass
     return url
 
 
@@ -38,6 +51,12 @@ app = Flask(
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-insecure-secret')
 app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Harden DB connection handling for cloud environments (e.g., Render) to avoid
+# stale/SSL-broken pooled connections causing OperationalError
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,           # validate connection before use
+    'pool_recycle': 300,             # seconds; less than typical NAT/pgbouncer idle timeouts
+}
 
 # OAuth / Google configuration via environment
 app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
