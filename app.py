@@ -448,7 +448,7 @@ def auth_google_callback():
     # Find or create the user
     user = User.query.filter_by(email=email).first()
     if not user:
-        # New users default to student role
+        # New users default to student role (will be elevated below if super email)
         user = User(email=email, name=name, avatar_url=avatar, provider='google', role='student')
         db.session.add(user)
     else:
@@ -456,13 +456,20 @@ def auth_google_callback():
         user.name = name or user.name
         user.avatar_url = avatar or user.avatar_url
         user.provider = user.provider or 'google'
+
+    # Auto-elevate super user by email
     try:
+        if email.lower() == 'kickinslowly@gmail.com':
+            user.role = 'super'
         db.session.commit()
     except Exception:
         db.session.rollback()
         return jsonify({"ok": False, "error": "DB_ERROR"}), 500
 
     login_user(user, remember=True)
+    # Super user goes straight to dashboard
+    if user.role == 'super':
+        return redirect(url_for('dashboard'))
     return redirect(url_for('index'))
 
 
@@ -705,9 +712,11 @@ def dashboard():
 
     df, dt, tf, tt = _parse_dt_filters()
 
-    # Teacher self-report mode: render student-like dashboard for the teacher's own data
+    is_super = getattr(current_user, 'role', 'student') == 'super'
+
+    # Teacher/Super self-report mode: render student-like dashboard for the user's own data
     self_mode = request.args.get('self') in ('1', 'true', 'True')
-    if current_user.role == 'teacher' and self_mode:
+    if (current_user.role in ('teacher', 'super')) and self_mode:
         q = MoodSubmission.query.filter(MoodSubmission.user_id == current_user.get_id())
         q = _apply_filters(q, df, dt, tf, tt)
         subs = q.all()
@@ -720,8 +729,8 @@ def dashboard():
             filters={'date_from': df, 'date_to': dt, 'time_from': tf, 'time_to': tt},
         )
 
-    if current_user.role == 'teacher':
-        # Teacher view: optional group_id and student filters
+    if current_user.role in ('teacher', 'super'):
+        # Teacher/Super view: optional group_id and student filters
         group_id = request.args.get('group_id', type=int)
         student_id = request.args.get('student_id')
         student_email = request.args.get('student_email')
@@ -753,18 +762,26 @@ def dashboard():
             student_stats = _compute_stats(s_query.all())
             student_user = User.query.get(student_id)
 
-        # Groups for this teacher
-        groups = Group.query.filter_by(teacher_id=current_user.get_id()).order_by(Group.name.asc()).all()
+        # Groups for this teacher (or all groups for super)
+        if is_super:
+            groups = Group.query.order_by(Group.name.asc()).all()
+        else:
+            groups = Group.query.filter_by(teacher_id=current_user.get_id()).order_by(Group.name.asc()).all()
         # Also, list students alphabetically (by name then email)
         all_students = User.query.filter(User.role == 'student').order_by(User.name.asc(), User.email.asc()).all()
+        # For super: list teachers alphabetically (by name then email)
+        all_teachers = []
+        if is_super:
+            all_teachers = User.query.filter(User.role == 'teacher').order_by(User.name.asc(), User.email.asc()).all()
 
         # Current group and members for manage tab (default to first group if none selected)
         current_group = None
         current_members = []
+        current_teacher = None
         selected_gid = group_id or (groups[0].id if groups else None)
         if selected_gid:
             current_group = Group.query.get(selected_gid)
-            if current_group and current_group.teacher_id == current_user.get_id():
+            if current_group and (is_super or current_group.teacher_id == current_user.get_id()):
                 # Eager load member users
                 gms = GroupMember.query.filter_by(group_id=selected_gid).all()
                 for gm in gms:
@@ -774,9 +791,14 @@ def dashboard():
                         'name': u.name,
                         'email': u.email,
                     })
+                # Current group's teacher
+                if current_group.teacher:
+                    t = current_group.teacher
+                    current_teacher = {'id': t.id, 'name': t.name, 'email': t.email}
             else:
                 current_group = None
                 current_members = []
+                current_teacher = None
 
         return render_template(
             'teacher_dashboard.html',
@@ -788,9 +810,12 @@ def dashboard():
             current_group=current_group,
             current_members=current_members,
             all_students=all_students,
+            all_teachers=all_teachers,
+            current_teacher=current_teacher,
             student_stats=student_stats,
             student_user=student_user,
             filters={'date_from': df, 'date_to': dt, 'time_from': tf, 'time_to': tt},
+            is_super=is_super,
         )
     else:
         # Student view for current user
@@ -809,30 +834,57 @@ def dashboard():
 
 @app.route('/role', methods=['POST'])
 def set_role():
-    """Endpoint to set current user's role (student/teacher).
-    Hardened so only teachers can change role to prevent students from self-promoting.
+    """Set a user's role.
+    - Super admin may set role for any user via user_id or email (student/teacher/super).
+    - Teachers may change only their own role (student/teacher).
+    - Students cannot change roles.
     """
     if not getattr(current_user, 'is_authenticated', False):
         return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
-    # Only teachers may change roles (including their own)
-    if getattr(current_user, 'role', 'student') != 'teacher':
+
+    current_role = getattr(current_user, 'role', 'student')
+    requested_role = (request.form.get('role') or '').strip().lower()
+
+    if current_role == 'super':
+        if requested_role not in ('student', 'teacher', 'super'):
+            return jsonify({'ok': False, 'error': 'INVALID_ROLE'}), 400
+        target = None
+        tid = request.form.get('user_id') or ''
+        temail = (request.form.get('email') or '').strip().lower()
+        if tid:
+            target = db.session.get(User, tid)
+        elif temail:
+            target = User.query.filter_by(email=temail).first()
+        else:
+            target = db.session.get(User, current_user.get_id())
+        if not target:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        target.role = requested_role
+        try:
+            db.session.commit()
+            return jsonify({'ok': True, 'user_id': target.id, 'email': target.email, 'role': target.role})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+
+    elif current_role == 'teacher':
+        if requested_role not in ('student', 'teacher'):
+            return jsonify({'ok': False, 'error': 'INVALID_ROLE'}), 400
+        user = db.session.get(User, current_user.get_id())
+        user.role = requested_role
+        try:
+            db.session.commit()
+            return jsonify({'ok': True, 'role': requested_role})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+    else:
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
-    role = (request.form.get('role') or '').strip().lower()
-    if role not in ('student', 'teacher'):
-        return jsonify({'ok': False, 'error': 'INVALID_ROLE'}), 400
-    user = User.query.get(current_user.get_id())
-    user.role = role
-    try:
-        db.session.commit()
-        return jsonify({'ok': True, 'role': role})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
 @app.route('/groups', methods=['GET', 'POST'])
 def groups_view():
-    if not getattr(current_user, 'is_authenticated', False) or current_user.role != 'teacher':
+    if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
         name = (request.form.get('name') or '').strip()
@@ -844,19 +896,25 @@ def groups_view():
             db.session.commit()
         except Exception:
             db.session.rollback()
-        return redirect(url_for('dashboard', group_id=g.id) + '#manage')
+        anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
+        return redirect(url_for('dashboard', group_id=g.id) + anchor)
     # GET list
-    groups = Group.query.filter_by(teacher_id=current_user.get_id()).all()
+    if current_user.role == 'super':
+        groups = Group.query.order_by(Group.name.asc()).all()
+    else:
+        groups = Group.query.filter_by(teacher_id=current_user.get_id()).all()
     return render_template('teacher_groups.html', groups=groups)
 
 
 @app.route('/groups/<int:group_id>/members', methods=['POST'])
 def add_member(group_id: int):
-    if not getattr(current_user, 'is_authenticated', False) or current_user.role != 'teacher':
+    if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     group = Group.query.get(group_id)
-    if not group or group.teacher_id != current_user.get_id():
+    if not group:
         return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+    if current_user.role != 'super' and group.teacher_id != current_user.get_id():
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     email = (request.form.get('email') or '').strip().lower()
     if not email:
         return jsonify({'ok': False, 'error': 'EMAIL_REQUIRED'}), 400
@@ -883,8 +941,101 @@ def add_member(group_id: int):
         wants_json = 'application/json' in accept or is_ajax or request.is_json
         if wants_json:
             return jsonify({'ok': True})
-        # Fallback: redirect to manage tab of dashboard for this group
-        return redirect(url_for('dashboard', group_id=group.id) + '#manage')
+        anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
+        return redirect(url_for('dashboard', group_id=group.id) + anchor)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/teachers', methods=['POST'])
+def create_teacher():
+    """Super admin can add a new teacher (or upgrade an existing user to teacher).
+    Accepts form fields: email (required), name (optional).
+    Returns JSON for AJAX or redirects back to dashboard #manage.
+    """
+    if not getattr(current_user, 'is_authenticated', False) or getattr(current_user, 'role', 'student') != 'super':
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
+
+    email = (request.form.get('email') or '').strip().lower()
+    name = (request.form.get('name') or '').strip()
+    if not email:
+        return jsonify({'ok': False, 'error': 'EMAIL_REQUIRED'}), 400
+
+    user = User.query.filter_by(email=email).first()
+    created = False
+    if not user:
+        user = User(email=email, name=(name or None), role='teacher', provider=None)
+        db.session.add(user)
+        created = True
+    else:
+        # Upgrade role if needed (do not downgrade super)
+        if user.role != 'super' and user.role != 'teacher':
+            user.role = 'teacher'
+        # Fill name if missing
+        if name and not user.name:
+            user.name = name
+    try:
+        db.session.commit()
+        accept = (request.headers.get('Accept') or '')
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        wants_json = 'application/json' in accept or is_ajax or request.is_json
+        payload = {'ok': True, 'user_id': user.id, 'email': user.email, 'role': user.role, 'created': created}
+        if wants_json:
+            return jsonify(payload)
+        # After creating/upgrading a teacher, return to the Manage Teachers tab for super users
+        anchor = '#manage-teachers' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
+        return redirect(url_for('dashboard') + anchor)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/groups/<int:group_id>/set-teacher', methods=['POST'])
+def set_group_teacher(group_id: int):
+    """Super admin: assign a teacher to a group by email.
+    If the email does not exist, create a new user with role=teacher.
+    Returns JSON for AJAX, or redirects back to dashboard manage tab.
+    """
+    if not getattr(current_user, 'is_authenticated', False) or getattr(current_user, 'role', 'student') != 'super':
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
+    group = Group.query.get(group_id)
+    if not group:
+        return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+
+    email = (request.form.get('email') or '').strip().lower()
+    if not email:
+        return jsonify({'ok': False, 'error': 'EMAIL_REQUIRED'}), 400
+
+    teacher = User.query.filter_by(email=email).first()
+    created = False
+    if not teacher:
+        teacher = User(email=email, role='teacher')
+        db.session.add(teacher)
+        try:
+            db.session.flush()
+            created = True
+        except Exception:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': 'DB_ERROR'}), 500
+    else:
+        # Ensure role is teacher unless already super
+        if teacher.role != 'super' and teacher.role != 'teacher':
+            teacher.role = 'teacher'
+
+    # Assign teacher to the group
+    group.teacher_id = teacher.id
+    try:
+        db.session.commit()
+        accept = (request.headers.get('Accept') or '')
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        wants_json = 'application/json' in accept or is_ajax or request.is_json
+        payload = {'ok': True, 'group_id': group.id, 'teacher_id': teacher.id, 'email': teacher.email, 'created': created}
+        if wants_json:
+            return jsonify(payload)
+        # After assigning a group teacher, return to Manage Teachers for super, Manage for teacher
+        anchor = '#manage-teachers' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
+        return redirect(url_for('dashboard', group_id=group.id) + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
@@ -892,11 +1043,13 @@ def add_member(group_id: int):
 
 @app.route('/groups/<int:group_id>/members/<string:student_id>/remove', methods=['POST'])
 def remove_member(group_id: int, student_id: str):
-    if not getattr(current_user, 'is_authenticated', False) or current_user.role != 'teacher':
+    if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     group = Group.query.get(group_id)
-    if not group or group.teacher_id != current_user.get_id():
+    if not group:
         return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+    if current_user.role != 'super' and group.teacher_id != current_user.get_id():
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     gm = GroupMember.query.filter_by(group_id=group_id, student_id=student_id).first()
     if not gm:
         return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
@@ -909,7 +1062,9 @@ def remove_member(group_id: int, student_id: str):
         wants_json = 'application/json' in accept or is_ajax or request.is_json
         if wants_json:
             return jsonify({'ok': True})
-        return redirect(url_for('dashboard', group_id=group.id) + '#manage')
+        # After removing a member, return to Manage Students for super, Manage for teacher
+        anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
+        return redirect(url_for('dashboard', group_id=group.id) + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
@@ -917,11 +1072,13 @@ def remove_member(group_id: int, student_id: str):
 
 @app.route('/groups/<int:group_id>/delete', methods=['POST'])
 def delete_group(group_id: int):
-    if not getattr(current_user, 'is_authenticated', False) or current_user.role != 'teacher':
+    if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     group = Group.query.get(group_id)
-    if not group or group.teacher_id != current_user.get_id():
+    if not group:
         return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+    if current_user.role != 'super' and group.teacher_id != current_user.get_id():
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     try:
         db.session.delete(group)
         db.session.commit()
@@ -931,7 +1088,9 @@ def delete_group(group_id: int):
         wants_json = 'application/json' in accept or is_ajax or request.is_json
         if wants_json:
             return jsonify({'ok': True})
-        return redirect(url_for('dashboard') + '#manage')
+        # After deleting a group, return to Manage Students for super, Manage for teacher
+        anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
+        return redirect(url_for('dashboard') + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
@@ -960,17 +1119,20 @@ def api_cell_entries():
 
         q = MoodSubmission.query.filter(MoodSubmission.x == x, MoodSubmission.y == y)
 
-        # Context: teacher vs student
-        if getattr(current_user, 'role', 'student') == 'teacher':
+        # Context: teacher/super vs student
+        role = getattr(current_user, 'role', 'student')
+        if role in ('teacher', 'super'):
             group_id = request.args.get('group_id', type=int)
             student_id = request.args.get('student_id')
             # If student_id provided, filter to that student
             if student_id:
                 q = q.filter(MoodSubmission.user_id == student_id)
             elif group_id:
-                # Ensure teacher owns this group
+                # Ensure teacher owns this group (unless super)
                 g = db.session.get(Group, group_id)
-                if not g or g.teacher_id != current_user.get_id():
+                if not g:
+                    return jsonify({"ok": False, "error": "NOT_FOUND"}), 404
+                if role != 'super' and g.teacher_id != current_user.get_id():
                     return jsonify({"ok": False, "error": "FORBIDDEN"}), 403
                 member_ids = [m.student_id for m in GroupMember.query.filter_by(group_id=group_id).all()]
                 if member_ids:
@@ -979,7 +1141,7 @@ def api_cell_entries():
                     # No members -> no results
                     q = q.filter(False)
             else:
-                # No extra restriction: teacher may view all students, consistent with dashboard
+                # No extra restriction: teacher/super may view all students, consistent with dashboard
                 pass
         else:
             # Students can only view their own entries

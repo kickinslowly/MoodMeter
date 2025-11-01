@@ -25,8 +25,9 @@
 </head>
 <body>
   <script>
-    // Ensure no footer element exists on this dashboard page
+    // Progressive enhancement hook + remove footer on dashboard
     (function(){
+      try { document.documentElement.classList.add('js'); } catch {}
       const removeFooter = () => {
         const f = document.querySelector('footer.footer');
         if (f) f.remove();
@@ -40,8 +41,9 @@
   </script>
   <div class="dash-container">
     <div class="dash-header">
-      <h1>Teacher Dashboard</h1>
+      <h1>{% if is_super %}Super Admin Dashboard{% else %}Teacher Dashboard{% endif %}</h1>
       <div style="display:flex; gap:8px; align-items:center;">
+        {% if is_super %}<span style="background:#7a2f34;color:#fff;padding:6px 10px;border-radius:8px;border:1px solid #8a3a3f;">Super Admin</span>{% endif %}
         <a class="btn" href="{{ url_for('index') }}">Mood Meter</a>
         <a class="btn" href="{{ url_for('dashboard', self=1) }}">Self Report</a>
         <form method="post" action="{{ url_for('logout_view') }}"><button class="btn" type="submit">Logout</button></form>
@@ -58,18 +60,23 @@
       .tab-panel { display:none; width:100%; min-height: calc(100vh - 160px); }
       .tab-panel.active { display:block; }
       /* Hide old two-column layout when tabs are present */
-      .columns { display:none; }
+        .js .columns { display:none; }
     </style>
 
     <div class="tabbar" role="tablist" aria-label="Teacher dashboard sections">
-      <button class="tab-btn" data-tab="group" role="tab" aria-selected="true">Group Data</button>
-      <button class="tab-btn" data-tab="manage" role="tab" aria-selected="false">Manage Groups and Users</button>
-      <button class="tab-btn" data-tab="individual" role="tab" aria-selected="false">Individual Data</button>
+      <button id="tab-group" class="tab-btn" data-tab="group" role="tab" aria-selected="false" aria-controls="panel-group">Group Data</button>
+      {% if is_super %}
+        <button id="tab-manage-students" class="tab-btn" data-tab="manage-students" role="tab" aria-selected="false" aria-controls="panel-manage-students">Manage Students</button>
+        <button id="tab-manage-teachers" class="tab-btn" data-tab="manage-teachers" role="tab" aria-selected="false" aria-controls="panel-manage-teachers">Manage Teachers</button>
+      {% else %}
+        <button id="tab-manage" class="tab-btn" data-tab="manage" role="tab" aria-selected="false" aria-controls="panel-manage">Manage Groups and Users</button>
+      {% endif %}
+      <button id="tab-individual" class="tab-btn" data-tab="individual" role="tab" aria-selected="false" aria-controls="panel-individual">Individual Data</button>
     </div>
 
     <div class="tab-panels">
       <!-- Group Data Panel -->
-      <section class="tab-panel" data-tab="group">
+      <section id="panel-group" class="tab-panel" role="tabpanel" aria-labelledby="tab-group" tabindex="0" data-tab="group">
         <div class="card">
           <form class="filter-form" method="get" action="{{ url_for('dashboard') }}">
             <div class="filters">
@@ -188,10 +195,11 @@
         </div>
       </section>
 
-      <!-- Manage Groups and Users Panel -->
-      <section class="tab-panel" data-tab="manage">
+      {% if is_super %}
+      <!-- Manage Students Panel (Super) -->
+      <section id="panel-manage-students" class="tab-panel" role="tabpanel" aria-labelledby="tab-manage-students" tabindex="0" data-tab="manage-students">
         <div class="card" style="margin-bottom:12px;">
-          <details id="createGroupDetailsManage">
+          <details id="createGroupDetailsManageSuper">
             <summary>Create New Group</summary>
             <form method="post" action="{{ url_for('groups_view') }}" style="display:flex; gap:8px; margin-top:8px;">
               <input type="text" name="name" placeholder="Group name" required />
@@ -235,8 +243,347 @@
           {% else %}
             <p>No groups yet.</p>
           {% endif %}
+        </div>
+
+        {% if current_group %}
+        <div class="card" style="margin-top:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <h3 style="margin:0;">Members of {{ current_group.name }}</h3>
+            <button class="btn" id="deleteGroupBtn" data-group-id="{{ current_group.id }}" style="background:#7a2f34; border-color:#8a3a3f;">Delete Group</button>
+          </div>
+          {% if current_members %}
+            <div style="overflow:auto; margin-top:10px;">
+              <table class="dataframe" style="width:100%; border-collapse:collapse;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Name</th>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Email</th>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for u in current_members %}
+                    <tr>
+                      <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ u.name or '—' }}</td>
+                      <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ u.email }}</td>
+                      <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">
+                        <button class="btn remove-member" data-student-id="{{ u.id }}" data-group-id="{{ current_group.id }}">Remove</button>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p style="margin-top:8px;">No members in this group yet.</p>
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+
+      <!-- Manage Teachers Panel (Super) -->
+      <section id="panel-manage-teachers" class="tab-panel" role="tabpanel" aria-labelledby="tab-manage-teachers" tabindex="0" data-tab="manage-teachers">
+        <div class="card" style="margin-bottom:12px;">
+          <details id="addTeacherDetails">
+            <summary>Super: Add New Teacher</summary>
+            <form method="post" action="{{ url_for('create_teacher') }}" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-top:8px;">
+              <div>
+                <label for="teacher_name">Name (optional)</label>
+                <input id="teacher_name" type="text" name="name" placeholder="Teacher name" />
+              </div>
+              <div>
+                <label for="teacher_email">Email</label>
+                <input id="teacher_email" type="email" name="email" placeholder="teacher@email" required list="user_emails_list" />
+              </div>
+              <div style="display:flex; align-items:end;">
+                <button class="btn" type="submit">Add Teacher</button>
+              </div>
+            </form>
+            <p style="opacity:.8; font-size:12px; margin-top:6px;">If the email already exists, their role will be upgraded to Teacher (unless they are Super).</p>
+          </details>
+        </div>
+
+        <div class="card" style="margin-bottom:12px;">
+          <details id="changeRoleDetails">
+            <summary>Super: Change User Role</summary>
+            <form id="roleForm" method="post" action="{{ url_for('set_role') }}" style="display:grid; grid-template-columns: 2fr 1fr auto; gap:8px; margin-top:8px;">
+              <div>
+                <label for="role_email">User email</label>
+                <input id="role_email" type="email" name="email" placeholder="user@email" required list="user_emails_list" />
+              </div>
+              <div>
+                <label for="role_select">Set role</label>
+                <select id="role_select" name="role" required>
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="super">Super</option>
+                </select>
+              </div>
+              <div style="display:flex; align-items:end; gap:8px;">
+                <button class="btn" type="submit">Update Role</button>
+              </div>
+            </form>
+            <p style="opacity:.8; font-size:12px; margin-top:6px;">Note: You can promote any user to Teacher or Super. Avoid demoting existing Supers unless necessary.</p>
+            <datalist id="user_emails_list">
+              {% for t in all_teachers %}
+                {% if t.email %}<option value="{{ t.email }}">{% endif %}
+              {% endfor %}
+              {% for s in all_students %}
+                {% if s.email %}<option value="{{ s.email }}">{% endif %}
+              {% endfor %}
+            </datalist>
+          </details>
+        </div>
+
+        {% if groups %}
+        <div class="card" style="margin-bottom:12px;">
+          <h3>Assign group teacher (Super)</h3>
+          <form id="assignTeacherForm" method="post" action="{{ url_for('set_group_teacher', group_id=(current_group_id or groups[0].id)) }}" style="display:grid; grid-template-columns: 1fr auto; gap:8px;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
+              <div>
+                <label for="assign_group">Target group</label>
+                <select id="assign_group" name="group_id" onchange="document.getElementById('assignTeacherForm').action='/groups/' + this.value + '/set-teacher'">
+                  {% for g in groups %}
+                    <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label for="teacher_select2">Existing teacher</label>
+                <select id="teacher_select2">
+                  <option value="">-- Choose teacher --</option>
+                  {% for t in all_teachers %}
+                    {% set label = (t.name or t.email) %}
+                    <option value="{{ t.email }}">{{ label }}{% if t.name and t.email %} ({{ t.email }}){% endif %}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label for="teacher_email2">Teacher email</label>
+                <input id="teacher_email2" type="email" name="email" placeholder="teacher@email" required />
+              </div>
+            </div>
+            <div style="display:flex; align-items:end;">
+              <button class="btn" type="submit">Assign</button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
+
+
+        {% if all_teachers %}
+        <div class="card" style="margin-top:12px;">
+          <h3 style="margin:0 0 8px 0;">Teachers</h3>
+          <div style="overflow:auto; margin-top:10px;">
+            <table class="dataframe" style="width:100%; border-collapse:collapse;">
+              <thead>
+                <tr>
+                  <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Name</th>
+                  <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Email</th>
+                  <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Groups</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in all_teachers %}
+                <tr>
+                  <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ t.name or '—' }}</td>
+                  <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ t.email }}</td>
+                  <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ (t.teaching_groups | map(attribute='name') | list | join(', ')) or '—' }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {% if not is_super %}
+      <!-- Manage Groups and Users Panel -->
+      <section id="panel-manage" class="tab-panel" role="tabpanel" aria-labelledby="tab-manage" tabindex="0" data-tab="manage">
+        {% if is_super %}
+        <div class="card" style="margin-bottom:12px;">
+          <details id="addTeacherDetails">
+            <summary>Super: Add New Teacher</summary>
+            <form method="post" action="{{ url_for('create_teacher') }}" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-top:8px;">
+              <div>
+                <label for="teacher_name">Name (optional)</label>
+                <input id="teacher_name" type="text" name="name" placeholder="Teacher name" />
+              </div>
+              <div>
+                <label for="teacher_email">Email</label>
+                <input id="teacher_email" type="email" name="email" placeholder="teacher@email" required list="user_emails_list" />
+              </div>
+              <div style="display:flex; align-items:end;">
+                <button class="btn" type="submit">Add Teacher</button>
+              </div>
+            </form>
+            <p style="opacity:.8; font-size:12px; margin-top:6px;">If the email already exists, their role will be upgraded to Teacher (unless they are Super).</p>
+          </details>
+        </div>
+
+        <div class="card" style="margin-bottom:12px;">
+          <details id="changeRoleDetails">
+            <summary>Super: Change User Role</summary>
+            <form id="roleForm" method="post" action="{{ url_for('set_role') }}" style="display:grid; grid-template-columns: 2fr 1fr auto; gap:8px; margin-top:8px;">
+              <div>
+                <label for="role_email">User email</label>
+                <input id="role_email" type="email" name="email" placeholder="user@email" required list="user_emails_list" />
+              </div>
+              <div>
+                <label for="role_select">Set role</label>
+                <select id="role_select" name="role" required>
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="super">Super</option>
+                </select>
+              </div>
+              <div style="display:flex; align-items:end; gap:8px;">
+                <button class="btn" type="submit">Update Role</button>
+              </div>
+            </form>
+            <p style="opacity:.8; font-size:12px; margin-top:6px;">Note: You can promote any user to Teacher or Super. Avoid demoting existing Supers unless necessary.</p>
+            <datalist id="user_emails_list">
+              {% for t in all_teachers %}
+                {% if t.email %}<option value="{{ t.email }}">{% endif %}
+              {% endfor %}
+              {% for s in all_students %}
+                {% if s.email %}<option value="{{ s.email }}">{% endif %}
+              {% endfor %}
+            </datalist>
+          </details>
+        </div>
+        {% endif %}
+
+        <div class="card" style="margin-bottom:12px;">
+          <details id="createGroupDetailsManage">
+            <summary>Create New Group</summary>
+            <form method="post" action="{{ url_for('groups_view') }}" style="display:flex; gap:8px; margin-top:8px;">
+              <input type="text" name="name" placeholder="Group name" required />
+              <button class="btn" type="submit">Create</button>
+            </form>
+          </details>
+        </div>
+
+        <div class="card">
+          <h3>Manage members</h3>
+          {% if groups %}
+            <form id="addMemberForm2" method="post" action="{{ url_for('add_member', group_id=(current_group_id or groups[0].id)) }}" style="display:grid; grid-template-columns: 1fr auto; gap:8px;">
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
+                <div>
+                  <label for="manage_group">Target group</label>
+                  <select id="manage_group" name="group_id" onchange="document.getElementById('addMemberForm2').action='/groups/' + this.value + '/members'">
+                    {% for g in groups %}
+                      <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label for="student_select2">Existing student</label>
+                  <select id="student_select2">
+                    <option value="">-- Choose student --</option>
+                    {% for s in all_students %}
+                      {% set label = (s.name or s.email) %}
+                      <option value="{{ s.email }}">{{ label }}{% if s.name and s.email %} ({{ s.email }}){% endif %}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label for="student_email2">Student email</label>
+                  <input id="student_email2" type="email" name="email" placeholder="student@email" required />
+                </div>
+              </div>
+              <div style="display:flex; align-items:end;">
+                <button class="btn" type="submit">Add</button>
+              </div>
+            </form>
+            {% if is_super %}
+            <hr style="border:none; border-top:1px solid #2c3138; margin:12px 0;" />
+            <h3>Assign group teacher (Super)</h3>
+            <form id="assignTeacherForm" method="post" action="{{ url_for('set_group_teacher', group_id=(current_group_id or groups[0].id)) }}" style="display:grid; grid-template-columns: 1fr auto; gap:8px;">
+              <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
+                <div>
+                  <label for="assign_group">Target group</label>
+                  <select id="assign_group" name="group_id" onchange="document.getElementById('assignTeacherForm').action='/groups/' + this.value + '/set-teacher'">
+                    {% for g in groups %}
+                      <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label for="teacher_select2">Existing teacher</label>
+                  <select id="teacher_select2">
+                    <option value="">-- Choose teacher --</option>
+                    {% for t in all_teachers %}
+                      {% set label = (t.name or t.email) %}
+                      <option value="{{ t.email }}">{{ label }}{% if t.name and t.email %} ({{ t.email }}){% endif %}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label for="teacher_email2">Teacher email</label>
+                  <input id="teacher_email2" type="email" name="email" placeholder="teacher@email" required />
+                </div>
+              </div>
+              <div style="display:flex; align-items:end;">
+                <button class="btn" type="submit">Assign</button>
+              </div>
+            </form>
+            {% endif %}
+          {% else %}
+            <p>No groups yet.</p>
+          {% endif %}
           {% if current_group %}
         </div>
+
+        <div class="card" style="margin-top:12px;">
+          <h3 style="margin:0 0 8px 0;">Group teacher</h3>
+          {% if current_teacher %}
+            <div style="overflow:auto; margin-top:6px;">
+              <table class="dataframe" style="width:100%; border-collapse:collapse;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Name</th>
+                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Email</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ current_teacher.name or '—' }}</td>
+                    <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ current_teacher.email }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p>No teacher assigned to this group.</p>
+          {% endif %}
+        </div>
+
+        {% if is_super and all_teachers %}
+        <div class="card" style="margin-top:12px;">
+          <h3 style="margin:0 0 8px 0;">Teachers</h3>
+          <div style="overflow:auto; margin-top:10px;">
+            <table class="dataframe" style="width:100%; border-collapse:collapse;">
+              <thead>
+                <tr>
+                  <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Name</th>
+                  <th style="text-align:left; padding:6px 8px; border-bottom:1px solid #3a3f47;">Email</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in all_teachers %}
+                <tr>
+                  <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ t.name or '—' }}</td>
+                  <td style="padding:6px 8px; border-bottom:1px solid #2c3138;">{{ t.email }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
 
         <div class="card" style="margin-top:12px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
@@ -272,9 +619,10 @@
         </div>
           {% endif %}
       </section>
+      {% endif %}
 
       <!-- Individual Data Panel -->
-      <section class="tab-panel" data-tab="individual">
+      <section id="panel-individual" class="tab-panel" role="tabpanel" aria-labelledby="tab-individual" tabindex="0" data-tab="individual">
         <div class="card">
           <h3>Individual Data</h3>
           <form id="studentSelectForm" method="get" action="{{ url_for('dashboard') }}" style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
@@ -365,24 +713,54 @@
         try { document.querySelectorAll('marker#arrowhead-x, marker#arrowhead-y').forEach(m => m.setAttribute('orient','auto-start-reverse')); } catch {}
         const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
         const panels = Array.from(document.querySelectorAll('.tab-panel'));
+        const allowedTabs = tabBtns.map(b => b.dataset.tab);
+        function getCurrentTab(){
+          const active = document.querySelector('.tab-panel.active');
+          return active ? active.dataset.tab : (allowedTabs[0] || 'group');
+        }
         function activate(tab){
-          for (const b of tabBtns){ b.classList.toggle('active', b.dataset.tab===tab); b.setAttribute('aria-selected', String(b.dataset.tab===tab)); }
-          for (const p of panels){ p.classList.toggle('active', p.dataset.tab===tab); }
+          for (const b of tabBtns){
+            const isActive = (b.dataset.tab===tab);
+            b.classList.toggle('active', isActive);
+            b.setAttribute('aria-selected', String(isActive));
+            b.setAttribute('tabindex', isActive ? '0' : '-1');
+          }
+          for (const p of panels){
+            const isActive = (p.dataset.tab===tab);
+            p.classList.toggle('active', isActive);
+            p.setAttribute('aria-hidden', String(!isActive));
+            p.setAttribute('tabindex', isActive ? '0' : '-1');
+          }
           if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
           try { localStorage.setItem('teacher_tab', tab); } catch {}
         }
-        for (const b of tabBtns){ b.addEventListener('click', ()=> activate(b.dataset.tab)); }
-        let initial = (location.hash||'').replace('#','') || (localStorage.getItem('teacher_tab')||'group');
-        if (!['group','manage','individual'].includes(initial)) initial = 'group';
+        for (const b of tabBtns){
+          b.addEventListener('click', ()=> activate(b.dataset.tab));
+          b.addEventListener('keydown', (e)=>{
+            const idx = tabBtns.indexOf(b);
+            if (e.key === 'ArrowRight'){ e.preventDefault(); (tabBtns[idx+1]||tabBtns[0]).focus(); (tabBtns[idx+1]||tabBtns[0]).click(); }
+            else if (e.key === 'ArrowLeft'){ e.preventDefault(); (tabBtns[idx-1]||tabBtns[tabBtns.length-1]).focus(); (tabBtns[idx-1]||tabBtns[tabBtns.length-1]).click(); }
+            else if (e.key === 'Home'){ e.preventDefault(); tabBtns[0].focus(); tabBtns[0].click(); }
+            else if (e.key === 'End'){ e.preventDefault(); tabBtns[tabBtns.length-1].focus(); tabBtns[tabBtns.length-1].click(); }
+          });
+        }
+        function syncFromHash(){
+          const h = (location.hash||'').replace('#','');
+          if (allowedTabs.includes(h)) activate(h);
+        }
+        let initial = (location.hash||'').replace('#','') || (localStorage.getItem('teacher_tab')||allowedTabs[0]||'group');
+        if (!allowedTabs.includes(initial)) initial = (allowedTabs[0]||'group');
         activate(initial);
+        window.addEventListener('hashchange', syncFromHash);
 
         // Manage tab: group selection reload to show members
         const manageSelect = document.getElementById('manage_group');
         if (manageSelect){
           manageSelect.addEventListener('change', function(){
             const gid = this.value;
-            // keep on manage tab after reload
-            window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#manage';
+            // keep on the current tab after reload
+            const cur = getCurrentTab();
+            window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#' + cur;
           });
         }
 
@@ -391,6 +769,15 @@
         if (studentSelect2){
           studentSelect2.addEventListener('change', function(){
             const emailInput = document.getElementById('student_email2');
+            if (emailInput) emailInput.value = this.value || '';
+          });
+        }
+
+        // Manage tab: existing teacher dropdown populates email field (super)
+        const teacherSelect2 = document.getElementById('teacher_select2');
+        if (teacherSelect2){
+          teacherSelect2.addEventListener('change', function(){
+            const emailInput = document.getElementById('teacher_email2');
             if (emailInput) emailInput.value = this.value || '';
           });
         }
@@ -417,12 +804,77 @@
               const json = await resp.json().catch(()=>({}));
               if (resp.ok && json.ok){
                 // force reload to show updated member list (cache-busted)
-                window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#manage');
+                const cur = getCurrentTab();
+                window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
               } else {
                 alert('Failed to add member' + (json.detail ? (': ' + json.detail) : ''));
               }
             } catch (e){
               alert('Network error while adding member');
+            }
+          });
+        }
+
+        // Manage tab: assign teacher form submit (super)
+        const assignForm = document.getElementById('assignTeacherForm');
+        if (assignForm){
+          assignForm.addEventListener('submit', async function(ev){
+            ev.preventDefault();
+            const gid = (document.getElementById('assign_group')||{}).value || '';
+            const email = (document.getElementById('teacher_email2')||{}).value || '';
+            if (!gid || !email){ return; }
+            try {
+              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/set-teacher`, {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: new URLSearchParams({ email })
+              });
+              const json = await resp.json().catch(()=>({}));
+              if (resp.ok && json.ok){
+                const cur = getCurrentTab();
+                window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
+              } else {
+                alert('Failed to assign teacher' + (json.detail ? (': ' + json.detail) : ''));
+              }
+            } catch (e){
+              alert('Network error while assigning teacher');
+            }
+          });
+        }
+
+        // Manage tab: change user role (super)
+        const roleForm = document.getElementById('roleForm');
+        if (roleForm){
+          roleForm.addEventListener('submit', async function(ev){
+            ev.preventDefault();
+            const email = (document.getElementById('role_email')||{}).value || '';
+            const role = (document.getElementById('role_select')||{}).value || '';
+            if (!email || !role){ return; }
+            try {
+              const resp = await fetch(`/role`, {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: new URLSearchParams({ email, role })
+              });
+              const json = await resp.json().catch(()=>({}));
+              if (resp.ok && json.ok){
+                alert('Role updated: ' + (json.email || email) + ' → ' + (json.role || role));
+                // stay on the current tab
+                const cur = getCurrentTab();
+                if (location.hash !== '#' + cur) location.hash = '#' + cur;
+              } else {
+                alert('Failed to update role' + (json.detail ? (': ' + json.detail) : ''));
+              }
+            } catch (e){
+              alert('Network error while updating role');
             }
           });
         }
@@ -445,7 +897,8 @@
             });
             const json = await resp.json().catch(()=>({}));
             if (resp.ok && json.ok){
-              window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#manage');
+              const cur = getCurrentTab();
+              window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
             } else {
               alert('Failed to remove member' + (json.detail ? (': ' + json.detail) : ''));
             }
@@ -471,7 +924,8 @@
               });
               const json = await resp.json().catch(()=>({}));
               if (resp.ok && json.ok){
-                window.location.assign('/dashboard?r=' + Date.now() + '#manage');
+                const cur = getCurrentTab();
+                window.location.assign('/dashboard?r=' + Date.now() + '#' + cur);
               } else {
                 alert('Failed to delete group' + (json.detail ? (': ' + json.detail) : ''));
               }
