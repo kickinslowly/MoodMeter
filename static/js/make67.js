@@ -169,6 +169,7 @@
   const scoreEl = document.getElementById('m67Score');
   const overlayRoot = document.querySelector('.m67-overlay-root');
   const nextBtn = document.getElementById('nextPuzzleBtn');
+  const hintBtn = document.getElementById('hintBtn');
 
   let baseCards = [];
   let curCards = [];
@@ -358,13 +359,18 @@
     newPuzzle();
   });
 
-  // Reveal hint on long-press/tap on note area
+  // Reveal hint on long-press/tap on note area, and via explicit Hint button
   let hintTimer = null;
   function showHint(){
     if (currentHint){
       hintEl.textContent = `One way: ${currentHint} = 67`;
     }
   }
+  // Explicit button click support
+  if (hintBtn) {
+    hintBtn.addEventListener('click', showHint);
+  }
+  // Long-press on the note area still works
   hintEl.addEventListener('mousedown', ()=>{ hintTimer = setTimeout(showHint, 700); });
   hintEl.addEventListener('touchstart', ()=>{ hintTimer = setTimeout(showHint, 700); });
   ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>{

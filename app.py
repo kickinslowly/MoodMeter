@@ -448,7 +448,8 @@ def auth_google_callback():
     # Find or create the user
     user = User.query.filter_by(email=email).first()
     if not user:
-        user = User(email=email, name=name, avatar_url=avatar, provider='google')
+        # New users default to student role
+        user = User(email=email, name=name, avatar_url=avatar, provider='google', role='student')
         db.session.add(user)
     else:
         # Update basic profile fields if changed
@@ -808,9 +809,14 @@ def dashboard():
 
 @app.route('/role', methods=['POST'])
 def set_role():
-    """Temporary endpoint to set current user's role (student/teacher)."""
+    """Endpoint to set current user's role (student/teacher).
+    Hardened so only teachers can change role to prevent students from self-promoting.
+    """
     if not getattr(current_user, 'is_authenticated', False):
         return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    # Only teachers may change roles (including their own)
+    if getattr(current_user, 'role', 'student') != 'teacher':
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     role = (request.form.get('role') or '').strip().lower()
     if role not in ('student', 'teacher'):
         return jsonify({'ok': False, 'error': 'INVALID_ROLE'}), 400

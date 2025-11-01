@@ -21,10 +21,8 @@
           <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
           <span class="user-name">{{ current_user.name or current_user.email }}</span>
           <a href="{{ url_for('dashboard') }}" class="google-login-btn" title="Go to Dashboard">Dashboard</a>
-          <span style="margin-left:8px; font-size:12px; opacity:.8;">Role: {{ current_user.role or 'student' }}</span>
-          <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
-            <button type="submit" class="logout-btn" title="Sign out">Logout</button>
-          </form>
+          {% if current_user.role == 'teacher' %}
+          <span style="margin-left:8px; font-size:12px; opacity:.8;">Role: {{ current_user.role }}</span>
           <form method="post" action="{{ url_for('set_role') }}" style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
             <label for="role" style="font-size:12px;">Set role</label>
             <select name="role" id="role">
@@ -32,6 +30,10 @@
               <option value="teacher" {% if current_user.role == 'teacher' %}selected{% endif %}>Teacher</option>
             </select>
             <button type="submit" class="logout-btn">Save</button>
+          </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
+            <button type="submit" class="logout-btn" title="Sign out">Logout</button>
           </form>
         {% else %}
           <a href="{{ url_for('login_view') }}" class="google-login-btn" title="Sign in with Google">Sign in with Google</a>
