@@ -167,9 +167,12 @@
   const resetBtn = document.getElementById('resetBtn');
   const hintEl = document.getElementById('m67Hint');
   const scoreEl = document.getElementById('m67Score');
+  const allTimeEl = document.getElementById('m67AllTime');
   const overlayRoot = document.querySelector('.m67-overlay-root');
   const nextBtn = document.getElementById('nextPuzzleBtn');
   const hintBtn = document.getElementById('hintBtn');
+  const lbList = document.getElementById('m67Leaderboard');
+  const allTimeBoxEl = allTimeEl ? allTimeEl.closest('.score-box') : null;
 
   let baseCards = [];
   let curCards = [];
@@ -178,6 +181,58 @@
   let selectedOp = null;
   let score = 0;
   let currentHint = '';
+  let allTime = null;
+  let isAuthed = false;
+
+  function renderLeaderboard(list){
+    if (!lbList) return;
+    lbList.innerHTML = '';
+    if (!Array.isArray(list) || list.length === 0){
+      const li = document.createElement('li');
+      li.className = 'm67-lb-empty';
+      li.textContent = 'No scores yet';
+      lbList.appendChild(li);
+      return;
+    }
+    list.forEach((item, idx)=>{
+      const li = document.createElement('li');
+      li.className = 'm67-lb-item';
+      const rank = document.createElement('span');
+      rank.className = 'rank';
+      rank.textContent = String(idx + 1);
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = item.name || 'Player';
+      const total = document.createElement('span');
+      total.className = 'total';
+      total.textContent = String(item.total ?? 0);
+      li.append(rank, name, total);
+      lbList.appendChild(li);
+    });
+  }
+
+  async function loadLeaderboard(){
+    try {
+      const res = await fetch('/api/make67/leaderboard');
+      const data = await res.json().catch(()=>({ok:false}));
+      if (data && data.ok){
+        renderLeaderboard(data.top || []);
+        if (data.me){
+          isAuthed = true;
+          allTime = Number(data.me.total || 0);
+          if (allTimeEl) allTimeEl.textContent = String(allTime);
+          if (allTimeBoxEl) allTimeBoxEl.style.removeProperty('display');
+        } else {
+          isAuthed = false;
+          allTime = null;
+          if (allTimeEl) allTimeEl.textContent = '—';
+          if (allTimeBoxEl) allTimeBoxEl.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      // ignore network errors
+    }
+  }
 
   function setCard(i, value){
     curCards[i] = value;
@@ -258,6 +313,20 @@
     resetToBase();
   }
 
+  async function notifySolve(){
+    try {
+      if (!isAuthed) return;
+      const res = await fetch('/api/make67/solve', {method:'POST', headers:{'Content-Type':'application/json'}});
+      const data = await res.json().catch(()=>({ok:false}));
+      if (data && data.ok && typeof data.all_time_total === 'number'){
+        allTime = data.all_time_total;
+        if (allTimeEl) allTimeEl.textContent = String(allTime);
+      }
+      // Refresh leaderboard after a solve
+      loadLeaderboard();
+    } catch (e) { /* ignore */ }
+  }
+
   function checkEnd(){
     const alive = [];
     for (let i=0;i<curCards.length;i++) if (!removed.has(i)) alive.push(i);
@@ -266,6 +335,7 @@
       if (Math.abs(val - 67) <= TOL){
         score += 1;
         scoreEl.textContent = String(score);
+        notifySolve();
         playSuccess();
       } else {
         // brief shake then reset
@@ -378,5 +448,6 @@
   });
 
   // Initialize
+  loadLeaderboard();
   newPuzzle();
 })();

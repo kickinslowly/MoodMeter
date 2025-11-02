@@ -6,14 +6,28 @@
   <title>Mood Meter</title>
   <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8W6XCSVZZ0"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-8W6XCSVZZ0');
+  </script>
 </head>
 <body>
   <div class="page mood-meter-page">
     <header class="header">
       {% if current_user.is_authenticated %}
       <div class="session-actions">
+        <a href="{{ url_for('make67_page') }}" class="make67-btn" title="Play Make67">Make67</a>
         <button id="sessionBtn" class="session-btn" title="Create or join a session">Session</button>
         <span id="sessionStatus" class="session-status" aria-live="polite"></span>
+      </div>
+      {% else %}
+      <div class="session-actions">
+        <a href="{{ url_for('make67_page') }}" class="make67-btn" title="Play Make67">Make67</a>
       </div>
       {% endif %}
       <div class="auth-actions">

@@ -6,15 +6,24 @@
   <title>Make67</title>
   <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8W6XCSVZZ0"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-8W6XCSVZZ0');
+  </script>
 </head>
 <body>
   <div class="page make67-page">
     <header class="header">
+      <a href="{{ url_for('index') }}" class="back-link" title="Back to Mood Meter">← Mood Meter</a>
       <div class="auth-actions">
         {% if current_user.is_authenticated %}
           <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
           <span class="user-name">{{ current_user.name or current_user.email }}</span>
-          <a href="{{ url_for('dashboard') }}" class="google-login-btn" title="Go to Dashboard">Dashboard</a>
           <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
             <button type="submit" class="logout-btn" title="Sign out">Logout</button>
           </form>
@@ -27,29 +36,44 @@
     </header>
 
     <main class="main">
-      <div class="make67-container">
-        <div class="score-box" aria-live="polite">
-          <div class="score-label">Solved</div>
-          <div id="m67Score" class="score-value">0</div>
-        </div>
+      <div class="make67-layout">
+        <aside class="m67-leaderboard" aria-label="All-time leaderboard">
+          <div class="score-row">
+            <div class="score-box" aria-live="polite">
+              <div class="score-label">Solved (this session)</div>
+              <div id="m67Score" class="score-value">0</div>
+            </div>
+            <div class="score-box" aria-live="polite">
+              <div class="score-label">All‑time</div>
+              <div id="m67AllTime" class="score-value">—</div>
+            </div>
+          </div>
+          <h3 class="m67-lb-title">Top 10 All‑Time</h3>
+          <ol id="m67Leaderboard" class="m67-lb-list" aria-live="polite"></ol>
+        </aside>
 
-        <div class="cards-grid" role="grid" aria-label="Number cards">
-          <button class="card" data-index="0" role="gridcell" aria-label="Card 1"><span>0</span></button>
-          <button class="card" data-index="1" role="gridcell" aria-label="Card 2"><span>0</span></button>
-          <button class="card" data-index="2" role="gridcell" aria-label="Card 3"><span>0</span></button>
-          <button class="card" data-index="3" role="gridcell" aria-label="Card 4"><span>0</span></button>
-        </div>
+        <section class="m67-game">
+          <div class="make67-container">
 
-        <div class="ops" aria-label="Operations">
-          <button class="op-btn" data-op="+">＋</button>
-          <button class="op-btn" data-op="-">−</button>
-          <button class="op-btn" data-op="*">×</button>
-          <button class="op-btn" data-op="/">÷</button>
-          <button id="resetBtn" class="op-btn ghost" title="Reset puzzle">↺</button>
-          <button id="hintBtn" class="op-btn" title="Show a hint" aria-label="Show a hint">?</button>
-        </div>
+            <div class="cards-grid" role="grid" aria-label="Number cards">
+              <button class="card" data-index="0" role="gridcell" aria-label="Card 1"><span>0</span></button>
+              <button class="card" data-index="1" role="gridcell" aria-label="Card 2"><span>0</span></button>
+              <button class="card" data-index="2" role="gridcell" aria-label="Card 3"><span>0</span></button>
+              <button class="card" data-index="3" role="gridcell" aria-label="Card 4"><span>0</span></button>
+            </div>
 
-        <div class="note" id="m67Hint" aria-live="polite"></div>
+            <div class="ops" aria-label="Operations">
+              <button class="op-btn" data-op="+">＋</button>
+              <button class="op-btn" data-op="-">−</button>
+              <button class="op-btn" data-op="*">×</button>
+              <button class="op-btn" data-op="/">÷</button>
+              <button id="resetBtn" class="op-btn ghost" title="Reset puzzle">↺</button>
+              <button id="hintBtn" class="op-btn" title="Show a hint" aria-label="Show a hint">?</button>
+            </div>
+
+            <div class="note" id="m67Hint" aria-live="polite"></div>
+          </div>
+        </section>
       </div>
 
       <!-- Success overlay -->
@@ -66,9 +90,6 @@
       </div>
     </main>
 
-    <footer class="footer">
-      <a class="google-login-btn" href="{{ url_for('index') }}" title="Back to Mood Meter">← Back to Mood Meter</a>
-    </footer>
   </div>
 
   <script src="{{ url_for('static', filename='js/make67.js') }}"></script>

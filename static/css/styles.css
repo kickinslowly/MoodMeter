@@ -711,8 +711,8 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 /* === Make67 page styles (scoped) === */
 .make67-page .make67-container { display: grid; gap: 16px; place-items: center; }
 .make67-page .subtitle { color: var(--axis); font-weight: 600; letter-spacing: .3px; }
-.make67-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(120px, 22vw)); grid-auto-rows: minmax(120px, 22vw); gap: 14px; --pad: 10px; padding: var(--pad); border-radius: 16px; background: rgba(255,255,255,0.05); box-shadow: var(--shadow); }
-.make67-page .card { appearance:none; border:1px solid var(--cell-border); background:#22242b; color:#fff; border-radius:18px; font-size: clamp(28px, 6vw, 46px); font-weight: 900; display:grid; place-items:center; position:relative; overflow:hidden; box-shadow: var(--shadow); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.make67-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(168px, 30.8vw)); grid-auto-rows: minmax(168px, 30.8vw); gap: 20px; --pad: 14px; padding: var(--pad); border-radius: 16px; background: rgba(255,255,255,0.05); box-shadow: var(--shadow); }
+.make67-page .card { appearance:none; border:1px solid var(--cell-border); background:#22242b; color:#fff; border-radius:18px; font-size: clamp(39px, 8.4vw, 64px); font-weight: 900; display:grid; place-items:center; position:relative; overflow:hidden; box-shadow: var(--shadow); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
 .make67-page .card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.45); border-color: var(--hover-outline); }
 .make67-page .card.selected { box-shadow: 0 0 0 2px var(--selected-outline), 0 10px 24px rgba(0,0,0,0.5); transform: translateY(-2px) scale(1.02); z-index: 2; }
 .make67-page .card.removed { visibility: hidden; }
@@ -725,11 +725,33 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .make67-page .op-btn.active { border-color: #9fe3b5; box-shadow: 0 0 0 2px rgba(159,227,181,0.45) inset, 0 0 24px rgba(159,227,181,0.35); }
 .make67-page .op-btn.ghost { background: transparent; color: var(--axis); }
 
-.make67-page .score-box { display:grid; place-items:center; gap:4px; padding: 10px 14px; border:1px solid rgba(255,255,255,0.14); border-radius: 12px; background: rgba(255,255,255,0.04); box-shadow: var(--shadow); }
-.make67-page .score-label { font-size: 12px; color: var(--axis); }
-.make67-page .score-value { font-size: 32px; font-weight: 900; }
+.make67-page .score-box { display:grid; place-items:center; gap:6px; padding: 14px 20px; border:1px solid rgba(255,255,255,0.14); border-radius: 14px; background: rgba(255,255,255,0.04); box-shadow: var(--shadow); }
+.make67-page .score-label { font-size: 17px; color: var(--axis); font-weight: 700; }
+.make67-page .score-value { font-size: 45px; font-weight: 900; }
 
 .make67-page .note { min-height: 22px; color: #ccd1db; opacity: .9; font-size: 14px; text-align:center; }
+
+/* Desktop-fit overrides for Make67 to avoid page scroll */
+@media (min-width: 901px) {
+  .make67-page .header { padding: 12px 16px 6px; }
+  .make67-page .main { padding: 10px 14px; place-items: center; max-height: calc(100vh - 64px); overflow: hidden; }
+  .make67-page .make67-layout { width: 100vw; max-width: 100vw; gap: 24px; grid-template-columns: minmax(280px, 360px) 1fr minmax(280px, 360px); align-items: start; }
+    .make67-page .m67-game { grid-column: 2; }
+    .make67-page .m67-leaderboard { grid-column: 1; align-self: start; }
+  .make67-page .m67-leaderboard { max-height: calc(100vh - 120px); overflow: auto; }
+  .make67-page .make67-container { --board: min(78vh, calc(100vw - 420px)); gap: 12px; place-items: center; }
+    .make67-page .m67-game { display: grid; place-items: center; justify-self: center; }
+  .make67-page .cards-grid { grid-template-columns: repeat(2, minmax(180px, min(24vw, 32vh))); grid-auto-rows: minmax(180px, min(24vw, 32vh)); gap: 16px; }
+  .make67-page .card { font-size: clamp(36px, 6.8vh, 64px); border-radius: 16px; }
+  .make67-page .ops { gap: 10px; }
+  .make67-page .op-btn { min-width: clamp(44px, 6vh, 56px); min-height: clamp(44px, 6vh, 56px); font-size: clamp(18px, 3.2vh, 22px); border-radius: 14px; }
+  .make67-page .score-box { padding: 14px 20px; }
+  .make67-page .score-value { font-size: clamp(25px, 4.5vh, 36px); }
+  .make67-page .note { font-size: 12px; min-height: 18px; }
+  /* Small, low‑priority back link in top-left */
+  .make67-page .back-link { position: absolute; left: 16px; top: 12px; font-size: 12px; color: var(--axis); opacity: .85; background: transparent; border: 1px solid transparent; padding: 4px 6px; border-radius: 8px; text-decoration: none; }
+  .make67-page .back-link:hover { text-decoration: underline; opacity: 1; }
+}
 
 /* Merge fly animation */
 .ghost-card { z-index: 10000; pointer-events:none; }
@@ -785,10 +807,48 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 
 /* Session UI (top-left) */
 .session-actions { position: absolute; left: 16px; top: 12px; display: flex; align-items: center; gap: 8px; }
+/* Make67 launcher: square on desktop, matches Session/Dashboard buttons on mobile */
+.make67-btn {
+  --gold: #FFD700; /* subtle golden accent */
+  display: grid;
+  place-items: center;
+  width: auto;
+  height: auto;
+  padding: 8px 12px; /* fit to text */
+  background: #ffffff;
+  color: #111217;
+  text-decoration: none;
+  font-weight: 800;
+  border-radius: 8px;
+  border: 0;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  will-change: transform, box-shadow;
+  transform-origin: center;
+  /* thin golden outline + very soft glow (with fallback) */
+  /* Fallback for browsers without color-mix() */
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px rgba(255,215,0,0.40),
+    0 0 10px rgba(255,215,0,0.18);
+  /* Preferred with color-mix() */
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px color-mix(in srgb, var(--gold), transparent 40%),
+    0 0 10px color-mix(in srgb, var(--gold), transparent 82%);
+  /* slightly stronger, quicker pulse so it's easier to notice */
+  animation: pulse-gold 1.9s ease-in-out infinite;
+}
+.make67-btn:hover { filter: brightness(0.95); }
 .session-btn { background: #ffffff; color: #111217; border: 0; border-radius: 6px; padding: 6px 10px; font-weight: 700; text-decoration: none; box-shadow: var(--shadow); cursor: pointer; }
 .session-btn:hover { filter: brightness(0.95); }
 .session-btn.active { background: #d1f7e1; box-shadow: 0 0 0 2px rgba(74,201,129,0.45) inset, 0 0 18px rgba(74,201,129,0.6); }
 .session-status { font-size: 12px; color: var(--axis); opacity: .85; }
+
+/* Mobile: make it look like the Session/Dashboard buttons (not square) */
+@media (max-width: 600px) {
+  .make67-btn { width: auto; height: auto; padding: 6px 10px; border-radius: 6px; font-weight: 700; letter-spacing: 0; }
+}
 
 /* Session heat glow and counts */
 .grid .cell .count-badge { position: absolute; right: 6px; top: 6px; font-size: 12px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8); pointer-events: none; }
@@ -804,3 +864,51 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .session-menu button { background: #2f3540; color: #e8eaef; border: 1px solid #3a3f47; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
 .session-menu button:hover { filter: brightness(1.05); }
 .session-menu .note { font-size: 12px; opacity: .85; margin-top: 6px; }
+
+
+/* === Make67 layout & leaderboard === */
+.make67-page .make67-layout { display: grid; gap: 24px; width: 100vw; max-width: 100vw; align-items: start; }
+.make67-page .m67-game { display: block; }
+.make67-page .m67-leaderboard { border:1px solid rgba(255,255,255,0.14); border-radius: 14px; background: rgba(255,255,255,0.04); box-shadow: var(--shadow); padding: 12px; }
+.make67-page .m67-lb-title { margin: 4px 6px 10px; font-size: 14px; font-weight: 800; color: var(--axis); letter-spacing: .3px; }
+.make67-page .m67-lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.make67-page .m67-lb-item { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border:1px solid var(--cell-border); background: #1d2026; color: #e8ecf5; }
+.make67-page .m67-lb-item .rank { font-weight: 900; opacity: .8; }
+.make67-page .m67-lb-item .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.make67-page .m67-lb-item .total { font-weight: 900; }
+.make67-page .m67-lb-empty { padding: 8px 10px; opacity: .8; color: var(--axis); }
+.make67-page .score-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
+
+@media (max-width: 900px) {
+  .make67-page .make67-layout { display: flex; flex-direction: column; max-width: 640px; }
+  .make67-page .m67-game { order: 1; }
+  .make67-page .m67-leaderboard { order: 2; margin-top: 10px; }
+}
+
+
+/* Subtle golden pulse for Make67 button */
+@keyframes pulse-gold {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow:
+      var(--shadow),
+      0 0 0 1px rgba(255, 215, 0, 0.45),
+      0 0 12px rgba(255, 215, 0, 0.22);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow:
+      var(--shadow),
+      0 0 0 1px rgba(255, 215, 0, 0.70),
+      0 0 20px rgba(255, 215, 0, 0.32);
+  }
+}
+
+.make67-btn:focus-visible {
+  outline: 2px solid rgba(255, 215, 0, 0.8);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .make67-btn { animation: none; }
+}

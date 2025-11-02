@@ -113,6 +113,7 @@ class User(db.Model, UserMixin):
     role = db.Column(db.String(20), nullable=False, default='student')  # 'student' or 'teacher'
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    make67_all_time_solves = db.Column(db.Integer, nullable=False, default=0)
 
 
 class Group(db.Model):
@@ -1224,6 +1225,65 @@ def api_session_stats(session_id: int):
     subs = MoodSubmission.query.filter(MoodSubmission.session_id == session_id).all()
     stats = _compute_stats(subs)
     return jsonify({'ok': True, 'heatmap': stats['heatmap'], 'max_count': stats['max_count'], 'total': stats['total']})
+
+
+# --- Make67 APIs ---
+def _format_display_name(user: 'User') -> str:
+    """Return first name + last initial when possible; fall back to email username."""
+    try:
+        name = (user.name or '').strip()
+        if name:
+            parts = [p for p in name.split() if p]
+            if len(parts) == 1:
+                return parts[0]
+            first = parts[0]
+            last_initial = parts[-1][0] + '.' if parts[-1] else ''
+            return f"{first} {last_initial}".strip()
+        email = (user.email or '').strip()
+        if email:
+            username = email.split('@')[0]
+            return username
+    except Exception:
+        pass
+    return 'Anonymous'
+
+
+@app.route('/api/make67/solve', methods=['POST'])
+def api_make67_solve():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        cur = u.make67_all_time_solves or 0
+        u.make67_all_time_solves = cur + 1
+        db.session.commit()
+        return jsonify({'ok': True, 'all_time_total': u.make67_all_time_solves})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make67/leaderboard', methods=['GET'])
+def api_make67_leaderboard():
+    try:
+        top_users = (
+            User.query
+            .filter((User.make67_all_time_solves != None) & (User.make67_all_time_solves > 0))
+            .order_by(User.make67_all_time_solves.desc(), User.created_at.asc())
+            .limit(10)
+            .all()
+        )
+        top = [{'name': _format_display_name(u), 'total': int(u.make67_all_time_solves or 0)} for u in top_users]
+        me = None
+        if getattr(current_user, 'is_authenticated', False):
+            u = db.session.get(User, current_user.get_id())
+            if u:
+                me = {'name': _format_display_name(u), 'total': int(u.make67_all_time_solves or 0)}
+        return jsonify({'ok': True, 'top': top, 'me': me})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
 
 
 if __name__ == '__main__':
