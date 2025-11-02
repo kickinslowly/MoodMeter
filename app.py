@@ -1256,10 +1256,15 @@ def api_make67_solve():
         u = db.session.get(User, current_user.get_id())
         if not u:
             return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        data = request.get_json(silent=True) or {}
+        hint_used = bool(data.get('hint_used'))
+        if hint_used:
+            # Do not count solves where a hint was used
+            return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0), 'skipped': True})
         cur = u.make67_all_time_solves or 0
         u.make67_all_time_solves = cur + 1
         db.session.commit()
-        return jsonify({'ok': True, 'all_time_total': u.make67_all_time_solves})
+        return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0)})
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500

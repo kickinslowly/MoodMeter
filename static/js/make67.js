@@ -183,6 +183,7 @@
   let currentHint = '';
   let allTime = null;
   let isAuthed = false;
+  let hintUsed = false;
 
   function renderLeaderboard(list){
     if (!lbList) return;
@@ -310,19 +311,24 @@
     const puzzle = generatePuzzle();
     baseCards = puzzle.cards.slice();
     currentHint = puzzle.expr;
+    hintUsed = false;
     resetToBase();
   }
 
   async function notifySolve(){
     try {
       if (!isAuthed) return;
-      const res = await fetch('/api/make67/solve', {method:'POST', headers:{'Content-Type':'application/json'}});
+      const res = await fetch('/api/make67/solve', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ hint_used: !!hintUsed })
+      });
       const data = await res.json().catch(()=>({ok:false}));
       if (data && data.ok && typeof data.all_time_total === 'number'){
         allTime = data.all_time_total;
         if (allTimeEl) allTimeEl.textContent = String(allTime);
       }
-      // Refresh leaderboard after a solve
+      // Refresh leaderboard after a solve (skipped or counted)
       loadLeaderboard();
     } catch (e) { /* ignore */ }
   }
@@ -333,9 +339,14 @@
     if (alive.length === 1){
       const val = curCards[alive[0]];
       if (Math.abs(val - 67) <= TOL){
-        score += 1;
-        scoreEl.textContent = String(score);
-        notifySolve();
+        if (!hintUsed) {
+          score += 1;
+          scoreEl.textContent = String(score);
+          notifySolve();
+        } else {
+          // Still celebrate, but do not count toward session or all-time
+          notifySolve();
+        }
         playSuccess();
       } else {
         // brief shake then reset
@@ -433,6 +444,7 @@
   let hintTimer = null;
   function showHint(){
     if (currentHint){
+      hintUsed = true;
       hintEl.textContent = `One way: ${currentHint} = 67`;
     }
   }
