@@ -198,6 +198,7 @@
     list.forEach((item, idx)=>{
       const li = document.createElement('li');
       li.className = 'm67-lb-item';
+      if (idx === 0) li.classList.add('top1');
       const rank = document.createElement('span');
       rank.className = 'rank';
       rank.textContent = String(idx + 1);
@@ -207,6 +208,18 @@
       const total = document.createElement('span');
       total.className = 'total';
       total.textContent = String(item.total ?? 0);
+
+      // If this is the #1 leader, prepend a decorative golden star next to their name
+      if (idx === 0) {
+        const star = document.createElement('span');
+        star.className = 'top1-star';
+        star.setAttribute('aria-hidden', 'true');
+        star.title = 'All-time #1';
+        star.textContent = '★';
+        name.prepend(star);
+        li.title = 'All-time #1 leader';
+      }
+
       li.append(rank, name, total);
       lbList.appendChild(li);
     });

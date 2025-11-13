@@ -912,3 +912,82 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 @media (prefers-reduced-motion: reduce) {
   .make67-btn { animation: none; }
 }
+
+/* Make67 leaderboard: highlight #1 with golden star and glow */
+.make67-page .m67-lb-item.top1 {
+  position: relative;
+  border-color: rgba(255, 215, 0, 0.55);
+  background:
+    radial-gradient(120px 48px at 20% 50%, rgba(255, 215, 0, 0.07), transparent 60%),
+    #1d2026;
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px rgba(255, 215, 0, 0.50),
+    0 0 16px rgba(255, 215, 0, 0.28);
+  animation: top1-glow 2s ease-in-out infinite;
+}
+
+.make67-page .m67-lb-item.top1 .rank { color: #FFD700; text-shadow: 0 0 8px rgba(255,215,0,0.55); }
+.make67-page .m67-lb-item.top1 .total { color: #fff7c2; text-shadow: 0 0 8px rgba(255,215,0,0.35); }
+
+/* Decorative golden star next to #1 name */
+.make67-page .m67-lb-item .name { display: inline-flex; align-items: center; gap: 6px; }
+.top1-star {
+  position: relative;
+  display: inline-block;
+  color: #FFD700;
+  font-size: 1.05em;
+  line-height: 1;
+  margin-right: 6px;
+  filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.55));
+  animation: star-pulse 1.6s ease-in-out infinite;
+}
+/* Tiny orbiting spark around the star */
+.top1-star::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: #FFD700;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.75);
+  transform: rotate(0deg) translateX(12px) rotate(0deg);
+  transform-origin: center;
+  animation: orbit 2.8s linear infinite;
+}
+
+@keyframes top1-glow {
+  0%, 100% {
+    box-shadow:
+      var(--shadow),
+      0 0 0 1px rgba(255, 215, 0, 0.45),
+      0 0 14px rgba(255, 215, 0, 0.26);
+  }
+  50% {
+    box-shadow:
+      var(--shadow),
+      0 0 0 1px rgba(255, 215, 0, 0.85),
+      0 0 24px rgba(255, 215, 0, 0.40);
+  }
+}
+
+@keyframes star-pulse {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(12deg) scale(1.18); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes orbit {
+  0%   { transform: rotate(0deg) translateX(12px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(12px) rotate(-360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .make67-page .m67-lb-item.top1 { animation: none; }
+  .top1-star { animation: none; }
+  .top1-star::after { animation: none; }
+}
