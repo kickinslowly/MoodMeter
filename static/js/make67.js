@@ -198,13 +198,24 @@
     list.forEach((item, idx)=>{
       const li = document.createElement('li');
       li.className = 'm67-lb-item';
+      const rk = (item && item.rank_key) ? String(item.rank_key) : 'noob';
+      li.classList.add(`rank-${rk}`);
       if (idx === 0) li.classList.add('top1');
       const rank = document.createElement('span');
       rank.className = 'rank';
       rank.textContent = String(idx + 1);
       const name = document.createElement('span');
       name.className = 'name';
-      name.textContent = item.name || 'Player';
+      // Build: (icon) name - title
+      const icon = document.createElement('span');
+      icon.className = 'rank-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = item.rank_icon || '•';
+      const title = document.createElement('span');
+      title.className = 'rank-title';
+      title.textContent = item.rank_title || '';
+      const playerName = document.createTextNode(` ${item.name || 'Player'} - `);
+      name.append(icon, playerName, title);
       const total = document.createElement('span');
       total.className = 'total';
       total.textContent = String(item.total ?? 0);

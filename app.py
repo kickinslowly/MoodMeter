@@ -1248,6 +1248,31 @@ def _format_display_name(user: 'User') -> str:
     return 'Anonymous'
 
 
+def _compute_rank(total: int) -> dict:
+    """Return rank metadata based on all-time solves.
+    Keys: key (css key), title (label), icon (unicode/emoji)
+    """
+    t = int(total or 0)
+    # Ordered from highest to lowest threshold
+    if t >= 800:
+        return {"key": "overlord", "title": "OVERLORD", "icon": "🦅"}
+    if t >= 700:
+        return {"key": "captain", "title": "Captain", "icon": "🎖️"}
+    if t >= 600:
+        return {"key": "godlike", "title": "Godlike", "icon": "👑"}
+    if t >= 500:
+        return {"key": "legend", "title": "Legend", "icon": "⚔️"}
+    if t >= 400:
+        return {"key": "genius", "title": "Genius", "icon": "🏵️"}
+    if t >= 300:
+        return {"key": "soldier", "title": "Soldier", "icon": "🛡️"}
+    if t >= 200:
+        return {"key": "nerd", "title": "Nerd", "icon": "🧠"}
+    if t >= 100:
+        return {"key": "beast", "title": "Beast", "icon": "🏅"}
+    return {"key": "noob", "title": "Noob", "icon": "⚪"}
+
+
 @app.route('/api/make67/solve', methods=['POST'])
 def api_make67_solve():
     if not getattr(current_user, 'is_authenticated', False):
@@ -1280,12 +1305,30 @@ def api_make67_leaderboard():
             .limit(10)
             .all()
         )
-        top = [{'name': _format_display_name(u), 'total': int(u.make67_all_time_solves or 0)} for u in top_users]
+        top = []
+        for u in top_users:
+            total = int(u.make67_all_time_solves or 0)
+            rk = _compute_rank(total)
+            top.append({
+                'name': _format_display_name(u),
+                'total': total,
+                'rank_key': rk['key'],
+                'rank_title': rk['title'],
+                'rank_icon': rk['icon'],
+            })
         me = None
         if getattr(current_user, 'is_authenticated', False):
             u = db.session.get(User, current_user.get_id())
             if u:
-                me = {'name': _format_display_name(u), 'total': int(u.make67_all_time_solves or 0)}
+                total = int(u.make67_all_time_solves or 0)
+                rk = _compute_rank(total)
+                me = {
+                    'name': _format_display_name(u),
+                    'total': total,
+                    'rank_key': rk['key'],
+                    'rank_title': rk['title'],
+                    'rank_icon': rk['icon'],
+                }
         return jsonify({'ok': True, 'top': top, 'me': me})
     except Exception as e:
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
