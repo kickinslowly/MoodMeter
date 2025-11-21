@@ -487,3 +487,68 @@
   loadLeaderboard();
   newPuzzle();
 })();
+
+// --- Make67 Live Chat (SSE) ---
+(function initMake67Chat(){
+  const logEl = document.getElementById('m67ChatLog');
+  const formEl = document.getElementById('m67ChatForm');
+  const inputEl = document.getElementById('m67ChatInput');
+  if (!logEl || !formEl || !inputEl) return; // Chat not rendered for ineligible users
+
+  function appendMessage(m){
+    if (!m || m.type !== 'message') return;
+    const row = document.createElement('div');
+    row.className = 'm67-chat-row';
+    const user = document.createElement('span');
+    user.className = 'm67-chat-user';
+    user.textContent = (m.user || 'User') + ': ';
+    const text = document.createElement('span');
+    text.className = 'm67-chat-text';
+    text.textContent = m.text || '';
+    row.appendChild(user);
+    row.appendChild(text);
+    logEl.appendChild(row);
+    // Keep last ~500 messages max in DOM (safety)
+    if (logEl.childElementCount > 500){
+      logEl.removeChild(logEl.firstElementChild);
+    }
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Stream via SSE
+  let es;
+  try {
+    es = new EventSource('/api/make67/chat/stream');
+    es.onmessage = (evt) => {
+      try {
+        const m = JSON.parse(evt.data);
+        appendMessage(m);
+      } catch (_) { /* ignore */ }
+    };
+    es.onerror = () => {
+      // Connection issue; browser will auto-retry SSE
+    };
+  } catch (_) {
+    // SSE unsupported; silently no-op
+  }
+
+  // Send via POST
+  formEl.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = (inputEl.value || '').trim();
+    if (!text) return;
+    inputEl.value = '';
+    try {
+      const res = await fetch('/api/make67/chat/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      if (!res.ok){
+        // Optionally show a soft warning in the UI
+      }
+    } catch (_) {
+      // Ignore network errors silently
+    }
+  });
+})();

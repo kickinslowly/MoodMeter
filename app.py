@@ -1,10 +1,14 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, stream_with_context
 import csv
 from pathlib import Path
 import os
 from datetime import datetime, timezone, timedelta
 import uuid
 import random
+import json
+import time
+import threading
+from queue import Queue, Empty
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, upgrade as alembic_upgrade
 from flask_login import LoginManager, UserMixin, current_user, logout_user, login_user
@@ -289,7 +293,7 @@ def make67_page():
     """Fun math mini-game: Make 67 from 4 cards using + - * /.
     Standalone page; does not affect the rest of the site.
     """
-    return render_template('make67.html')
+    return render_template('make67.html', make67_chat_eligible=_is_make67_chat_eligible())
 
 
 @app.route('/api/last-entry', methods=['GET'])
@@ -1228,6 +1232,110 @@ def api_session_stats(session_id: int):
 
 
 # --- Make67 APIs ---
+def _is_make67_chat_eligible() -> bool:
+    """Return True if the current user can access Make67 chat: logged in and score > 50."""
+    try:
+        if not getattr(current_user, 'is_authenticated', False):
+            return False
+        solves = int(getattr(current_user, 'make67_all_time_solves', 0) or 0)
+        return solves > 50
+    except Exception:
+        return False
+
+
+# --- In-memory Make67 chat hub (process-local) ---
+_m67_subscribers_lock = threading.Lock()
+_m67_subscribers: set[Queue] = set()
+_m67_last_post_by_ip: dict[str, float] = {}
+
+
+def _m67_broadcast(msg: dict):
+    with _m67_subscribers_lock:
+        dead = []
+        for q in list(_m67_subscribers):
+            try:
+                q.put_nowait(msg)
+            except Exception:
+                dead.append(q)
+        for q in dead:
+            _m67_subscribers.discard(q)
+
+
+@app.route('/api/make67/chat/stream')
+def make67_chat_stream():
+    """SSE stream for eligible users only."""
+    if not _is_make67_chat_eligible():
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
+    q: Queue = Queue(maxsize=100)
+    with _m67_subscribers_lock:
+        _m67_subscribers.add(q)
+
+    def gen():
+        # Initial comment and periodic keep-alives to prevent idle timeouts
+        yield ': connected\n\n'
+        try:
+            while True:
+                try:
+                    msg = q.get(timeout=25)
+                    yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
+                except Empty:
+                    yield ': keep-alive\n\n'
+        except GeneratorExit:
+            pass
+        finally:
+            with _m67_subscribers_lock:
+                _m67_subscribers.discard(q)
+
+    headers = {
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+    }
+    return Response(stream_with_context(gen()), mimetype='text/event-stream', headers=headers)
+
+
+@app.route('/api/make67/chat/post', methods=['POST'])
+def make67_chat_post():
+    """Accept a chat message from an eligible user and broadcast to all subscribers."""
+    if not _is_make67_chat_eligible():
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
+
+    # Parse payload
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form or {}
+
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'ok': False, 'error': 'EMPTY'}), 400
+    if len(text) > 300:
+        text = text[:300]
+
+    # Light rate limit per IP
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+    now = time.time()
+    last = _m67_last_post_by_ip.get(ip, 0.0)
+    if now - last < 1.0:  # 1 message/sec per IP
+        return jsonify({'ok': False, 'error': 'RATE_LIMIT'}), 429
+    _m67_last_post_by_ip[ip] = now
+
+    # Determine display name
+    try:
+        if getattr(current_user, 'is_authenticated', False):
+            user_display = _format_display_name(current_user)
+        else:
+            user_display = 'Guest'
+    except Exception:
+        user_display = 'Guest'
+
+    msg = {
+        't': int(time.time() * 1000),
+        'user': user_display,
+        'text': text,
+        'type': 'message',
+    }
+    _m67_broadcast(msg)
+    return jsonify({'ok': True})
 def _format_display_name(user: 'User') -> str:
     """Return first name + last initial when possible; fall back to email username."""
     try:

@@ -74,6 +74,16 @@
             <div class="note" id="m67Hint" aria-live="polite"></div>
           </div>
         </section>
+        {% if make67_chat_eligible %}
+        <aside class="m67-chat" aria-label="Live chat (Make67)">
+          <h3 class="m67-chat__title">Live Chat</h3>
+          <div id="m67ChatLog" class="m67-chat__log" aria-live="polite"></div>
+          <form id="m67ChatForm" class="m67-chat__form" autocomplete="off">
+            <input id="m67ChatInput" type="text" maxlength="300" placeholder="Say something" class="m67-chat__input" />
+            <button type="submit" class="op-btn">Send</button>
+          </form>
+        </aside>
+        {% endif %}
       </div>
 
       <!-- Success overlay -->

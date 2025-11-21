@@ -738,6 +738,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   .make67-page .make67-layout { width: 100vw; max-width: 100vw; gap: 24px; grid-template-columns: minmax(280px, 360px) 1fr minmax(280px, 360px); align-items: start; }
     .make67-page .m67-game { grid-column: 2; }
     .make67-page .m67-leaderboard { grid-column: 1; align-self: start; }
+    .make67-page .m67-chat { grid-column: 3; align-self: start; }
   .make67-page .m67-leaderboard { max-height: calc(100vh - 120px); overflow: auto; }
   .make67-page .make67-container { --board: min(78vh, calc(100vw - 420px)); gap: 12px; place-items: center; }
     .make67-page .m67-game { display: grid; place-items: center; justify-self: center; }
@@ -870,6 +871,14 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .make67-page .make67-layout { display: grid; gap: 24px; width: 100vw; max-width: 100vw; align-items: start; }
 .make67-page .m67-game { display: block; }
 .make67-page .m67-leaderboard { border:1px solid rgba(255,255,255,0.14); border-radius: 14px; background: rgba(255,255,255,0.04); box-shadow: var(--shadow); padding: 12px; }
+.make67-page .m67-chat { border:1px solid rgba(255,255,255,0.14); border-radius: 14px; background: rgba(255,255,255,0.04); box-shadow: var(--shadow); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.make67-page .m67-chat__title { margin: 0 0 4px; font-size: 14px; font-weight: 800; color: var(--axis); letter-spacing: .3px; }
+.make67-page .m67-chat__log { min-height: 140px; max-height: calc(100vh - 160px); overflow: auto; border: 1px solid var(--cell-border); border-radius: 10px; padding: 8px; background: #1c1f26; }
+.make67-page .m67-chat__form { display: flex; gap: 8px; align-items: center; }
+.make67-page .m67-chat__input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border:1px solid #3a3f47; background:#121418; color:#e8ecf5; }
+.make67-page .m67-chat-row { margin: 4px 0; line-height: 1.25; word-break: break-word; }
+.make67-page .m67-chat-user { font-weight: 800; color: #e8ecf5; opacity: .95; }
+.make67-page .m67-chat-text { color: #cfd3dc; }
 .make67-page .m67-lb-title { margin: 4px 6px 10px; font-size: 14px; font-weight: 800; color: var(--axis); letter-spacing: .3px; }
 .make67-page .m67-lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .make67-page .m67-lb-item { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border:1px solid var(--cell-border); background: #1d2026; color: #e8ecf5; }
@@ -883,6 +892,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   .make67-page .make67-layout { display: flex; flex-direction: column; max-width: 640px; }
   .make67-page .m67-game { order: 1; }
   .make67-page .m67-leaderboard { order: 2; margin-top: 10px; }
+  .make67-page .m67-chat { order: 3; margin-top: 10px; }
 }
 
 
