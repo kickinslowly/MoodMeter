@@ -17,7 +17,6 @@ from flask_login import LoginManager, UserMixin, current_user, logout_user, logi
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from functools import lru_cache
-from sqlalchemy import inspect as sa_inspect
 
 # Load environment variables from a .env file if present
 load_dotenv()
@@ -237,27 +236,6 @@ class ChatMessage(db.Model):
     username = db.Column(db.String(255), nullable=False)
     text = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
-
-
-def _ensure_chat_table():
-    """Create the chat messages table if it does not exist.
-    This is a lightweight safeguard so we don't need an Alembic migration
-    for this optional feature in the very first iteration.
-    """
-    try:
-        inspector = sa_inspect(db.engine)
-        if ChatMessage.__tablename__ not in inspector.get_table_names():
-            # Create only this table to avoid touching others
-            ChatMessage.__table__.create(db.engine)
-            try:
-                app.logger.info("Created table %s for Make67 chat", ChatMessage.__tablename__)
-            except Exception:
-                pass
-    except Exception as e:
-        try:
-            app.logger.warning(f"_ensure_chat_table failed: {e}")
-        except Exception:
-            pass
 
 
 @login_manager.user_loader
@@ -1484,9 +1462,6 @@ def make67_chat_send():
     if not _is_make67_chat_eligible():
         return jsonify({'error': 'FORBIDDEN'}), 403
 
-    # Ensure table exists (no-op if already there)
-    _ensure_chat_table()
-
     data = request.get_json(silent=True) or {}
     text = (data.get('text') or '').strip()
     if not text:
@@ -1522,9 +1497,6 @@ def make67_chat_since():
         return jsonify({'error': 'DISABLED'}), 503
     if not _is_make67_chat_eligible():
         return jsonify({'error': 'FORBIDDEN'}), 403
-
-    # Ensure table exists (no-op if already there)
-    _ensure_chat_table()
 
     try:
         last_id = request.args.get('last_id', type=int) or 0
