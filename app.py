@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, stream_with_context, g
 import csv
 from pathlib import Path
 import os
@@ -9,6 +9,8 @@ import json
 import time
 import threading
 from queue import Queue, Empty
+import logging
+import socket
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate, upgrade as alembic_upgrade
 from flask_login import LoginManager, UserMixin, current_user, logout_user, login_user
@@ -82,6 +84,67 @@ if app.config['GOOGLE_AUTH_ENABLED']:
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 login_manager = LoginManager(app)
+
+
+# --- Logging & diagnostics setup ---
+def _setup_logging():
+    """Configure application logging level and handler based on env.
+    LOG_LEVEL can be DEBUG, INFO, WARNING, ERROR.
+    """
+    level_name = os.environ.get('LOG_LEVEL', 'INFO').upper()
+    level = getattr(logging, level_name, logging.INFO)
+    # Ensure Flask app logger follows this level
+    app.logger.setLevel(level)
+    # Add a default stream handler if none present (important in some hosts)
+    if not app.logger.handlers:
+        handler = logging.StreamHandler()
+        fmt = logging.Formatter('[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
+        handler.setFormatter(fmt)
+        handler.setLevel(level)
+        app.logger.addHandler(handler)
+
+
+_setup_logging()
+
+# Instance identifier to detect multi-instance behavior through logs/headers
+INSTANCE_ID = os.environ.get('INSTANCE_ID') or f"{socket.gethostname()}:{os.getpid()}"
+
+# Feature flag to quickly disable Make67 chat for triage
+app.config['MAKE67_CHAT_ENABLED'] = os.environ.get('MAKE67_CHAT_ENABLED', '1').lower() not in ('0', 'false', 'no')
+
+
+@app.before_request
+def _diag_before_request():
+    # Request start time and request id
+    g.__req_start = time.perf_counter()
+    g.__request_id = request.headers.get('X-Request-Id') or uuid.uuid4().hex[:12]
+    g.__client_ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+
+
+@app.after_request
+def _diag_after_request(resp: Response):
+    try:
+        dur_ms = None
+        if hasattr(g, '__req_start'):
+            dur_ms = int((time.perf_counter() - g.__req_start) * 1000)
+        # Always attach instance and request id headers
+        resp.headers['X-Instance-Id'] = INSTANCE_ID
+        if hasattr(g, '__request_id'):
+            resp.headers['X-Request-Id'] = g.__request_id
+        # Log basic access line
+        app.logger.info(
+            "req method=%s path=%s status=%s dur_ms=%s ip=%s rid=%s ua=%s",
+            request.method,
+            request.path,
+            resp.status_code,
+            dur_ms,
+            getattr(g, '__client_ip', 'unknown'),
+            getattr(g, '__request_id', '-'),
+            (request.user_agent.string[:120] if request.user_agent else '-'),
+        )
+    except Exception:
+        pass
+    return resp
 
 
 def _auto_upgrade_db():
@@ -1247,9 +1310,12 @@ def _is_make67_chat_eligible() -> bool:
 _m67_subscribers_lock = threading.Lock()
 _m67_subscribers: set[Queue] = set()
 _m67_last_post_by_ip: dict[str, float] = {}
+_m67_message_count: int = 0
 
 
 def _m67_broadcast(msg: dict):
+    global _m67_message_count
+    _m67_message_count += 1
     with _m67_subscribers_lock:
         dead = []
         for q in list(_m67_subscribers):
@@ -1264,15 +1330,30 @@ def _m67_broadcast(msg: dict):
 @app.route('/api/make67/chat/stream')
 def make67_chat_stream():
     """SSE stream for eligible users only."""
+    if not app.config.get('MAKE67_CHAT_ENABLED', True):
+        app.logger.warning("make67_chat_stream disabled via feature flag; instance=%s", INSTANCE_ID)
+        return jsonify({'ok': False, 'error': 'DISABLED'}), 503
     if not _is_make67_chat_eligible():
+        solves = None
+        try:
+            solves = int(getattr(current_user, 'make67_all_time_solves', 0) or 0)
+        except Exception:
+            pass
+        app.logger.info("make67_chat_stream denied: eligible=False solves=%s ip=%s instance=%s",
+                        solves, getattr(g, '__client_ip', 'unknown'), INSTANCE_ID)
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
     q: Queue = Queue(maxsize=100)
     with _m67_subscribers_lock:
         _m67_subscribers.add(q)
+        try:
+            app.logger.info("make67_chat_stream connect subscribers=%d ip=%s instance=%s",
+                            len(_m67_subscribers), getattr(g, '__client_ip', 'unknown'), INSTANCE_ID)
+        except Exception:
+            pass
 
     def gen():
         # Initial comment and periodic keep-alives to prevent idle timeouts
-        yield ': connected\n\n'
+        yield f": connected instance={INSTANCE_ID} time={int(time.time())}\n\n"
         try:
             while True:
                 try:
@@ -1285,17 +1366,26 @@ def make67_chat_stream():
         finally:
             with _m67_subscribers_lock:
                 _m67_subscribers.discard(q)
+                try:
+                    app.logger.info("make67_chat_stream disconnect subscribers=%d ip=%s instance=%s",
+                                    len(_m67_subscribers), getattr(g, '__client_ip', 'unknown'), INSTANCE_ID)
+                except Exception:
+                    pass
 
     headers = {
         'Cache-Control': 'no-cache',
         'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
     }
-    return Response(stream_with_context(gen()), mimetype='text/event-stream', headers=headers)
+    return Response(stream_with_context(gen()), mimetype='text/event-stream; charset=utf-8', headers=headers)
 
 
 @app.route('/api/make67/chat/post', methods=['POST'])
 def make67_chat_post():
     """Accept a chat message from an eligible user and broadcast to all subscribers."""
+    if not app.config.get('MAKE67_CHAT_ENABLED', True):
+        app.logger.warning("make67_chat_post disabled via feature flag; instance=%s", INSTANCE_ID)
+        return jsonify({'ok': False, 'error': 'DISABLED'}), 503
     if not _is_make67_chat_eligible():
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
 
@@ -1307,6 +1397,11 @@ def make67_chat_post():
 
     text = (data.get('text') or '').strip()
     if not text:
+        try:
+            app.logger.info("make67_chat_post rejected: empty ip=%s instance=%s",
+                            getattr(g, '__client_ip', 'unknown'), INSTANCE_ID)
+        except Exception:
+            pass
         return jsonify({'ok': False, 'error': 'EMPTY'}), 400
     if len(text) > 300:
         text = text[:300]
@@ -1316,6 +1411,10 @@ def make67_chat_post():
     now = time.time()
     last = _m67_last_post_by_ip.get(ip, 0.0)
     if now - last < 1.0:  # 1 message/sec per IP
+        try:
+            app.logger.info("make67_chat_post rate_limited ip=%s instance=%s", ip, INSTANCE_ID)
+        except Exception:
+            pass
         return jsonify({'ok': False, 'error': 'RATE_LIMIT'}), 429
     _m67_last_post_by_ip[ip] = now
 
@@ -1334,8 +1433,32 @@ def make67_chat_post():
         'text': text,
         'type': 'message',
     }
+    try:
+        app.logger.debug("make67_chat_post ok len=%d ip=%s instance=%s", len(text), ip, INSTANCE_ID)
+    except Exception:
+        pass
     _m67_broadcast(msg)
     return jsonify({'ok': True})
+
+
+@app.route('/api/make67/chat/debug', methods=['GET'])
+def make67_chat_debug():
+    """Diagnostics for Make67 chat. Auth required. Helps detect multi-instance and SSE issues.
+    Returns current subscriber count, total messages broadcast in this process, feature flag state, and instance id.
+    """
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    with _m67_subscribers_lock:
+        subs = len(_m67_subscribers)
+    data = {
+        'ok': True,
+        'enabled': bool(app.config.get('MAKE67_CHAT_ENABLED', True)),
+        'subscribers': subs,
+        'message_count': _m67_message_count,
+        'instance': INSTANCE_ID,
+        'time': int(time.time()),
+    }
+    return jsonify(data)
 def _format_display_name(user: 'User') -> str:
     """Return first name + last initial when possible; fall back to email username."""
     try:
