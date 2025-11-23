@@ -488,7 +488,7 @@
   newPuzzle();
 })();
 
-// --- Make67 Live Chat (SSE) ---
+// --- Make67 Live Chat (Short polling HTTP) ---
 (function initMake67Chat(){
   const logEl = document.getElementById('m67ChatLog');
   const formEl = document.getElementById('m67ChatForm');
@@ -515,22 +515,31 @@
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // Stream via SSE
-  let es;
-  try {
-    es = new EventSource('/api/make67/chat/stream');
-    es.onmessage = (evt) => {
+  // Short polling state
+  let lastId = 0;
+  let polling = true;
+
+  async function pollLoop(){
+    while (polling){
       try {
-        const m = JSON.parse(evt.data);
-        appendMessage(m);
-      } catch (_) { /* ignore */ }
-    };
-    es.onerror = () => {
-      // Connection issue; browser will auto-retry SSE
-    };
-  } catch (_) {
-    // SSE unsupported; silently no-op
+        const res = await fetch(`/api/make67/chat/since?last_id=${lastId}`);
+        if (res.ok){
+          const items = await res.json();
+          if (Array.isArray(items)){
+            for (const m of items){
+              appendMessage(m);
+              if (typeof m.id === 'number' && m.id > lastId) lastId = m.id;
+            }
+          }
+        }
+      } catch (_){ /* ignore transient errors */ }
+      // wait ~2 seconds
+      await new Promise(r=>setTimeout(r, 2000));
+    }
   }
+
+  // initial fetch to populate a bit
+  pollLoop();
 
   // Send via POST
   formEl.addEventListener('submit', async (e) => {
@@ -539,13 +548,20 @@
     if (!text) return;
     inputEl.value = '';
     try {
-      const res = await fetch('/api/make67/chat/post', {
+      const res = await fetch('/api/make67/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })
       });
       if (!res.ok){
         // Optionally show a soft warning in the UI
+      } else {
+        const msg = await res.json();
+        // Optimistically append own message
+        if (msg && msg.text){
+          appendMessage({type:'message', user: msg.user || 'You', text: msg.text, id: msg.id});
+          if (typeof msg.id === 'number' && msg.id > lastId) lastId = msg.id;
+        }
       }
     } catch (_) {
       // Ignore network errors silently

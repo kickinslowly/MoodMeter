@@ -17,6 +17,7 @@ from flask_login import LoginManager, UserMixin, current_user, logout_user, logi
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from functools import lru_cache
+from sqlalchemy import inspect as sa_inspect
 
 # Load environment variables from a .env file if present
 load_dotenv()
@@ -226,6 +227,37 @@ class MoodSubmission(db.Model):
     ip = db.Column(db.String(45), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     session_id = db.Column(db.Integer, db.ForeignKey('sessions.id'), nullable=True, index=True)
+
+
+# --- Make67 chat (DB-backed, short polling) ---
+class ChatMessage(db.Model):
+    __tablename__ = 'make67_chat_messages'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, index=True)
+    username = db.Column(db.String(255), nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+def _ensure_chat_table():
+    """Create the chat messages table if it does not exist.
+    This is a lightweight safeguard so we don't need an Alembic migration
+    for this optional feature in the very first iteration.
+    """
+    try:
+        inspector = sa_inspect(db.engine)
+        if ChatMessage.__tablename__ not in inspector.get_table_names():
+            # Create only this table to avoid touching others
+            ChatMessage.__table__.create(db.engine)
+            try:
+                app.logger.info("Created table %s for Make67 chat", ChatMessage.__tablename__)
+            except Exception:
+                pass
+    except Exception as e:
+        try:
+            app.logger.warning(f"_ensure_chat_table failed: {e}")
+        except Exception:
+            pass
 
 
 @login_manager.user_loader
@@ -1439,6 +1471,83 @@ def make67_chat_post():
         pass
     _m67_broadcast(msg)
     return jsonify({'ok': True})
+
+
+# --- Lightweight, DB-backed chat endpoints (short polling) ---
+@app.route('/api/make67/chat/send', methods=['POST'])
+def make67_chat_send():
+    """Insert a chat message in the DB and return it.
+    Designed for short-polling frontend. Auth/eligibility required.
+    """
+    if not app.config.get('MAKE67_CHAT_ENABLED', True):
+        return jsonify({'error': 'DISABLED'}), 503
+    if not _is_make67_chat_eligible():
+        return jsonify({'error': 'FORBIDDEN'}), 403
+
+    # Ensure table exists (no-op if already there)
+    _ensure_chat_table()
+
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'error': 'EMPTY'}), 400
+    if len(text) > 300:
+        text = text[:300]
+
+    try:
+        username = _format_display_name(current_user) if getattr(current_user, 'is_authenticated', False) else 'Anonymous'
+        user_id = getattr(current_user, 'id', None) if getattr(current_user, 'is_authenticated', False) else None
+    except Exception:
+        username = 'Anonymous'
+        user_id = None
+
+    msg = ChatMessage(user_id=user_id, username=username, text=text)
+    db.session.add(msg)
+    db.session.commit()
+
+    payload = {
+        'id': msg.id,
+        'user': msg.username,
+        'text': msg.text,
+        'created_at': (msg.created_at.isoformat() + 'Z'),
+        'type': 'message',
+    }
+    return jsonify(payload)
+
+
+@app.route('/api/make67/chat/since', methods=['GET'])
+def make67_chat_since():
+    """Return up to 50 messages with id > last_id, ascending."""
+    if not app.config.get('MAKE67_CHAT_ENABLED', True):
+        return jsonify({'error': 'DISABLED'}), 503
+    if not _is_make67_chat_eligible():
+        return jsonify({'error': 'FORBIDDEN'}), 403
+
+    # Ensure table exists (no-op if already there)
+    _ensure_chat_table()
+
+    try:
+        last_id = request.args.get('last_id', type=int) or 0
+    except Exception:
+        last_id = 0
+
+    msgs = (
+        ChatMessage.query
+        .filter(ChatMessage.id > last_id)
+        .order_by(ChatMessage.id.asc())
+        .limit(50)
+        .all()
+    )
+    return jsonify([
+        {
+            'id': m.id,
+            'user': m.username,
+            'text': m.text,
+            'created_at': (m.created_at.isoformat() + 'Z'),
+            'type': 'message',
+        }
+        for m in msgs
+    ])
 
 
 @app.route('/api/make67/chat/debug', methods=['GET'])
