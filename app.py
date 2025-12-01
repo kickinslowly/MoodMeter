@@ -1566,6 +1566,16 @@ def _compute_rank(total: int) -> dict:
     """
     t = int(total or 0)
     # Ordered from highest to lowest threshold
+    if t >= 1300:
+        return {"key": "alien", "title": "ALIEN", "icon": "👽"}
+    if t >= 1200:
+        return {"key": "sixseven", "title": "67676767676767", "icon": "6️⃣"}
+    if t >= 1100:
+        return {"key": "freak", "title": "FREAK of NATURE", "icon": "🧬"}
+    if t >= 1000:
+        return {"key": "master", "title": "MASTER", "icon": "🥇"}
+    if t >= 900:
+        return {"key": "supreme", "title": "SUPREME OVERLORD", "icon": "🫅"}
     if t >= 800:
         return {"key": "overlord", "title": "OVERLORD", "icon": "🦅"}
     if t >= 700:

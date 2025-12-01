@@ -978,6 +978,24 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 /* OVERLORD – imperial fuchsia */
 .make67-page .m67-lb-item.rank-overlord .name { color: #ec4899; text-shadow: 0 0 12px rgba(236,72,153,0.65); }
 .make67-page .m67-lb-item.rank-overlord { border-color: rgba(236,72,153,0.48); }
+.make67-page .m67-lb-item.rank-supreme .name { color: #db2777; text-shadow: 0 0 12px rgba(219,39,119,0.68); }
+.make67-page .m67-lb-item.rank-supreme { border-color: rgba(219,39,119,0.55); }
+
+/* MASTER – crimson authority */
+.make67-page .m67-lb-item.rank-master .name { color: #ef4444; text-shadow: 0 0 12px rgba(239,68,68,0.60); }
+.make67-page .m67-lb-item.rank-master { border-color: rgba(239,68,68,0.45); }
+
+/* FREAK of NATURE – toxic lime */
+.make67-page .m67-lb-item.rank-freak .name { color: #a3e635; text-shadow: 0 0 12px rgba(163,230,53,0.60); }
+.make67-page .m67-lb-item.rank-freak { border-color: rgba(163,230,53,0.45); }
+
+/* 67676767676767 – slate glitch */
+.make67-page .m67-lb-item.rank-sixseven .name { color: #6b7280; text-shadow: 0 0 10px rgba(107,114,128,0.45); }
+.make67-page .m67-lb-item.rank-sixseven { border-color: rgba(107,114,128,0.40); }
+
+/* ALIEN – neon mint */
+.make67-page .m67-lb-item.rank-alien .name { color: #00ffc3; text-shadow: 0 0 14px rgba(0,255,195,0.70); }
+.make67-page .m67-lb-item.rank-alien { border-color: rgba(0,255,195,0.52); }
 .make67-page .m67-lb-item.top1 .total { color: #fff7c2; text-shadow: 0 0 8px rgba(255,215,0,0.35); }
 
 /* Decorative golden star next to #1 name */
