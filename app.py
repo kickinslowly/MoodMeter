@@ -1492,7 +1492,13 @@ def make67_chat_send():
 
 @app.route('/api/make67/chat/since', methods=['GET'])
 def make67_chat_since():
-    """Return up to 50 messages with id > last_id, ascending."""
+    """Return chat history in a fast, bounded way.
+
+    Behavior:
+    - If last_id > 0: return up to 50 messages with id > last_id (ascending).
+    - If last_id <= 0 or missing: return the latest 50 messages (ascending),
+      not the entire history. This keeps initial page load snappy.
+    """
     if not app.config.get('MAKE67_CHAT_ENABLED', True):
         return jsonify({'error': 'DISABLED'}), 503
     if not _is_make67_chat_eligible():
@@ -1503,13 +1509,25 @@ def make67_chat_since():
     except Exception:
         last_id = 0
 
-    msgs = (
-        ChatMessage.query
-        .filter(ChatMessage.id > last_id)
-        .order_by(ChatMessage.id.asc())
-        .limit(50)
-        .all()
-    )
+    if last_id > 0:
+        # Standard incremental fetch: get messages after the last seen id
+        msgs = (
+            ChatMessage.query
+            .filter(ChatMessage.id > last_id)
+            .order_by(ChatMessage.id.asc())
+            .limit(50)
+            .all()
+        )
+    else:
+        # Initial load: fetch only the latest N messages, not the whole history
+        latest = (
+            ChatMessage.query
+            .order_by(ChatMessage.id.desc())
+            .limit(50)
+            .all()
+        )
+        # Return ascending for a natural reading order
+        msgs = list(reversed(latest))
     return jsonify([
         {
             'id': m.id,
