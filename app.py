@@ -17,6 +17,7 @@ from flask_login import LoginManager, UserMixin, current_user, logout_user, logi
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from functools import lru_cache
+from collections import deque
 
 # Load environment variables from a .env file if present
 load_dotenv()
@@ -181,6 +182,8 @@ class User(db.Model, UserMixin):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     make67_all_time_solves = db.Column(db.Integer, nullable=False, default=0)
+    # Flag for auto-solver/cheating detection in Make67
+    make67_is_cheater = db.Column(db.Boolean, nullable=False, default=False)
 
 
 class Group(db.Model):
@@ -1322,6 +1325,10 @@ _m67_subscribers: set[Queue] = set()
 _m67_last_post_by_ip: dict[str, float] = {}
 _m67_message_count: int = 0
 
+# --- In-memory Make67 solve-rate tracking (process-local) ---
+_m67_recent_solves_lock = threading.Lock()
+_m67_recent_solves: dict[str, deque] = {}
+
 
 def _m67_broadcast(msg: dict):
     global _m67_message_count
@@ -1626,10 +1633,27 @@ def api_make67_solve():
         if hint_used:
             # Do not count solves where a hint was used
             return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0), 'skipped': True})
-        cur = u.make67_all_time_solves or 0
+        # Update counters
+        cur = int(u.make67_all_time_solves or 0)
         u.make67_all_time_solves = cur + 1
+
+        # Cheater detection: more than 5 solves in any 10-second window
+        now = time.time()
+        with _m67_recent_solves_lock:
+            dq = _m67_recent_solves.get(u.id)
+            if dq is None:
+                dq = deque()
+                _m67_recent_solves[u.id] = dq
+            dq.append(now)
+            # Trim to last 10 seconds
+            cutoff = now - 10.0
+            while dq and dq[0] < cutoff:
+                dq.popleft()
+            if len(dq) > 5:
+                u.make67_is_cheater = True
+
         db.session.commit()
-        return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0)})
+        return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0), 'cheater': bool(getattr(u, 'make67_is_cheater', False))})
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
@@ -1648,26 +1672,34 @@ def api_make67_leaderboard():
         top = []
         for u in top_users:
             total = int(u.make67_all_time_solves or 0)
-            rk = _compute_rank(total)
+            if getattr(u, 'make67_is_cheater', False):
+                rk = {"key": "cheater", "title": "CHEATER", "icon": "🚫"}
+            else:
+                rk = _compute_rank(total)
             top.append({
                 'name': _format_display_name(u),
                 'total': total,
                 'rank_key': rk['key'],
                 'rank_title': rk['title'],
                 'rank_icon': rk['icon'],
+                'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
             })
         me = None
         if getattr(current_user, 'is_authenticated', False):
             u = db.session.get(User, current_user.get_id())
             if u:
                 total = int(u.make67_all_time_solves or 0)
-                rk = _compute_rank(total)
+                if getattr(u, 'make67_is_cheater', False):
+                    rk = {"key": "cheater", "title": "CHEATER", "icon": "🚫"}
+                else:
+                    rk = _compute_rank(total)
                 me = {
                     'name': _format_display_name(u),
                     'total': total,
                     'rank_key': rk['key'],
                     'rank_title': rk['title'],
                     'rank_icon': rk['icon'],
+                    'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
                 }
         return jsonify({'ok': True, 'top': top, 'me': me})
     except Exception as e:

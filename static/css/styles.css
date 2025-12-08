@@ -998,6 +998,11 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .make67-page .m67-lb-item.rank-alien { border-color: rgba(0,255,195,0.52); }
 .make67-page .m67-lb-item.top1 .total { color: #fff7c2; text-shadow: 0 0 8px rgba(255,215,0,0.35); }
 
+/* CHEATER – explicit red styling: name in red, CHEATER label bold red */
+.make67-page .m67-lb-item.rank-cheater .name { color: #ff2d2d; text-shadow: 0 0 10px rgba(255,45,45,0.55); }
+.make67-page .m67-lb-item.rank-cheater .rank-title { color: #ff2d2d; font-weight: 900; letter-spacing: 0.6px; }
+.make67-page .m67-lb-item.rank-cheater { border-color: rgba(255,45,45,0.45); }
+
 /* Decorative golden star next to #1 name */
 .make67-page .m67-lb-item .name { display: inline-flex; align-items: center; gap: 6px; }
 .top1-star {
