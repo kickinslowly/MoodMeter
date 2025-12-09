@@ -1637,7 +1637,7 @@ def api_make67_solve():
         cur = int(u.make67_all_time_solves or 0)
         u.make67_all_time_solves = cur + 1
 
-        # Cheater detection: more than 5 solves in any 10-second window
+        # Cheater detection: more than 20 solves in any 60-second window
         now = time.time()
         with _m67_recent_solves_lock:
             dq = _m67_recent_solves.get(u.id)
@@ -1645,11 +1645,11 @@ def api_make67_solve():
                 dq = deque()
                 _m67_recent_solves[u.id] = dq
             dq.append(now)
-            # Trim to last 10 seconds
-            cutoff = now - 10.0
+            # Trim to last 60 seconds
+            cutoff = now - 60.0
             while dq and dq[0] < cutoff:
                 dq.popleft()
-            if len(dq) > 5:
+            if len(dq) > 20:
                 u.make67_is_cheater = True
 
         db.session.commit()
