@@ -173,6 +173,8 @@
   const hintBtn = document.getElementById('hintBtn');
   const lbList = document.getElementById('m67Leaderboard');
   const allTimeBoxEl = allTimeEl ? allTimeEl.closest('.score-box') : null;
+  const sessionBoxEl = scoreEl ? scoreEl.closest('.score-box') : null;
+  const pageRoot = document.querySelector('.page.make67-page');
   const bannedBtn = document.getElementById('m67BannedBtn');
   const bannedRoot = document.querySelector('.m67-ban-root');
   const bannedListEl = document.getElementById('m67BannedList');
@@ -188,6 +190,109 @@
   let allTime = null;
   let isAuthed = false;
   let hintUsed = false;
+
+  // --- Empowerment & Theme Logic ---
+  function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+
+  function pickTheme(totalLike){
+    // Map total solves to theme per brief
+    const t = Number(totalLike) || 0;
+    if (t >= 1000) return 'theme-elite';       // Black + Gold
+    if (t >= 700)  return 'theme-darkking';    // Crimson + Obsidian
+    if (t >= 400)  return 'theme-mystic';      // Deep Purple + Electric Cyan
+    if (t >= 200)  return 'theme-tycoon';      // Emerald + Gold
+    if (t >= 50)   return 'theme-hero';        // Royal Blue + Platinum
+    return '';
+  }
+
+  function currentTotalLike(){
+    // Prefer all-time; fallback to a scaled session score estimate
+    if (typeof allTime === 'number') return allTime;
+    return (score || 0) * 5; // each session solve approximates 5 total for feel
+  }
+
+  function applyEmpowerment(){
+    if (!pageRoot) return;
+    const totalLike = currentTotalLike();
+    const emp = clamp01(totalLike / 1000);
+    // Remove existing theme classes
+    pageRoot.classList.remove('theme-elite','theme-mystic','theme-darkking','theme-hero','theme-tycoon');
+    const theme = pickTheme(totalLike);
+    if (theme) pageRoot.classList.add(theme);
+    pageRoot.style.setProperty('--emp', String(emp));
+
+    // Update charge bar on all-time score box
+    if (allTimeBoxEl){
+      allTimeBoxEl.classList.add('charged');
+      allTimeBoxEl.style.setProperty('--charge', String(emp));
+    }
+    // Sync overlay accent with active theme accent
+    const panel = document.querySelector('.m67-overlay__panel');
+    if (panel){
+      const cs = getComputedStyle(pageRoot);
+      const accent = cs.getPropertyValue('--accent') || '#9fe3b5';
+      panel.style.setProperty('--accent', accent.trim());
+    }
+  }
+
+  function burstCharge(){
+    if (!allTimeBoxEl) return;
+    allTimeBoxEl.classList.remove('charge-burst');
+    // force reflow to restart animation
+    void allTimeBoxEl.offsetWidth;
+    allTimeBoxEl.classList.add('charge-burst');
+  }
+
+  // --- Solve Sound Logic ---
+  function predictedTotalForSound(){
+    // Estimate the total solves at the moment of celebration.
+    // If this solve counts (authed + no hint), consider +1 as the server will increment.
+    let t = (typeof allTime === 'number') ? allTime : 0;
+    if (isAuthed && !hintUsed) t += 1;
+    return t;
+  }
+
+  function pickSolveSoundElement(){
+    const t = predictedTotalForSound();
+    const id = (t > 1000)
+      ? 'snd_reload'
+      : (t > 800)
+        ? 'snd_ah'
+        : (t > 600)
+          ? 'snd_hehe'
+          : (t > 400)
+            ? 'snd_lol'
+            : (t > 200)
+              ? 'snd_meme'
+              : 'snd_brainrot';
+    return document.getElementById(id);
+  }
+
+  function playSolveSound(){
+    const el = pickSolveSoundElement();
+    if (!el) return;
+    try { el.pause(); } catch(_){}
+    try { el.currentTime = 0; } catch(_){}
+    try {
+      const p = el.play();
+      if (p && typeof p.then === 'function') p.catch(()=>{});
+    } catch(_){}
+  }
+
+  function sparkAt(el, count){
+    if (!el) return;
+    const n = Math.max(3, Math.min(8, count || 5));
+    for (let i=0;i<n;i++){
+      const s = document.createElement('span');
+      s.className = 'spark';
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 20 + Math.random()*24;
+      s.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+      s.style.setProperty('--dy', Math.sin(ang) * dist + 'px');
+      el.appendChild(s);
+      s.addEventListener('animationend', ()=> s.remove(), {once:true});
+    }
+  }
 
   function renderLeaderboard(list){
     if (!lbList) return;
@@ -287,11 +392,13 @@
           allTime = Number(data.me.total || 0);
           if (allTimeEl) allTimeEl.textContent = String(allTime);
           if (allTimeBoxEl) allTimeBoxEl.style.removeProperty('display');
+          applyEmpowerment();
         } else {
           isAuthed = false;
           allTime = null;
           if (allTimeEl) allTimeEl.textContent = '—';
           if (allTimeBoxEl) allTimeBoxEl.style.display = 'none';
+          applyEmpowerment();
         }
       }
     } catch (e) {
@@ -378,6 +485,11 @@
       cardsEl[aliveIdx].classList.add('win-pop');
       setTimeout(()=>cardsEl[aliveIdx].classList.remove('win-pop'), 1200);
     }
+    // give a quick charge skim and sync overlay accent
+    burstCharge();
+    applyEmpowerment();
+    // Play success sound based on all-time thresholds
+    playSolveSound();
   }
 
   function resetToBase(){
@@ -411,6 +523,8 @@
       if (data && data.ok && typeof data.all_time_total === 'number'){
         allTime = data.all_time_total;
         if (allTimeEl) allTimeEl.textContent = String(allTime);
+        applyEmpowerment();
+        burstCharge();
       }
       // Refresh leaderboard after a solve (skipped or counted)
       loadLeaderboard();
@@ -426,6 +540,9 @@
         if (!hintUsed) {
           score += 1;
           scoreEl.textContent = String(score);
+          // Session score spark
+          sparkAt(sessionBoxEl, 5);
+          applyEmpowerment();
           notifySolve();
         } else {
           // Still celebrate, but do not count toward session or all-time
@@ -481,6 +598,9 @@
   cardsEl.forEach((el, idx)=>{
     el.addEventListener('click', ()=>{
       if (removed.has(idx)) return;
+      // reactive border hit
+      el.classList.add('react-hit');
+      setTimeout(()=>el.classList.remove('react-hit'), 200);
       if (selectedIndex == null){
         selectedIndex = idx;
         cardsEl.forEach(e=>e.classList.remove('selected'));
@@ -509,6 +629,9 @@
         setTimeout(()=>el.classList.remove('deny'), 300);
         return;
       }
+      // reactive border hit
+      el.classList.add('react-hit');
+      setTimeout(()=>el.classList.remove('react-hit'), 200);
       opsEl.forEach(o=>o.classList.remove('active'));
       el.classList.add('active');
       selectedOp = el.dataset.op;
@@ -546,6 +669,8 @@
   // Initialize
   loadLeaderboard();
   newPuzzle();
+  // First-time empowerment application (for guests too)
+  applyEmpowerment();
 })();
 
 // --- Make67 Live Chat (Short polling HTTP) ---

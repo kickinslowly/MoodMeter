@@ -711,7 +711,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 /* === Make67 page styles (scoped) === */
 .make67-page .make67-container { display: grid; gap: 16px; place-items: center; }
 .make67-page .subtitle { color: var(--axis); font-weight: 600; letter-spacing: .3px; }
-.make67-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(168px, 30.8vw)); grid-auto-rows: minmax(168px, 30.8vw); gap: 20px; --pad: 14px; padding: var(--pad); border-radius: 16px; background: rgba(255,255,255,0.05); box-shadow: var(--shadow); }
+.make67-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(168px, 30.8vw)); grid-auto-rows: minmax(168px, 30.8vw); gap: 20px; --pad: 14px; padding: var(--pad); border-radius: 16px; background: rgba(255,255,255,0.05); box-shadow: var(--shadow); position: relative; overflow: hidden; }
 .make67-page .card { appearance:none; border:1px solid var(--cell-border); background:#22242b; color:#fff; border-radius:18px; font-size: clamp(39px, 8.4vw, 64px); font-weight: 900; display:grid; place-items:center; position:relative; overflow:hidden; box-shadow: var(--shadow); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
 .make67-page .card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.45); border-color: var(--hover-outline); }
 .make67-page .card.selected { box-shadow: 0 0 0 2px var(--selected-outline), 0 10px 24px rgba(0,0,0,0.5); transform: translateY(-2px) scale(1.02); z-index: 2; }
@@ -1096,3 +1096,112 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .m67-ban__icon { width: 56px; height: 56px; display: grid; place-items: center; font-size: 34px; border-radius: 50%; margin: 0 auto 6px; background: radial-gradient(60% 60% at 40% 30%, #ffffffbb, #ffffff22), linear-gradient(180deg, rgba(255,72,72,0.35), rgba(255,72,72,0.18)); box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.10) inset; }
 .m67-ban__close { position: absolute; top: 10px; right: 10px; border: 1px solid #3a3f47; background: #1c1f26; color: #e8ecf5; border-radius: 10px; padding: 6px 8px; cursor: pointer; }
 .m67-ban__close:hover { filter: brightness(1.05); }
+
+/* === Make67 Regal Empowerment Themes & FX === */
+/* Base variables (will be overridden by theme classes) */
+.make67-page { --accent: #9fe3b5; --accent-2: #6ee7b7; --emp: 0; }
+
+/* Theme palettes (color combos from brief) */
+.make67-page.theme-elite { /* Black + Gold (Elite Authority) */
+  --accent: #ffd700;
+  --accent-2: #b8860b;
+}
+.make67-page.theme-mystic { /* Deep Purple + Electric Cyan (Mystic Royalty) */
+  --accent: #7c3aed;
+  --accent-2: #22d3ee;
+}
+.make67-page.theme-darkking { /* Crimson + Obsidian (Dark King Energy) */
+  --accent: #ef4444;
+  --accent-2: #0ea5e9; /* add subtle electric contrast */
+}
+.make67-page.theme-hero { /* Royal Blue + Platinum (Heroic Leader) */
+  --accent: #4f46e5;
+  --accent-2: #cfd3dc;
+}
+.make67-page.theme-tycoon { /* Emerald + Gold (Wealth + Control) */
+  --accent: #22c55e;
+  --accent-2: #f59e0b;
+}
+
+/* Auras around the board (subtle, slow) */
+.make67-page .cards-grid::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  border-radius: 24px;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 30% at 50% 25%, color-mix(in srgb, var(--accent) calc(20% + 40% * var(--emp)), transparent), transparent 70%),
+    radial-gradient(30% 22% at 55% 70%, color-mix(in srgb, var(--accent-2) calc(12% + 24% * var(--emp)), transparent), transparent 70%);
+  opacity: calc(0.05 + 0.22 * var(--emp));
+  filter: blur(calc(10px + 20px * var(--emp)));
+  animation: aura-breathe calc(14s - 6s * var(--emp)) ease-in-out infinite;
+}
+@keyframes aura-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+
+/* Reactive neon/glow borders on cards and op buttons (scaled by empowerment) */
+.make67-page .card::after, .make67-page .op-btn::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 calc(10px + 26px * var(--emp)) color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 calc(2px + 8px * var(--emp)) color-mix(in srgb, var(--accent-2) 40%, transparent) inset;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.make67-page .card:hover::after, .make67-page .card.selected::after, .make67-page .card.react-hit::after { opacity: calc(0.18 + 0.52 * var(--emp)); }
+.make67-page .op-btn:hover::after, .make67-page .op-btn.active::after, .make67-page .op-btn.react-hit::after { opacity: calc(0.14 + 0.46 * var(--emp)); }
+
+/* All‑time rank charge bar under the score box */
+.make67-page .score-box { position: relative; overflow: hidden; }
+.make67-page .score-box.charged::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(255,255,255,0), var(--accent), var(--accent-2));
+  transform-origin: left center;
+  transform: scaleX(var(--charge, 0));
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 75%, transparent));
+  transition: transform 600ms cubic-bezier(.2,.7,.2,1);
+}
+.make67-page .score-box.charge-burst::after {
+  content: "";
+  position: absolute;
+  left: -20%; right: -20%; bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
+  transform: translateX(-100%);
+  animation: charge-skim 900ms ease forwards;
+}
+@keyframes charge-skim { to { transform: translateX(100%); opacity: 0; } }
+
+/* Score sparks on increment */
+.make67-page .score-box .spark {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 80%, transparent);
+  transform: translate(-50%, -50%);
+  animation: spark 700ms ease-out forwards;
+}
+@keyframes spark {
+  to {
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -24px))) scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* Prefer reduced motion: soften or disable thematic animations */
+@media (prefers-reduced-motion: reduce) {
+  .make67-page .cards-grid::before { animation: none; }
+  .make67-page .score-box.charge-burst::after { animation: none; }
+  .make67-page .score-box .spark { animation-duration: 1ms; }
+}
