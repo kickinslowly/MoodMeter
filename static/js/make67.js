@@ -193,6 +193,7 @@
 
   // --- Empowerment & Theme Logic ---
   function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+  let currentEmp = 0; // cached empowerment [0..1] for FX scaling
 
   function pickTheme(totalLike){
     // Map total solves to theme per brief
@@ -215,6 +216,7 @@
     if (!pageRoot) return;
     const totalLike = currentTotalLike();
     const emp = clamp01(totalLike / 1000);
+    currentEmp = emp;
     // Remove existing theme classes
     pageRoot.classList.remove('theme-elite','theme-mystic','theme-darkking','theme-hero','theme-tycoon');
     const theme = pickTheme(totalLike);
@@ -281,12 +283,13 @@
 
   function sparkAt(el, count){
     if (!el) return;
-    const n = Math.max(3, Math.min(8, count || 5));
+    const base = (typeof count === 'number') ? count : 6;
+    const n = Math.round(Math.max(3, Math.min(16, base + 6 * currentEmp)));
     for (let i=0;i<n;i++){
       const s = document.createElement('span');
       s.className = 'spark';
       const ang = Math.random() * Math.PI * 2;
-      const dist = 20 + Math.random()*24;
+      const dist = 24 + Math.random()*(28 + 36 * currentEmp);
       s.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
       s.style.setProperty('--dy', Math.sin(ang) * dist + 'px');
       el.appendChild(s);
