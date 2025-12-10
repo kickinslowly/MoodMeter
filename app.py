@@ -1662,9 +1662,14 @@ def api_make67_solve():
 @app.route('/api/make67/leaderboard', methods=['GET'])
 def api_make67_leaderboard():
     try:
+        # Top leaderboard: exclude cheaters from the visible leaderboard
         top_users = (
             User.query
-            .filter((User.make67_all_time_solves != None) & (User.make67_all_time_solves > 0))
+            .filter(
+                (User.make67_all_time_solves != None)
+                & (User.make67_all_time_solves > 0)
+                & (User.make67_is_cheater == False)
+            )
             .order_by(User.make67_all_time_solves.desc(), User.created_at.asc())
             .limit(10)
             .all()
@@ -1672,17 +1677,39 @@ def api_make67_leaderboard():
         top = []
         for u in top_users:
             total = int(u.make67_all_time_solves or 0)
-            if getattr(u, 'make67_is_cheater', False):
-                rk = {"key": "cheater", "title": "CHEATER", "icon": "🚫"}
-            else:
-                rk = _compute_rank(total)
+            rk = _compute_rank(total)
             top.append({
                 'name': _format_display_name(u),
                 'total': total,
                 'rank_key': rk['key'],
                 'rank_title': rk['title'],
                 'rank_icon': rk['icon'],
-                'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
+                'is_cheater': False,
+            })
+
+        # Banned users (cheaters): show in separate list (wall of shame)
+        banned_users = (
+            User.query
+            .filter(
+                (User.make67_all_time_solves != None)
+                & (User.make67_all_time_solves > 0)
+                & (User.make67_is_cheater == True)
+            )
+            .order_by(User.make67_all_time_solves.desc(), User.created_at.asc())
+            .limit(100)
+            .all()
+        )
+        banned = []
+        for u in banned_users:
+            total = int(u.make67_all_time_solves or 0)
+            rk = {"key": "cheater", "title": "BANNED", "icon": "🚫"}
+            banned.append({
+                'name': _format_display_name(u),
+                'total': total,
+                'rank_key': rk['key'],
+                'rank_title': rk['title'],
+                'rank_icon': rk['icon'],
+                'is_cheater': True,
             })
         me = None
         if getattr(current_user, 'is_authenticated', False):
@@ -1690,7 +1717,7 @@ def api_make67_leaderboard():
             if u:
                 total = int(u.make67_all_time_solves or 0)
                 if getattr(u, 'make67_is_cheater', False):
-                    rk = {"key": "cheater", "title": "CHEATER", "icon": "🚫"}
+                    rk = {"key": "cheater", "title": "BANNED", "icon": "🚫"}
                 else:
                     rk = _compute_rank(total)
                 me = {
@@ -1701,7 +1728,7 @@ def api_make67_leaderboard():
                     'rank_icon': rk['icon'],
                     'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
                 }
-        return jsonify({'ok': True, 'top': top, 'me': me})
+        return jsonify({'ok': True, 'top': top, 'banned': banned, 'me': me})
     except Exception as e:
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
 

@@ -173,6 +173,10 @@
   const hintBtn = document.getElementById('hintBtn');
   const lbList = document.getElementById('m67Leaderboard');
   const allTimeBoxEl = allTimeEl ? allTimeEl.closest('.score-box') : null;
+  const bannedBtn = document.getElementById('m67BannedBtn');
+  const bannedRoot = document.querySelector('.m67-ban-root');
+  const bannedListEl = document.getElementById('m67BannedList');
+  let bannedCache = [];
 
   let baseCards = [];
   let curCards = [];
@@ -236,12 +240,48 @@
     });
   }
 
+  function renderBanned(list){
+    if (!bannedListEl) return;
+    bannedListEl.innerHTML = '';
+    if (!Array.isArray(list) || list.length === 0){
+      const li = document.createElement('li');
+      li.className = 'm67-lb-empty';
+      li.textContent = 'No banned users.';
+      bannedListEl.appendChild(li);
+      return;
+    }
+    list.forEach((item, idx)=>{
+      const li = document.createElement('li');
+      li.className = 'm67-lb-item rank-cheater';
+      const rank = document.createElement('span');
+      rank.className = 'rank';
+      rank.textContent = String(idx + 1);
+      const name = document.createElement('span');
+      name.className = 'name';
+      const icon = document.createElement('span');
+      icon.className = 'rank-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = (item && item.rank_icon) ? String(item.rank_icon) : '🚫';
+      const title = document.createElement('span');
+      title.className = 'rank-title';
+      title.textContent = 'BANNED';
+      const playerName = document.createTextNode(` ${item?.name || 'User'} - `);
+      name.append(icon, playerName, title);
+      const total = document.createElement('span');
+      total.className = 'total';
+      total.textContent = String(item?.total ?? 0);
+      li.append(rank, name, total);
+      bannedListEl.appendChild(li);
+    });
+  }
+
   async function loadLeaderboard(){
     try {
       const res = await fetch('/api/make67/leaderboard');
       const data = await res.json().catch(()=>({ok:false}));
       if (data && data.ok){
         renderLeaderboard(data.top || []);
+        bannedCache = Array.isArray(data.banned) ? data.banned : [];
         if (data.me){
           isAuthed = true;
           allTime = Number(data.me.total || 0);
@@ -257,6 +297,26 @@
     } catch (e) {
       // ignore network errors
     }
+  }
+
+  function openBanned(){
+    if (!bannedRoot) return;
+    renderBanned(bannedCache);
+    bannedRoot.hidden = false;
+  }
+  function closeBanned(){ if (bannedRoot) bannedRoot.hidden = true; }
+
+  if (bannedBtn){
+    bannedBtn.addEventListener('click', openBanned);
+  }
+  if (bannedRoot){
+    bannedRoot.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-close')==='1') closeBanned();
+    });
+    document.addEventListener('keydown', (e)=>{
+      if (!bannedRoot.hidden && e.key === 'Escape') closeBanned();
+    });
   }
 
   function setCard(i, value){

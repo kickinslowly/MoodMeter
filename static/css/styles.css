@@ -1064,3 +1064,35 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   .top1-star { animation: none; }
   .top1-star::after { animation: none; }
 }
+
+/* Danger button (red) for BANNED USERS */
+.danger-btn {
+  min-width: 160px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #7a1d1d;
+  background: linear-gradient(180deg, rgba(255,72,72,0.18), rgba(255,72,72,0.10));
+  color: #ffecec;
+  font-weight: 900;
+  letter-spacing: .3px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(255,0,0,0.16), var(--shadow);
+}
+.danger-btn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 14px 30px rgba(255,0,0,0.22), var(--shadow);
+}
+.danger-btn:active { filter: brightness(0.95); }
+.danger-btn:focus-visible { outline: 2px solid rgba(255,72,72,0.9); outline-offset: 2px; }
+
+/* Banned users modal */
+.m67-ban-root { position: fixed; inset: 0; z-index: 10015; display: block; }
+.m67-ban-root[hidden] { display: none !important; }
+.m67-ban-overlay { position: absolute; inset: 0; display: grid; place-items: center; }
+.m67-ban__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.m67-ban__panel { position: relative; z-index: 1; width: min(92vw, 640px); max-height: min(86vh, 720px); overflow: auto; border-radius: 18px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 24px 70px rgba(0,0,0,0.6); color: #e8ecf5; }
+.m67-ban__title { margin: 6px 0 6px; text-align: center; font-size: 18px; font-weight: 900; letter-spacing: .3px; }
+.m67-ban__subtitle { margin: 0 0 10px; text-align: center; font-size: 13px; color: var(--axis); }
+.m67-ban__icon { width: 56px; height: 56px; display: grid; place-items: center; font-size: 34px; border-radius: 50%; margin: 0 auto 6px; background: radial-gradient(60% 60% at 40% 30%, #ffffffbb, #ffffff22), linear-gradient(180deg, rgba(255,72,72,0.35), rgba(255,72,72,0.18)); box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.10) inset; }
+.m67-ban__close { position: absolute; top: 10px; right: 10px; border: 1px solid #3a3f47; background: #1c1f26; color: #e8ecf5; border-radius: 10px; padding: 6px 8px; cursor: pointer; }
+.m67-ban__close:hover { filter: brightness(1.05); }

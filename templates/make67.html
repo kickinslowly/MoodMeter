@@ -100,6 +100,25 @@
       </div>
     </main>
 
+    <!-- Bottom actions: Banned users wall of shame trigger -->
+    <div class="page-footer" style="display:flex; justify-content:center; padding: 10px 14px 20px;">
+      <button id="m67BannedBtn" class="danger-btn" title="Show cheaters wall of shame">BANNED USERS</button>
+    </div>
+
+    <!-- Cheater Wall of Shame modal -->
+    <div class="m67-ban-root" hidden>
+      <div class="m67-ban-overlay">
+        <div class="m67-ban__backdrop" data-close="1"></div>
+        <div class="m67-ban__panel" role="dialog" aria-modal="true" aria-labelledby="banTitle">
+          <button class="m67-ban__close" aria-label="Close" data-close="1">✕</button>
+          <div class="m67-ban__icon" aria-hidden="true">🚫</div>
+          <h3 id="banTitle" class="m67-ban__title">Cheater Wall of Shame</h3>
+          <p class="m67-ban__subtitle">These users are removed from the all‑time leaderboard.</p>
+          <ol id="m67BannedList" class="m67-lb-list" aria-live="polite" style="width:min(92vw,520px);"></ol>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="{{ url_for('static', filename='js/make67.js') }}"></script>
