@@ -24,6 +24,9 @@
         {% if current_user.is_authenticated %}
           <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
           <span class="user-name">{{ current_user.name or current_user.email }}</span>
+          <!-- Make67: Inventory/Shop toggle buttons next to auth info -->
+          <button id="m67InvBtn" class="logout-btn" title="Open inventory">Inventory</button>
+          <button id="m67ShopBtn" class="logout-btn" title="Open shop">Shop</button>
           <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
             <button type="submit" class="logout-btn" title="Sign out">Logout</button>
           </form>
@@ -72,6 +75,8 @@
             </div>
 
             <div class="note" id="m67Hint" aria-live="polite"></div>
+
+            <!-- Inventory and Shop moved to modal popups -->
           </div>
         </section>
         {% if make67_chat_eligible %}
@@ -119,6 +124,32 @@
       </div>
     </div>
 
+    <!-- Inventory modal -->
+    <div class="m67-modal-root m67-inv-root" hidden>
+      <div class="m67-modal-overlay">
+        <div class="m67-modal__backdrop" data-close="1"></div>
+        <div class="m67-modal__panel" role="dialog" aria-modal="true" aria-labelledby="invTitle">
+          <button class="m67-modal__close" aria-label="Close" data-close="1">✕</button>
+          <h3 id="invTitle" class="m67-modal__title">Inventory</h3>
+          <div id="m67Inv" class="m67-inv" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; width:min(92vw,560px);"></div>
+          <div id="m67Effects" class="m67-effects" style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; font-size:13px; color:#ccd1db; opacity:.9; margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shop modal -->
+    <div class="m67-modal-root m67-shop-root" hidden>
+      <div class="m67-modal-overlay">
+        <div class="m67-modal__backdrop" data-close="1"></div>
+        <div class="m67-modal__panel" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+          <button class="m67-modal__close" aria-label="Close" data-close="1">✕</button>
+          <h3 id="shopTitle" class="m67-modal__title">Shop</h3>
+          <div id="m67ShopNote" style="text-align:center; color:#ccd1db; font-size:13px; margin-bottom:10px;"></div>
+          <div id="m67ShopList" class="m67-shop" style="display:grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap:10px; width:min(92vw,640px);"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="{{ url_for('static', filename='js/make67.js') }}"></script>
@@ -129,5 +160,10 @@
   <audio id="snd_hehe" src="{{ url_for('static', filename='67_hehe.mp3') }}" preload="auto"></audio>
   <audio id="snd_ah" src="{{ url_for('static', filename='67_ah.mp3') }}" preload="auto"></audio>
   <audio id="snd_reload" src="{{ url_for('static', filename='67_reload.mp3') }}" preload="auto"></audio>
+  <!-- Preload shop and item sounds -->
+  <audio id="snd_shop_open" src="{{ url_for('static', filename='shop_open.wav') }}" preload="auto"></audio>
+  <audio id="snd_shop_coins" src="{{ url_for('static', filename='shop_coins.mp3') }}" preload="auto"></audio>
+  <audio id="snd_item_mud" src="{{ url_for('static', filename='item_mud.wav') }}" preload="auto"></audio>
+  <audio id="snd_item_boost" src="{{ url_for('static', filename='item_boost.wav') }}" preload="auto"></audio>
 </body>
 </html>

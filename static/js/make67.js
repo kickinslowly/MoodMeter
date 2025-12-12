@@ -178,6 +178,11 @@
   const bannedBtn = document.getElementById('m67BannedBtn');
   const bannedRoot = document.querySelector('.m67-ban-root');
   const bannedListEl = document.getElementById('m67BannedList');
+  // Inventory/Shop modal controls
+  const invBtn = document.getElementById('m67InvBtn');
+  const shopBtn = document.getElementById('m67ShopBtn');
+  const invModalRoot = document.querySelector('.m67-inv-root');
+  const shopModalRoot = document.querySelector('.m67-shop-root');
   let bannedCache = [];
 
   let baseCards = [];
@@ -281,6 +286,18 @@
     } catch(_){}
   }
 
+  // --- Generic SFX helper ---
+  function playSfx(id){
+    const el = document.getElementById(id);
+    if (!el) return;
+    try { el.pause(); } catch(_){}
+    try { el.currentTime = 0; } catch(_){}
+    try {
+      const p = el.play();
+      if (p && typeof p.then === 'function') p.catch(()=>{});
+    } catch(_){ }
+  }
+
   function sparkAt(el, count){
     if (!el) return;
     const base = (typeof count === 'number') ? count : 6;
@@ -312,6 +329,7 @@
       li.className = 'm67-lb-item';
       const rk = (item && item.rank_key) ? String(item.rank_key) : 'noob';
       li.classList.add(`rank-${rk}`);
+      if (item && item.id) li.dataset.userId = String(item.id);
       if (idx === 0) li.classList.add('top1');
       const rank = document.createElement('span');
       rank.className = 'rank';
@@ -331,6 +349,15 @@
       const total = document.createElement('span');
       total.className = 'total';
       total.textContent = String(item.total ?? 0);
+
+      // Mud indicator
+      if (item && item.is_mudded){
+        const mud = document.createElement('span');
+        mud.className = 'mud-ind';
+        mud.title = 'Mudded';
+        mud.textContent = '💩';
+        name.append(' ', mud);
+      }
 
       // If this is the #1 leader, prepend a decorative golden star next to their name
       if (idx === 0) {
@@ -396,6 +423,14 @@
           if (allTimeEl) allTimeEl.textContent = String(allTime);
           if (allTimeBoxEl) allTimeBoxEl.style.removeProperty('display');
           applyEmpowerment();
+          // Update effects note
+          updateEffectsSummary({
+            invisible: Number(data.me.invisible_ends_in||0),
+            boost: Number(data.me.boost_ends_in||0),
+            mud: Number(data.me.mud_ends_in||0)
+          });
+          // Load full state (inventory etc.) when authenticated
+          loadState();
         } else {
           isAuthed = false;
           allTime = null;
@@ -428,6 +463,55 @@
       if (!bannedRoot.hidden && e.key === 'Escape') closeBanned();
     });
   }
+
+  // Inventory modal handlers
+  function openInventory(){
+    if (!invModalRoot) return;
+    invModalRoot.hidden = false;
+    // Refresh state/effects when opened
+    setTimeout(()=>{ loadState(); }, 0);
+  }
+  function closeInventory(){ if (invModalRoot) invModalRoot.hidden = true; }
+  function toggleInventory(){
+    if (!invModalRoot) return;
+    if (invModalRoot.hidden) openInventory(); else closeInventory();
+  }
+  if (invBtn){ invBtn.addEventListener('click', toggleInventory); }
+  if (invModalRoot){
+    invModalRoot.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-close')==='1') closeInventory();
+    });
+  }
+
+  // Shop modal handlers
+  function openShop(){
+    if (!shopModalRoot) return;
+    shopModalRoot.hidden = false;
+    // Play shop open sound
+    playSfx('snd_shop_open');
+    // Ensure catalog is loaded/refreshed when opening
+    setTimeout(()=>{ loadShop(); }, 0);
+  }
+  function closeShop(){ if (shopModalRoot) shopModalRoot.hidden = true; }
+  function toggleShop(){
+    if (!shopModalRoot) return;
+    if (shopModalRoot.hidden) openShop(); else closeShop();
+  }
+  if (shopBtn){ shopBtn.addEventListener('click', toggleShop); }
+  if (shopModalRoot){
+    shopModalRoot.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-close')==='1') closeShop();
+    });
+  }
+  // Global ESC to close modals
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape'){
+      if (invModalRoot && !invModalRoot.hidden) closeInventory();
+      if (shopModalRoot && !shopModalRoot.hidden) closeShop();
+    }
+  });
 
   function setCard(i, value){
     curCards[i] = value;
@@ -480,6 +564,218 @@
     ghost.classList.add('fly-merge');
   }
 
+  // --- Shop & Inventory ---
+  const invRoot = document.getElementById('m67Inv');
+  const shopRoot = document.getElementById('m67ShopList');
+  const effectsRoot = document.getElementById('m67Effects');
+  const shopNoteEl = document.getElementById('m67ShopNote');
+  let catalog = [];
+  let inventory = [];
+  let effects = { invisible:0, boost:0, mud:0 };
+  let stateTimer = null;
+
+  function fmtTime(sec){
+    sec = Math.max(0, Math.floor(Number(sec)||0));
+    const m = Math.floor(sec/60), s = sec%60;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+
+  function updateEffectsSummary(eff){
+    effects = eff || effects;
+    if (!effectsRoot) return;
+    effectsRoot.innerHTML = '';
+    const parts = [];
+    if (effects.invisible>0) parts.push(`🌫️ Invisible ${fmtTime(effects.invisible)}`);
+    if (effects.boost>0) parts.push(`⚡ Boost ${fmtTime(effects.boost)}`);
+    if (effects.mud>0) parts.push(`💩 Slowed ${fmtTime(effects.mud)}`);
+    if (parts.length===0) {
+      const span = document.createElement('span');
+      span.textContent = 'No active effects';
+      effectsRoot.appendChild(span);
+    } else {
+      parts.forEach(p=>{
+        const tag = document.createElement('span');
+        tag.textContent = p;
+        tag.className = 'tag';
+        effectsRoot.appendChild(tag);
+      });
+    }
+  }
+
+  async function loadShop(){
+    try {
+      const r = await fetch('/api/make67/shop');
+      const d = await r.json().catch(()=>({ok:false}));
+      if (!d.ok) return;
+      catalog = Array.isArray(d.catalog)? d.catalog : [];
+      renderShop();
+    } catch(_){ }
+  }
+
+  async function loadState(){
+    if (!isAuthed) return;
+    try {
+      const r = await fetch('/api/make67/state');
+      const d = await r.json().catch(()=>({ok:false}));
+      if (!d.ok) return;
+      const st = d.state || {};
+      allTime = Number(st.currency||0);
+      if (allTimeEl) allTimeEl.textContent = String(allTime);
+      inventory = Array.isArray(st.inventory)? st.inventory : [];
+      effects = st.effects || effects;
+      renderInventory();
+      updateEffectsSummary(effects);
+      applyEmpowerment();
+    } catch(_){ }
+  }
+
+  function renderShop(){
+    if (!shopRoot) return;
+    shopRoot.innerHTML='';
+    catalog.forEach(item=>{
+      const btn = document.createElement('button');
+      btn.className = 'op-btn';
+      btn.style.borderColor = '#3a3f47';
+      btn.title = `${item.name} — ${item.desc} (Cost: ${item.cost})`;
+      btn.innerHTML = `<span style="font-size:22px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">${item.icon||'•'}</span><div style="font-weight:800; font-size:14px;">${item.name}</div><div style="font-size:12px; opacity:.9;">${item.cost} solves</div>`;
+      btn.addEventListener('click', ()=> buyItem(item.key));
+      shopRoot.appendChild(btn);
+    });
+    if (shopNoteEl) shopNoteEl.textContent = 'Inventory has 4 slots. Items cost all-time solves.';
+  }
+
+  function renderInventory(){
+    if (!invRoot) return;
+    invRoot.innerHTML='';
+    const slots = 4;
+    for (let i=0;i<slots;i++){
+      const slot = document.createElement('button');
+      slot.className = 'op-btn';
+      slot.style.minHeight = '64px';
+      slot.style.display = 'grid';
+      slot.style.placeItems = 'center';
+      slot.style.position = 'relative';
+      const it = inventory[i];
+      if (it){
+        slot.dataset.itemId = it.id;
+        slot.title = `${it.name}`;
+        slot.innerHTML = `<span style="font-size:22px; color:${it.color||'#fff'}; text-shadow:0 0 8px color-mix(in srgb, ${it.color||'#fff'} 60%, transparent);">${it.icon||'•'}</span><div style="font-size:12px; font-weight:700; opacity:.95;">${it.name}</div>`;
+        makeLongPress(slot, ()=>useItem(it));
+      } else {
+        slot.classList.add('ghost');
+        slot.textContent = '—';
+      }
+      invRoot.appendChild(slot);
+    }
+  }
+
+  function makeLongPress(el, onActivate){
+    let t= null, start=0, ring;
+    const holdMs = 900;
+    const clear = ()=>{ if (t){ clearInterval(t); t=null; } if (ring){ ring.remove(); ring=null; } };
+    const begin = (x,y)=>{
+      start = performance.now();
+      ring = document.createElement('div');
+      ring.style.position='absolute'; ring.style.inset='6px'; ring.style.borderRadius='14px'; ring.style.boxShadow='0 0 0 2px rgba(255,255,255,.2) inset, 0 0 24px rgba(255,255,255,.15)';
+      ring.style.background='radial-gradient(120px 80px at 50% -10%, rgba(255,255,255,.08), transparent)';
+      el.appendChild(ring);
+      t = setInterval(()=>{
+        const p = Math.min(1, (performance.now()-start)/holdMs);
+        ring.style.setProperty('opacity', String(.6+.4*Math.sin(p*10)));
+        ring.style.setProperty('filter', `drop-shadow(0 0 ${4+14*p}px rgba(255,255,255,${.15+.25*p}))`);
+        if (p>=1){ clear(); onActivate && onActivate(); }
+      }, 30);
+    };
+    el.addEventListener('mousedown', e=>{ if (e.button===0) begin(e.clientX,e.clientY); });
+    el.addEventListener('touchstart', e=>{ begin(); });
+    ['mouseleave','mouseup','touchend','touchcancel'].forEach(evt=> el.addEventListener(evt, clear));
+  }
+
+  async function buyItem(key){
+    if (!isAuthed) return;
+    try {
+      const r = await fetch('/api/make67/buy', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
+      const d = await r.json().catch(()=>({ok:false}));
+      if (!d.ok){
+        const err = d.error || 'ERROR';
+        if (shopNoteEl) shopNoteEl.textContent = (err==='INVENTORY_FULL')? 'Inventory full.' : (err==='INSUFFICIENT_FUNDS'? 'Not enough solves.' : 'Cannot buy.');
+        return;
+      }
+      allTime = Number(d.currency||0);
+      if (allTimeEl) allTimeEl.textContent = String(allTime);
+      inventory.push(d.item);
+      renderInventory();
+      applyEmpowerment();
+      // Play coins sound on successful purchase
+      playSfx('snd_shop_coins');
+      loadLeaderboard(); // reflects currency change in rank possibly
+    } catch(_){ }
+  }
+
+  async function useItem(it){
+    if (!it) return;
+    let payload = { item_id: it.id };
+    if (it.key === 'mud'){
+      // pick a target from leaderboard
+      const target = await pickMudTarget();
+      if (!target) return;
+      payload.target_id = target;
+    }
+    try {
+      const r = await fetch('/api/make67/use', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const d = await r.json().catch(()=>({ok:false}));
+      if (!d.ok) return;
+      inventory = Array.isArray(d.state?.inventory)? d.state.inventory : inventory;
+      renderInventory();
+      loadLeaderboard();
+      loadState();
+      // Play item activation sounds
+      if (it.key === 'mud') {
+        playSfx('snd_item_mud');
+      } else if (it.key === 'boost') {
+        playSfx('snd_item_boost');
+      }
+    } catch(_){ }
+  }
+
+  function pickMudTarget(){
+    return new Promise(resolve=>{
+      if (!lbList){ resolve(null); return; }
+      const hint = document.createElement('div');
+      hint.textContent = 'Tap a player to throw mud';
+      hint.style.textAlign='center';
+      hint.style.fontSize='12px';
+      hint.style.opacity='.85';
+      lbList.prepend(hint);
+      const onClick = (e)=>{
+        const li = e.target && e.target.closest && e.target.closest('li.m67-lb-item');
+        const id = li && li.dataset && li.dataset.userId;
+        if (id){
+          lbList.removeEventListener('click', onClick, true);
+          hint.remove();
+          resolve(id);
+        }
+      };
+      lbList.addEventListener('click', onClick, true);
+      setTimeout(()=>{ lbList.removeEventListener('click', onClick, true); try{hint.remove();}catch(_){ } resolve(null); }, 12000);
+    });
+  }
+
+  function tickState(){
+    if (!isAuthed) return;
+    if (effects && (effects.invisible>0 || effects.boost>0 || effects.mud>0)){
+      // decrement locally for display smoothness
+      effects.invisible = Math.max(0, (effects.invisible||0)-1);
+      effects.boost = Math.max(0, (effects.boost||0)-1);
+      effects.mud = Math.max(0, (effects.mud||0)-1);
+      updateEffectsSummary(effects);
+    }
+  }
+
+  // --- Init shop/inventory polling ---
+  setInterval(()=>{ tickState(); }, 1000);
+  setInterval(()=>{ loadState(); }, 8000);
+
   function playSuccess(){
     overlayRoot.hidden = false;
     // quick celebratory flop on remaining card
@@ -528,6 +824,8 @@
         if (allTimeEl) allTimeEl.textContent = String(allTime);
         applyEmpowerment();
         burstCharge();
+        // Refresh state (inventory/effects) and leaderboard
+        loadState();
       }
       // Refresh leaderboard after a solve (skipped or counted)
       loadLeaderboard();
@@ -674,6 +972,9 @@
   newPuzzle();
   // First-time empowerment application (for guests too)
   applyEmpowerment();
+  // Initialize shop and schedule state fetch (after auth detected)
+  loadShop();
+  setTimeout(()=>{ loadState(); }, 1200);
 })();
 
 // --- Make67 Live Chat (Short polling HTTP) ---

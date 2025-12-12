@@ -1329,6 +1329,237 @@ _m67_message_count: int = 0
 _m67_recent_solves_lock = threading.Lock()
 _m67_recent_solves: dict[str, deque] = {}
 
+# --- In-memory Make67 shop/inventory and effects (process-local) ---
+_m67_inventory_lock = threading.Lock()
+_m67_inventories: dict[str, list[dict]] = {}
+
+_m67_effects_lock = threading.Lock()
+_m67_invisible: dict[str, float] = {}
+_m67_boost: dict[str, float] = {}
+_m67_mud: dict[str, float] = {}
+
+_m67_progress_lock = threading.Lock()
+_m67_progress: dict[str, float] = {}
+
+# Static shop catalog
+_M67_CATALOG = {
+    'sneaky_dust': {
+        'key': 'sneaky_dust',
+        'name': 'Sneaky Dust',
+        'icon': '🌫️',
+        'color': '#9aa4b2',
+        'cost': 2,
+        'desc': 'Disappear from leaderboard for 30 minutes.'
+    },
+    'boost': {
+        'key': 'boost',
+        'name': 'Boost',
+        'icon': '⚡',
+        'color': '#ffd24a',
+        'cost': 5,
+        'desc': 'For 2 minutes, each solve counts as 2.'
+    },
+    'mud': {
+        'key': 'mud',
+        'name': 'Mud',
+        'icon': '🪣',
+        'color': '#8b5a2b',
+        'cost': 3,
+        'desc': 'Throw on another player to slow them for 2 minutes.'
+    },
+}
+
+
+def _m67_cleanup(store: dict[str, float], now_ts: float | None = None):
+    now_ts = now_ts or time.time()
+    dead = [k for k, v in store.items() if v <= now_ts]
+    for k in dead:
+        try:
+            del store[k]
+        except Exception:
+            pass
+
+
+def _m67_remaining(store: dict[str, float], uid: str, now_ts: float | None = None) -> int:
+    now_ts = now_ts or time.time()
+    until = store.get(uid)
+    if not until:
+        return 0
+    rem = int(round(until - now_ts))
+    return rem if rem > 0 else 0
+
+
+def _m67_is_invisible(uid: str, now_ts: float | None = None) -> bool:
+    now_ts = now_ts or time.time()
+    with _m67_effects_lock:
+        _m67_cleanup(_m67_invisible, now_ts)
+        return _m67_invisible.get(uid, 0) > now_ts
+
+
+def _m67_is_boosted(uid: str, now_ts: float | None = None) -> bool:
+    now_ts = now_ts or time.time()
+    with _m67_effects_lock:
+        _m67_cleanup(_m67_boost, now_ts)
+        return _m67_boost.get(uid, 0) > now_ts
+
+
+def _m67_is_mudded(uid: str, now_ts: float | None = None) -> bool:
+    now_ts = now_ts or time.time()
+    with _m67_effects_lock:
+        _m67_cleanup(_m67_mud, now_ts)
+        return _m67_mud.get(uid, 0) > now_ts
+
+
+def _m67_get_inventory(uid: str) -> list[dict]:
+    with _m67_inventory_lock:
+        return list(_m67_inventories.get(uid, []))
+
+
+def _m67_add_item(uid: str, key: str) -> dict:
+    if key not in _M67_CATALOG:
+        raise ValueError('INVALID_ITEM')
+    item = {
+        'id': str(uuid.uuid4()),
+        'key': key,
+        'name': _M67_CATALOG[key]['name'],
+        'icon': _M67_CATALOG[key]['icon'],
+        'color': _M67_CATALOG[key]['color'],
+    }
+    with _m67_inventory_lock:
+        inv = _m67_inventories.get(uid)
+        if inv is None:
+            inv = []
+            _m67_inventories[uid] = inv
+        inv.append(item)
+    return item
+
+
+def _m67_pop_item(uid: str, item_id: str) -> dict | None:
+    with _m67_inventory_lock:
+        inv = _m67_inventories.get(uid) or []
+        for i, it in enumerate(inv):
+            if it.get('id') == item_id:
+                return inv.pop(i)
+    return None
+
+
+@app.route('/api/make67/shop', methods=['GET'])
+def api_make67_shop():
+    try:
+        me_total = None
+        if getattr(current_user, 'is_authenticated', False):
+            u = db.session.get(User, current_user.get_id())
+            if u:
+                me_total = int(u.make67_all_time_solves or 0)
+        catalog = list(_M67_CATALOG.values())
+        return jsonify({'ok': True, 'catalog': catalog, 'currency': me_total})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make67/state', methods=['GET'])
+def api_make67_state():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        uid = u.id
+        now_ts = time.time()
+        inv = _m67_get_inventory(uid)
+        state = {
+            'currency': int(u.make67_all_time_solves or 0),
+            'inventory': inv,
+            'effects': {
+                'invisible': _m67_remaining(_m67_invisible, uid, now_ts),
+                'boost': _m67_remaining(_m67_boost, uid, now_ts),
+                'mud': _m67_remaining(_m67_mud, uid, now_ts),
+            },
+        }
+        return jsonify({'ok': True, 'state': state})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make67/buy', methods=['POST'])
+def api_make67_buy():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        data = request.get_json(silent=True) or {}
+        key = (data.get('key') or '').strip()
+        if key not in _M67_CATALOG:
+            return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        cost = int(_M67_CATALOG[key]['cost'])
+        # Check inventory capacity
+        inv = _m67_get_inventory(u.id)
+        if len(inv) >= 4:
+            return jsonify({'ok': False, 'error': 'INVENTORY_FULL'}), 400
+        # Check currency
+        cur = int(u.make67_all_time_solves or 0)
+        if cur < cost:
+            return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS'}), 400
+        # Deduct and add item
+        u.make67_all_time_solves = cur - cost
+        db.session.commit()
+        item = _m67_add_item(u.id, key)
+        return jsonify({'ok': True, 'currency': int(u.make67_all_time_solves or 0), 'item': item})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make67/use', methods=['POST'])
+def api_make67_use():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        data = request.get_json(silent=True) or {}
+        item_id = (data.get('item_id') or '').strip()
+        if not item_id:
+            return jsonify({'ok': False, 'error': 'ITEM_REQUIRED'}), 400
+        it = _m67_pop_item(u.id, item_id)
+        if not it:
+            return jsonify({'ok': False, 'error': 'NOT_IN_INVENTORY'}), 400
+        key = it.get('key')
+        now_ts = time.time()
+        # Activate effects
+        with _m67_effects_lock:
+            if key == 'sneaky_dust':
+                dur = 30 * 60
+                _m67_invisible[u.id] = max(_m67_invisible.get(u.id, 0), now_ts + dur)
+            elif key == 'boost':
+                dur = 2 * 60
+                _m67_boost[u.id] = max(_m67_boost.get(u.id, 0), now_ts + dur)
+            elif key == 'mud':
+                target = (data.get('target_id') or '').strip()
+                if not target:
+                    # Put item back if target missing
+                    _m67_add_item(u.id, key)
+                    return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
+                dur = 2 * 60
+                _m67_mud[target] = max(_m67_mud.get(target, 0), now_ts + dur)
+                # Cancel boost on target while mud is active
+                _m67_boost[target] = now_ts  # effectively expire now
+            else:
+                return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        # Return updated state
+        inv = _m67_get_inventory(u.id)
+        state = {
+            'currency': int(u.make67_all_time_solves or 0),
+            'inventory': inv,
+        }
+        return jsonify({'ok': True, 'state': state})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
 
 def _m67_broadcast(msg: dict):
     global _m67_message_count
@@ -1633,12 +1864,33 @@ def api_make67_solve():
         if hint_used:
             # Do not count solves where a hint was used
             return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0), 'skipped': True})
-        # Update counters
-        cur = int(u.make67_all_time_solves or 0)
-        u.make67_all_time_solves = cur + 1
+        # --- Game item effects: boost/mud influence solve credit ---
+        now_ts = time.time()
+        uid = u.id
+        # Determine active effects
+        mul = 1.0
+        is_mudded = _m67_is_mudded(uid, now_ts)
+        is_boosted = _m67_is_boosted(uid, now_ts)
+        # Mud overrides boost to normal speed; otherwise mud slows to 0.5
+        if is_mudded:
+            mul = 1.0 if is_boosted else 0.5
+        else:
+            mul = 2.0 if is_boosted else 1.0
+
+        # Fractional accumulator per user so slowed progress requires 2 solves
+        add_units = mul
+        with _m67_progress_lock:
+            prev = _m67_progress.get(uid, 0.0)
+            total_units = prev + add_units
+            credit = int(total_units)  # full solves to credit
+            _m67_progress[uid] = total_units - credit
+        if credit > 0:
+            # Update counters
+            cur = int(u.make67_all_time_solves or 0)
+            u.make67_all_time_solves = cur + credit
 
         # Cheater detection: more than 15 solves in any 60-second window
-        now = time.time()
+        now = now_ts
         with _m67_recent_solves_lock:
             dq = _m67_recent_solves.get(u.id)
             if dq is None:
@@ -1653,7 +1905,12 @@ def api_make67_solve():
                 u.make67_is_cheater = True
 
         db.session.commit()
-        return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0), 'cheater': bool(getattr(u, 'make67_is_cheater', False))})
+        return jsonify({
+            'ok': True,
+            'all_time_total': int(u.make67_all_time_solves or 0),
+            'credited': int(credit),
+            'cheater': bool(getattr(u, 'make67_is_cheater', False))
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
@@ -1662,7 +1919,8 @@ def api_make67_solve():
 @app.route('/api/make67/leaderboard', methods=['GET'])
 def api_make67_leaderboard():
     try:
-        # Top leaderboard: exclude cheaters from the visible leaderboard
+        # Top leaderboard: exclude cheaters and currently invisible users
+        now_ts = time.time()
         top_users = (
             User.query
             .filter(
@@ -1676,15 +1934,21 @@ def api_make67_leaderboard():
         )
         top = []
         for u in top_users:
+            # skip invisible
+            if _m67_is_invisible(u.id, now_ts):
+                continue
             total = int(u.make67_all_time_solves or 0)
             rk = _compute_rank(total)
             top.append({
+                'id': u.id,
                 'name': _format_display_name(u),
                 'total': total,
                 'rank_key': rk['key'],
                 'rank_title': rk['title'],
                 'rank_icon': rk['icon'],
                 'is_cheater': False,
+                'is_mudded': _m67_is_mudded(u.id, now_ts),
+                'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
             })
 
         # Banned users (cheaters): show in separate list (wall of shame)
@@ -1721,12 +1985,19 @@ def api_make67_leaderboard():
                 else:
                     rk = _compute_rank(total)
                 me = {
+                    'id': u.id,
                     'name': _format_display_name(u),
                     'total': total,
                     'rank_key': rk['key'],
                     'rank_title': rk['title'],
                     'rank_icon': rk['icon'],
                     'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
+                    'is_invisible': _m67_is_invisible(u.id, now_ts),
+                    'invisible_ends_in': _m67_remaining(_m67_invisible, u.id, now_ts),
+                    'is_boosted': _m67_is_boosted(u.id, now_ts),
+                    'boost_ends_in': _m67_remaining(_m67_boost, u.id, now_ts),
+                    'is_mudded': _m67_is_mudded(u.id, now_ts),
+                    'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
                 }
         return jsonify({'ok': True, 'top': top, 'banned': banned, 'me': me})
     except Exception as e:
