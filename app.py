@@ -182,6 +182,8 @@ class User(db.Model, UserMixin):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     make67_all_time_solves = db.Column(db.Integer, nullable=False, default=0)
+    # Independent counter for the "Make 6 or 7" mode
+    make6or7_all_time_solves = db.Column(db.Integer, nullable=False, default=0)
     # Flag for auto-solver/cheating detection in Make67
     make67_is_cheater = db.Column(db.Boolean, nullable=False, default=False)
 
@@ -370,6 +372,12 @@ def make67_page():
     Standalone page; does not affect the rest of the site.
     """
     return render_template('make67.html', make67_chat_eligible=_is_make67_chat_eligible())
+
+
+@app.route('/make6or7')
+def make6or7_page():
+    """Exact duplicate of Make67 page, but target is 6 or 7 and score is independent."""
+    return render_template('make6or7.html', make67_chat_eligible=_is_make67_chat_eligible())
 
 
 @app.route('/api/last-entry', methods=['GET'])
@@ -1473,6 +1481,20 @@ def api_make67_shop():
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
 
 
+@app.route('/api/make6or7/shop', methods=['GET'])
+def api_make6or7_shop():
+    try:
+        me_total = None
+        if getattr(current_user, 'is_authenticated', False):
+            u = db.session.get(User, current_user.get_id())
+            if u:
+                me_total = int(u.make6or7_all_time_solves or 0)
+        catalog = list(_M67_CATALOG.values())
+        return jsonify({'ok': True, 'catalog': catalog, 'currency': me_total})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
 @app.route('/api/make67/state', methods=['GET'])
 def api_make67_state():
     if not getattr(current_user, 'is_authenticated', False):
@@ -1486,6 +1508,32 @@ def api_make67_state():
         inv = _m67_get_inventory(uid)
         state = {
             'currency': int(u.make67_all_time_solves or 0),
+            'inventory': inv,
+            'effects': {
+                'invisible': _m67_remaining(_m67_invisible, uid, now_ts),
+                'boost': _m67_remaining(_m67_boost, uid, now_ts),
+                'mud': _m67_remaining(_m67_mud, uid, now_ts),
+            },
+            'state_version': _m67_get_state_version(uid),
+        }
+        return jsonify({'ok': True, 'state': state})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make6or7/state', methods=['GET'])
+def api_make6or7_state():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        uid = u.id
+        now_ts = time.time()
+        inv = _m67_get_inventory(uid)
+        state = {
+            'currency': int(u.make6or7_all_time_solves or 0),
             'inventory': inv,
             'effects': {
                 'invisible': _m67_remaining(_m67_invisible, uid, now_ts),
@@ -1526,6 +1574,38 @@ def api_make67_buy():
         item = _m67_add_item(u.id, key)
         ver = _m67_bump_state_version(u.id)
         return jsonify({'ok': True, 'currency': int(u.make67_all_time_solves or 0), 'item': item, 'state_version': ver})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make6or7/buy', methods=['POST'])
+def api_make6or7_buy():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        data = request.get_json(silent=True) or {}
+        key = (data.get('key') or '').strip()
+        if key not in _M67_CATALOG:
+            return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        cost = int(_M67_CATALOG[key]['cost'])
+        # Check inventory capacity
+        inv = _m67_get_inventory(u.id)
+        if len(inv) >= 4:
+            return jsonify({'ok': False, 'error': 'INVENTORY_FULL'}), 400
+        # Check currency (use independent counter)
+        cur = int(u.make6or7_all_time_solves or 0)
+        if cur < cost:
+            return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS'}), 400
+        # Deduct and add item
+        u.make6or7_all_time_solves = cur - cost
+        db.session.commit()
+        item = _m67_add_item(u.id, key)
+        ver = _m67_bump_state_version(u.id)
+        return jsonify({'ok': True, 'currency': int(u.make6or7_all_time_solves or 0), 'item': item, 'state_version': ver})
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
@@ -1572,6 +1652,52 @@ def api_make67_use():
         inv = _m67_get_inventory(u.id)
         state = {
             'currency': int(u.make67_all_time_solves or 0),
+            'inventory': inv,
+            'state_version': _m67_bump_state_version(u.id),
+        }
+        return jsonify({'ok': True, 'state': state})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make6or7/use', methods=['POST'])
+def api_make6or7_use():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        data = request.get_json(silent=True) or {}
+        item_id = (data.get('item_id') or '').strip()
+        if not item_id:
+            return jsonify({'ok': False, 'error': 'ITEM_REQUIRED'}), 400
+        it = _m67_pop_item(u.id, item_id)
+        if not it:
+            return jsonify({'ok': False, 'error': 'NOT_IN_INVENTORY'}), 400
+        key = it.get('key')
+        now_ts = time.time()
+        # Activate effects (shared with Make67)
+        with _m67_effects_lock:
+            if key == 'sneaky_dust':
+                dur = 30 * 60
+                _m67_invisible[u.id] = max(_m67_invisible.get(u.id, 0), now_ts + dur)
+            elif key == 'boost':
+                dur = 2 * 60
+                _m67_boost[u.id] = max(_m67_boost.get(u.id, 0), now_ts + dur)
+            elif key == 'mud':
+                target = (data.get('target_id') or '').strip()
+                if not target:
+                    _m67_add_item(u.id, key)
+                    return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
+                dur = 2 * 60
+                _m67_mud[target] = max(_m67_mud.get(target, 0), now_ts + dur)
+                _m67_boost[target] = now_ts
+            else:
+                return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        inv = _m67_get_inventory(u.id)
+        state = {
+            'currency': int(u.make6or7_all_time_solves or 0),
             'inventory': inv,
             'state_version': _m67_bump_state_version(u.id),
         }
@@ -1935,6 +2061,64 @@ def api_make67_solve():
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
+@app.route('/api/make6or7/solve', methods=['POST'])
+def api_make6or7_solve():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        u = db.session.get(User, current_user.get_id())
+        if not u:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        data = request.get_json(silent=True) or {}
+        hint_used = bool(data.get('hint_used'))
+        if hint_used:
+            return jsonify({'ok': True, 'all_time_total': int(u.make6or7_all_time_solves or 0), 'skipped': True})
+        now_ts = time.time()
+        uid = u.id
+        mul = 1.0
+        is_mudded = _m67_is_mudded(uid, now_ts)
+        is_boosted = _m67_is_boosted(uid, now_ts)
+        if is_mudded:
+            mul = 1.0 if is_boosted else 0.5
+        else:
+            mul = 2.0 if is_boosted else 1.0
+
+        add_units = mul
+        with _m67_progress_lock:
+            prev = _m67_progress.get(uid, 0.0)
+            total_units = prev + add_units
+            credit = int(total_units)
+            _m67_progress[uid] = total_units - credit
+        if credit > 0:
+            cur = int(u.make6or7_all_time_solves or 0)
+            u.make6or7_all_time_solves = cur + credit
+
+        # Same cheater detection applies across modes
+        now = now_ts
+        with _m67_recent_solves_lock:
+            dq = _m67_recent_solves.get(u.id)
+            if dq is None:
+                dq = deque()
+                _m67_recent_solves[u.id] = dq
+            dq.append(now)
+            cutoff = now - 60.0
+            while dq and dq[0] < cutoff:
+                dq.popleft()
+            if len(dq) > 15:
+                u.make67_is_cheater = True
+
+        db.session.commit()
+        return jsonify({
+            'ok': True,
+            'all_time_total': int(u.make6or7_all_time_solves or 0),
+            'credited': int(credit),
+            'cheater': bool(getattr(u, 'make67_is_cheater', False))
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+
+
 @app.route('/api/make67/leaderboard', methods=['GET'])
 def api_make67_leaderboard():
     try:
@@ -1999,6 +2183,91 @@ def api_make67_leaderboard():
             u = db.session.get(User, current_user.get_id())
             if u:
                 total = int(u.make67_all_time_solves or 0)
+                if getattr(u, 'make67_is_cheater', False):
+                    rk = {"key": "cheater", "title": "BANNED", "icon": "🚫"}
+                else:
+                    rk = _compute_rank(total)
+                me = {
+                    'id': u.id,
+                    'name': _format_display_name(u),
+                    'total': total,
+                    'rank_key': rk['key'],
+                    'rank_title': rk['title'],
+                    'rank_icon': rk['icon'],
+                    'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
+                    'is_invisible': _m67_is_invisible(u.id, now_ts),
+                    'invisible_ends_in': _m67_remaining(_m67_invisible, u.id, now_ts),
+                    'is_boosted': _m67_is_boosted(u.id, now_ts),
+                    'boost_ends_in': _m67_remaining(_m67_boost, u.id, now_ts),
+                    'is_mudded': _m67_is_mudded(u.id, now_ts),
+                    'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
+                }
+        return jsonify({'ok': True, 'top': top, 'banned': banned, 'me': me})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make6or7/leaderboard', methods=['GET'])
+def api_make6or7_leaderboard():
+    try:
+        now_ts = time.time()
+        top_users = (
+            User.query
+            .filter(
+                (User.make6or7_all_time_solves != None)
+                & (User.make6or7_all_time_solves > 0)
+                & (User.make67_is_cheater == False)
+            )
+            .order_by(User.make6or7_all_time_solves.desc(), User.created_at.asc())
+            .limit(10)
+            .all()
+        )
+        top = []
+        for u in top_users:
+            if _m67_is_invisible(u.id, now_ts):
+                continue
+            total = int(u.make6or7_all_time_solves or 0)
+            rk = _compute_rank(total)
+            top.append({
+                'id': u.id,
+                'name': _format_display_name(u),
+                'total': total,
+                'rank_key': rk['key'],
+                'rank_title': rk['title'],
+                'rank_icon': rk['icon'],
+                'is_cheater': False,
+                'is_mudded': _m67_is_mudded(u.id, now_ts),
+                'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
+            })
+
+        banned_users = (
+            User.query
+            .filter(
+                (User.make6or7_all_time_solves != None)
+                & (User.make6or7_all_time_solves > 0)
+                & (User.make67_is_cheater == True)
+            )
+            .order_by(User.make6or7_all_time_solves.desc(), User.created_at.asc())
+            .limit(100)
+            .all()
+        )
+        banned = []
+        for u in banned_users:
+            total = int(u.make6or7_all_time_solves or 0)
+            rk = {"key": "cheater", "title": "BANNED", "icon": "🚫"}
+            banned.append({
+                'name': _format_display_name(u),
+                'total': total,
+                'rank_key': rk['key'],
+                'rank_title': rk['title'],
+                'rank_icon': rk['icon'],
+                'is_cheater': True,
+            })
+        me = None
+        if getattr(current_user, 'is_authenticated', False):
+            u = db.session.get(User, current_user.get_id())
+            if u:
+                total = int(u.make6or7_all_time_solves or 0)
                 if getattr(u, 'make67_is_cheater', False):
                     rk = {"key": "cheater", "title": "BANNED", "icon": "🚫"}
                 else:
