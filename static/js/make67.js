@@ -573,6 +573,13 @@
   let inventory = [];
   let effects = { invisible:0, boost:0, mud:0 };
   let stateTimer = null;
+  // Guard against stale state coming from other instances: server provides a monotonic state_version per user
+  let lastStateVersion = 0;
+  // Avoid applying loadState immediately after local mutations
+  let stateBlockUntil = 0;
+  // Track request ordering to drop out-of-order responses
+  let stateReqSeq = 0;
+  let stateReqApplied = 0;
 
   function fmtTime(sec){
     sec = Math.max(0, Math.floor(Number(sec)||0));
@@ -614,19 +621,75 @@
 
   async function loadState(){
     if (!isAuthed) return;
+    if (Date.now() < stateBlockUntil) return;
+    const reqId = ++stateReqSeq;
     try {
       const r = await fetch('/api/make67/state');
       const d = await r.json().catch(()=>({ok:false}));
       if (!d.ok) return;
       const st = d.state || {};
+      const sv = Number(st.state_version || 0);
+      // Drop out-of-order responses
+      if (reqId < stateReqApplied) return;
+      // If server provides a version, ignore states older than we have
+      if (sv && lastStateVersion && sv < lastStateVersion) return;
+      stateReqApplied = reqId;
+      if (sv) lastStateVersion = Math.max(lastStateVersion, sv);
       allTime = Number(st.currency||0);
       if (allTimeEl) allTimeEl.textContent = String(allTime);
-      inventory = Array.isArray(st.inventory)? st.inventory : [];
+      if (Array.isArray(st.inventory)) inventory = st.inventory;
       effects = st.effects || effects;
       renderInventory();
       updateEffectsSummary(effects);
       applyEmpowerment();
     } catch(_){ }
+  }
+
+  // --- Tiny tooltip helper ---
+  let tipEl = null; let tipTimer = null;
+  function ensureTip(){
+    if (!tipEl){
+      tipEl = document.createElement('div');
+      tipEl.className = 'm67-tip';
+      Object.assign(tipEl.style, {
+        position: 'fixed', maxWidth: '260px', padding: '10px 12px', borderRadius: '10px',
+        color:'#e6ebf4', background: 'linear-gradient(180deg, rgba(30,34,41,.96), rgba(24,28,34,.96))',
+        boxShadow: '0 8px 28px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06)',
+        fontSize: '13px', lineHeight: '1.25', zIndex: 10000, display: 'none', pointerEvents:'none'
+      });
+      document.body.appendChild(tipEl);
+    }
+    return tipEl;
+  }
+  function showTipFor(target, html){
+    const el = ensureTip();
+    el.innerHTML = html;
+    el.style.display = 'block';
+    const r = target.getBoundingClientRect();
+    const gap = 8;
+    let x = r.left + r.width/2; let y = r.top - gap;
+    el.style.left = '0px'; el.style.top = '-1000px'; // set offscreen to measure
+    const w = el.offsetWidth; const h = el.offsetHeight;
+    x = Math.min(window.innerWidth - 8 - w/2, Math.max(8 + w/2, x));
+    el.style.left = (x - w/2) + 'px';
+    el.style.top = (y - h) + 'px';
+    clearTimeout(tipTimer);
+  }
+  function hideTip(){ if (tipEl){ tipEl.style.display='none'; } }
+
+  function shopItemTooltip(item){
+    const desc = item.desc || '';
+    return `<div style="font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:8px;"><span style="font-size:18px">${item.icon||'•'}</span> ${item.name}</div>
+            <div style="opacity:.92">${desc}</div>
+            <div style="opacity:.8; margin-top:6px; font-size:12px;">Cost: ${item.cost} solves</div>`;
+  }
+
+  function invItemTooltip(it){
+    const meta = catalog.find(c=> c.key===it.key) || {};
+    const desc = meta.desc || '';
+    return `<div style="font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:8px;"><span style="font-size:18px">${it.icon||'•'}</span> ${it.name}</div>
+            <div style="opacity:.92">${desc}</div>
+            <div style="opacity:.8; margin-top:6px; font-size:12px;">Hold to use</div>`;
   }
 
   function renderShop(){
@@ -639,6 +702,11 @@
       btn.title = `${item.name} — ${item.desc} (Cost: ${item.cost})`;
       btn.innerHTML = `<span style="font-size:22px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">${item.icon||'•'}</span><div style="font-weight:800; font-size:14px;">${item.name}</div><div style="font-size:12px; opacity:.9;">${item.cost} solves</div>`;
       btn.addEventListener('click', ()=> buyItem(item.key));
+      // Tooltip on hover/focus
+      btn.addEventListener('mouseenter', ()=> showTipFor(btn, shopItemTooltip(item)));
+      btn.addEventListener('mouseleave', hideTip);
+      btn.addEventListener('focus', ()=> showTipFor(btn, shopItemTooltip(item)));
+      btn.addEventListener('blur', hideTip);
       shopRoot.appendChild(btn);
     });
     if (shopNoteEl) shopNoteEl.textContent = 'Inventory has 4 slots. Items cost all-time solves.';
@@ -661,6 +729,11 @@
         slot.title = `${it.name}`;
         slot.innerHTML = `<span style="font-size:22px; color:${it.color||'#fff'}; text-shadow:0 0 8px color-mix(in srgb, ${it.color||'#fff'} 60%, transparent);">${it.icon||'•'}</span><div style="font-size:12px; font-weight:700; opacity:.95;">${it.name}</div>`;
         makeLongPress(slot, ()=>useItem(it));
+        // Hover/focus tooltip
+        slot.addEventListener('mouseenter', ()=> showTipFor(slot, invItemTooltip(it)));
+        slot.addEventListener('mouseleave', hideTip);
+        slot.addEventListener('focus', ()=> showTipFor(slot, invItemTooltip(it)));
+        slot.addEventListener('blur', hideTip);
       } else {
         slot.classList.add('ghost');
         slot.textContent = '—';
@@ -693,6 +766,17 @@
 
   async function buyItem(key){
     if (!isAuthed) return;
+    // Find item meta for confirmation
+    const meta = catalog.find(c=> c.key===key);
+    const name = meta?.name || 'Item';
+    const cost = Number(meta?.cost || 0);
+    // If we know currency and cost, warn if insufficient
+    if (typeof allTime === 'number' && cost && allTime < cost){
+      if (shopNoteEl) shopNoteEl.textContent = 'Not enough solves.';
+      return;
+    }
+    const ok = window.confirm(`Purchase ${name} for ${cost} solves?`);
+    if (!ok) return;
     try {
       const r = await fetch('/api/make67/buy', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
       const d = await r.json().catch(()=>({ok:false}));
@@ -706,6 +790,11 @@
       inventory.push(d.item);
       renderInventory();
       applyEmpowerment();
+      // Record server state version if provided and briefly block polling
+      if (typeof d.state_version !== 'undefined'){
+        lastStateVersion = Math.max(lastStateVersion, Number(d.state_version||0));
+      }
+      stateBlockUntil = Date.now() + 3000;
       // Play coins sound on successful purchase
       playSfx('snd_shop_coins');
       loadLeaderboard(); // reflects currency change in rank possibly
@@ -725,10 +814,12 @@
       const r = await fetch('/api/make67/use', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       const d = await r.json().catch(()=>({ok:false}));
       if (!d.ok) return;
+      const sv = Number(d.state?.state_version || 0);
+      if (sv) lastStateVersion = Math.max(lastStateVersion, sv);
       inventory = Array.isArray(d.state?.inventory)? d.state.inventory : inventory;
       renderInventory();
       loadLeaderboard();
-      loadState();
+      stateBlockUntil = Date.now() + 3000;
       // Play item activation sounds
       if (it.key === 'mud') {
         playSfx('snd_item_mud');

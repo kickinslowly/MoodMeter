@@ -1333,6 +1333,10 @@ _m67_recent_solves: dict[str, deque] = {}
 _m67_inventory_lock = threading.Lock()
 _m67_inventories: dict[str, list[dict]] = {}
 
+# Per-user ephemeral state version to help clients ignore stale state from other instances
+_m67_state_version_lock = threading.Lock()
+_m67_state_version: dict[str, int] = {}
+
 _m67_effects_lock = threading.Lock()
 _m67_invisible: dict[str, float] = {}
 _m67_boost: dict[str, float] = {}
@@ -1349,7 +1353,7 @@ _M67_CATALOG = {
         'icon': '🌫️',
         'color': '#9aa4b2',
         'cost': 2,
-        'desc': 'Disappear from leaderboard for 30 minutes.'
+        'desc': 'Puff! Vanish from the leaderboard like a ninja in a smoke bomb for 30 minutes. No footprints, just vibes.'
     },
     'boost': {
         'key': 'boost',
@@ -1357,7 +1361,7 @@ _M67_CATALOG = {
         'icon': '⚡',
         'color': '#ffd24a',
         'cost': 5,
-        'desc': 'For 2 minutes, each solve counts as 2.'
+        'desc': 'Turbo time! For 2 minutes your solves count double. Two-for-one brain gains, limited time only.'
     },
     'mud': {
         'key': 'mud',
@@ -1365,7 +1369,7 @@ _M67_CATALOG = {
         'icon': '🪣',
         'color': '#8b5a2b',
         'cost': 3,
-        'desc': 'Throw on another player to slow them for 2 minutes.'
+        'desc': 'Yeet a bucket of goo at a rival to slow them for 2 minutes. It’s friendly sabotage with extra squelch.'
     },
 }
 
@@ -1413,6 +1417,18 @@ def _m67_is_mudded(uid: str, now_ts: float | None = None) -> bool:
 def _m67_get_inventory(uid: str) -> list[dict]:
     with _m67_inventory_lock:
         return list(_m67_inventories.get(uid, []))
+
+
+def _m67_get_state_version(uid: str) -> int:
+    with _m67_state_version_lock:
+        return int(_m67_state_version.get(uid, 0))
+
+
+def _m67_bump_state_version(uid: str) -> int:
+    with _m67_state_version_lock:
+        cur = int(_m67_state_version.get(uid, 0)) + 1
+        _m67_state_version[uid] = cur
+        return cur
 
 
 def _m67_add_item(uid: str, key: str) -> dict:
@@ -1476,6 +1492,7 @@ def api_make67_state():
                 'boost': _m67_remaining(_m67_boost, uid, now_ts),
                 'mud': _m67_remaining(_m67_mud, uid, now_ts),
             },
+            'state_version': _m67_get_state_version(uid),
         }
         return jsonify({'ok': True, 'state': state})
     except Exception as e:
@@ -1507,7 +1524,8 @@ def api_make67_buy():
         u.make67_all_time_solves = cur - cost
         db.session.commit()
         item = _m67_add_item(u.id, key)
-        return jsonify({'ok': True, 'currency': int(u.make67_all_time_solves or 0), 'item': item})
+        ver = _m67_bump_state_version(u.id)
+        return jsonify({'ok': True, 'currency': int(u.make67_all_time_solves or 0), 'item': item, 'state_version': ver})
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
@@ -1555,6 +1573,7 @@ def api_make67_use():
         state = {
             'currency': int(u.make67_all_time_solves or 0),
             'inventory': inv,
+            'state_version': _m67_bump_state_version(u.id),
         }
         return jsonify({'ok': True, 'state': state})
     except Exception as e:
