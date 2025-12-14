@@ -60,7 +60,7 @@
               <span id="m67Score" class="value">0</span>
             </div>
             <div class="stat-item gold score-box">
-              <span class="label">Bank</span>
+              <span class="label">Lifetime Solves</span>
               <span id="m67AllTime" class="value">--</span>
             </div>
           </div>
@@ -103,6 +103,7 @@
         {% if make67_chat_eligible %}
         <div id="chat-overlay" class="glass-overlay" hidden>
           <div class="m67-chat glass-panel" aria-label="Live chat (Make67)">
+            <button class="m67-modal__close" aria-label="Close chat" data-close-chat="1">✕</button>
             <h3 class="m67-chat__title">Live Chat</h3>
             <div id="m67ChatLog" class="m67-chat__log" aria-live="polite"></div>
             <form id="m67ChatForm" class="m67-chat__form" autocomplete="off">

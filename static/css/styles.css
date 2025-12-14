@@ -1367,10 +1367,22 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   top: 0;
   width: 40px; height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.2);
-  background: transparent;
-  color: #cfd3dc;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(20, 24, 30, 0.85);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  backdrop-filter: blur(8px) saturate(1.2);
+  color: #e8f0ff;
   cursor: pointer;
+  font-weight: 800;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.08) inset;
+  z-index: 10;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.make67-page .shoulder-btn:hover {
+  background: rgba(30, 34, 42, 0.92);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.14) inset;
 }
 .make67-page .shoulder-btn.left { left: 0; }
 .make67-page .shoulder-btn.right { right: 0; }
@@ -1509,12 +1521,111 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 
 /* Mobile */
 @media (max-width: 768px) {
-  .make67-page .split-layout { display: block; height: calc(100vh - var(--header-h, 100px)); }
-  .make67-page .panel-left { display: none; }
-  .make67-page .panel-left.mobile-visible { display: flex; position: fixed; inset: 0; z-index: 200; }
+  /* Header Cleanup */
+  .make67-page .header { padding: 10px 12px 8px; }
+  .make67-page .title { font-size: 18px; margin: 4px 0; }
+  .make67-page .subtitle { font-size: 12px; margin-top: 2px; }
+  .make67-page .xmas-emoji { font-size: 16px; }
 
-  .make67-page .panel-right { height: calc(100vh - var(--header-h, 100px)); }
+  /* Hide back link and make6or7 button on mobile */
+  .make67-page .back-link,
+  .make67-page .make67-btn { display: none; }
+
+  /* Consolidate header-right elements */
+  .make67-page .header-right {
+    position: static;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Simplify auth display - avatar only */
+  .make67-page .user-name { display: none; }
+  .make67-page .avatar { width: 32px; height: 32px; }
+
+  /* Dock buttons smaller, better spacing */
+  .make67-page .header .game-dock.header-dock {
+    padding: 6px 10px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+  .make67-page .dock-btn {
+    padding: 6px 10px;
+    font-size: 18px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* Split layout adjustments */
+  .make67-page .split-layout {
+    display: block;
+    height: calc(100vh - var(--header-h, 100px));
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+  .make67-page .panel-left { display: none; }
+  .make67-page .panel-left.mobile-visible {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 200;
+    width: 85vw;
+    max-width: 320px;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.6);
+  }
+  .make67-page .panel-left.mobile-visible::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: -1;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+
+  .make67-page .panel-right {
+    height: calc(100vh - var(--header-h, 100px));
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
   .make67-page .mobile-only { display: inline-flex; }
+
+  /* Game board sizing improvements */
+  .make67-page .game-board-wrapper { padding: 20px 16px; }
+  .make67-page .cards-grid {
+    grid-template-columns: repeat(2, minmax(140px, 46vw));
+    grid-auto-rows: minmax(140px, 46vw);
+    gap: 12px;
+  }
+  .make67-page .card { font-size: clamp(40px, 10vw, 56px); }
+
+  /* Move shoulder buttons below title, not overlapping board */
+  .make67-page .shoulder-btn {
+    position: static;
+    width: 36px;
+    height: 36px;
+    margin: 0 4px;
+  }
+
+  /* Operation buttons better grid */
+  .make67-page .ops { gap: 8px; margin-top: 12px; }
+  .make67-page .op-btn {
+    min-width: 56px;
+    min-height: 56px;
+    font-size: 22px;
+  }
+
+  /* Stats single column */
+  .make67-page .stat-row { grid-template-columns: 1fr; gap: 8px; }
+
+  /* Chat overlay mobile fixes */
+  .make67-page .glass-panel {
+    width: 96vw;
+    max-height: 75vh;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .make67-page .m67-chat__log { max-height: 45vh; }
 }
 @media (min-width: 769px) {
   .make67-page .mobile-only { display: none; }

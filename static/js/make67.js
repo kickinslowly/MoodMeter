@@ -1129,11 +1129,31 @@
       chatOverlay.hidden = !chatOverlay.hidden;
     });
   }
+  // Chat overlay close button and backdrop
+  if (chatOverlay){
+    chatOverlay.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-close-chat')==='1'){
+        chatOverlay.hidden = true;
+      }
+      // Close on backdrop click
+      if (t && t.id === 'chat-overlay'){
+        chatOverlay.hidden = true;
+      }
+    });
+  }
 
   // Mobile rank drawer toggle
   if (btnMobileRank && panelLeft){
     btnMobileRank.addEventListener('click', ()=>{
       panelLeft.classList.toggle('mobile-visible');
+    });
+    // Close drawer on backdrop click
+    document.addEventListener('click', (e)=>{
+      if (!panelLeft.classList.contains('mobile-visible')) return;
+      if (!panelLeft.contains(e.target) && e.target !== btnMobileRank){
+        panelLeft.classList.remove('mobile-visible');
+      }
     });
   }
 
