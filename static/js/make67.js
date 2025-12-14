@@ -298,6 +298,35 @@
     } catch(_){ }
   }
 
+  // On first user interaction, try to unlock audio playback on mobile browsers
+  (function setupAudioUnlock(){
+    let unlocked = false;
+    function unlock(){
+      if (unlocked) return; unlocked = true;
+      const ids = [
+        'snd_brainrot','snd_meme','snd_lol','snd_hehe','snd_ah','snd_reload',
+        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost'
+      ];
+      ids.forEach(id=>{
+        const el = document.getElementById(id);
+        if (!el) return;
+        try {
+          el.muted = true;
+          const p = el.play();
+          if (p && typeof p.then === 'function'){
+            p.then(()=>{ try{ el.pause(); el.currentTime = 0; }catch(_){} el.muted = false; })
+             .catch(()=>{ el.muted = false; });
+          } else {
+            try{ el.pause(); el.currentTime = 0; }catch(_){}
+            el.muted = false;
+          }
+        } catch(_){ try{ el.muted = false; }catch(__){} }
+      });
+    }
+    window.addEventListener('pointerdown', unlock, {once:true, passive:true});
+    window.addEventListener('keydown', unlock, {once:true});
+  })();
+
   function sparkAt(el, count){
     if (!el) return;
     const base = (typeof count === 'number') ? count : 6;

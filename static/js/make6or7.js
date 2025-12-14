@@ -236,6 +236,35 @@
     if (el){ try{ el.currentTime = 0; el.play(); }catch(_){}}
   }
 
+  // On first user interaction, try to unlock audio playback for mobile browsers
+  (function setupAudioUnlock(){
+    let unlocked = false;
+    function unlock(){
+      if (unlocked) return; unlocked = true;
+      const ids = [
+        'snd_brainrot','snd_meme','snd_lol','snd_hehe','snd_ah','snd_reload',
+        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost'
+      ];
+      ids.forEach(id=>{
+        const el = document.getElementById(id);
+        if (!el) return;
+        try {
+          el.muted = true;
+          const p = el.play();
+          if (p && typeof p.then === 'function'){
+            p.then(()=>{ try{ el.pause(); el.currentTime = 0; }catch(_){} el.muted = false; })
+             .catch(()=>{ el.muted = false; });
+          } else {
+            try{ el.pause(); el.currentTime = 0; }catch(_){ }
+            el.muted = false;
+          }
+        } catch(_){ try{ el.muted = false; }catch(__){} }
+      });
+    }
+    window.addEventListener('pointerdown', unlock, {once:true, passive:true});
+    window.addEventListener('keydown', unlock, {once:true});
+  })();
+
   const ALLOWED_OPS = new Set(['+','-']);
 
   function doOperation(i, j, op){
@@ -383,7 +412,7 @@
         el.className = 'm67-inv-item';
         el.innerHTML = `<div class="m67-inv-icon" style="background:${it.color || '#333'}">${it.icon || ''}</div>
                         <div class="m67-inv-name">${it.name || ''}</div>
-                        <button class="m67-inv-use" data-id="${it.id}">Use</button>`;
+                        <button class="m67-inv-use" data-id="${it.id}" data-key="${it.key || ''}">Use</button>`;
         invRoot.appendChild(el);
       }
       // Effects tips
@@ -417,13 +446,14 @@
     const btn = e.target && e.target.closest && e.target.closest('.m67-inv-use');
     if (!btn) return;
     const item_id = btn.getAttribute('data-id');
+    const item_key = btn.getAttribute('data-key');
     if (!item_id) return;
     try{
       const r = await fetch('/api/make6or7/use', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({item_id})});
       if (!r.ok) return;
       const data = await r.json();
       if (data && data.ok){
-        play('snd_item_boost');
+        if (item_key === 'mud') play('snd_item_mud'); else play('snd_item_boost');
         loadState();
       }
     }catch(_){ }

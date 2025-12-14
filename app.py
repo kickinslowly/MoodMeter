@@ -186,6 +186,10 @@ class User(db.Model, UserMixin):
     make6or7_all_time_solves = db.Column(db.Integer, nullable=False, default=0)
     # Flag for auto-solver/cheating detection in Make67
     make67_is_cheater = db.Column(db.Boolean, nullable=False, default=False)
+    # DB-backed game effects (replace process-local memory)
+    make67_invisible_until = db.Column(db.DateTime(timezone=True), nullable=True)
+    make67_boost_until = db.Column(db.DateTime(timezone=True), nullable=True)
+    make67_mud_until = db.Column(db.DateTime(timezone=True), nullable=True)
 
 
 class Group(db.Model):
@@ -1346,6 +1350,7 @@ _m67_state_version_lock = threading.Lock()
 _m67_state_version: dict[str, int] = {}
 
 _m67_effects_lock = threading.Lock()
+# Legacy in-memory stores kept for backward compatibility; DB-backed columns are authoritative now.
 _m67_invisible: dict[str, float] = {}
 _m67_boost: dict[str, float] = {}
 _m67_mud: dict[str, float] = {}
@@ -1402,6 +1407,7 @@ def _m67_remaining(store: dict[str, float], uid: str, now_ts: float | None = Non
 
 
 def _m67_is_invisible(uid: str, now_ts: float | None = None) -> bool:
+    """LEGACY helper: prefer DB-backed check where a User object is available."""
     now_ts = now_ts or time.time()
     with _m67_effects_lock:
         _m67_cleanup(_m67_invisible, now_ts)
@@ -1409,6 +1415,7 @@ def _m67_is_invisible(uid: str, now_ts: float | None = None) -> bool:
 
 
 def _m67_is_boosted(uid: str, now_ts: float | None = None) -> bool:
+    """LEGACY helper: prefer DB-backed check where a User object is available."""
     now_ts = now_ts or time.time()
     with _m67_effects_lock:
         _m67_cleanup(_m67_boost, now_ts)
@@ -1416,10 +1423,23 @@ def _m67_is_boosted(uid: str, now_ts: float | None = None) -> bool:
 
 
 def _m67_is_mudded(uid: str, now_ts: float | None = None) -> bool:
+    """LEGACY helper: prefer DB-backed check where a User object is available."""
     now_ts = now_ts or time.time()
     with _m67_effects_lock:
         _m67_cleanup(_m67_mud, now_ts)
         return _m67_mud.get(uid, 0) > now_ts
+
+
+def _remaining_from_dt(dt_val: datetime | None, now_dt: datetime | None = None) -> int:
+    """Return remaining seconds (int) until dt_val from now, or 0 if none/expired."""
+    if dt_val is None:
+        return 0
+    now_dt = now_dt or datetime.now(timezone.utc)
+    try:
+        delta = (dt_val - now_dt).total_seconds()
+        return int(round(delta)) if delta > 0 else 0
+    except Exception:
+        return 0
 
 
 def _m67_get_inventory(uid: str) -> list[dict]:
@@ -1504,15 +1524,15 @@ def api_make67_state():
         if not u:
             return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
         uid = u.id
-        now_ts = time.time()
+        now_dt = datetime.now(timezone.utc)
         inv = _m67_get_inventory(uid)
         state = {
             'currency': int(u.make67_all_time_solves or 0),
             'inventory': inv,
             'effects': {
-                'invisible': _m67_remaining(_m67_invisible, uid, now_ts),
-                'boost': _m67_remaining(_m67_boost, uid, now_ts),
-                'mud': _m67_remaining(_m67_mud, uid, now_ts),
+                'invisible': _remaining_from_dt(getattr(u, 'make67_invisible_until', None), now_dt),
+                'boost': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
+                'mud': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
             },
             'state_version': _m67_get_state_version(uid),
         }
@@ -1530,15 +1550,15 @@ def api_make6or7_state():
         if not u:
             return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
         uid = u.id
-        now_ts = time.time()
+        now_dt = datetime.now(timezone.utc)
         inv = _m67_get_inventory(uid)
         state = {
             'currency': int(u.make6or7_all_time_solves or 0),
             'inventory': inv,
             'effects': {
-                'invisible': _m67_remaining(_m67_invisible, uid, now_ts),
-                'boost': _m67_remaining(_m67_boost, uid, now_ts),
-                'mud': _m67_remaining(_m67_mud, uid, now_ts),
+                'invisible': _remaining_from_dt(getattr(u, 'make67_invisible_until', None), now_dt),
+                'boost': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
+                'mud': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
             },
             'state_version': _m67_get_state_version(uid),
         }
@@ -1627,27 +1647,35 @@ def api_make67_use():
         if not it:
             return jsonify({'ok': False, 'error': 'NOT_IN_INVENTORY'}), 400
         key = it.get('key')
-        now_ts = time.time()
-        # Activate effects
-        with _m67_effects_lock:
-            if key == 'sneaky_dust':
-                dur = 30 * 60
-                _m67_invisible[u.id] = max(_m67_invisible.get(u.id, 0), now_ts + dur)
-            elif key == 'boost':
-                dur = 2 * 60
-                _m67_boost[u.id] = max(_m67_boost.get(u.id, 0), now_ts + dur)
-            elif key == 'mud':
-                target = (data.get('target_id') or '').strip()
-                if not target:
-                    # Put item back if target missing
-                    _m67_add_item(u.id, key)
-                    return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
-                dur = 2 * 60
-                _m67_mud[target] = max(_m67_mud.get(target, 0), now_ts + dur)
-                # Cancel boost on target while mud is active
-                _m67_boost[target] = now_ts  # effectively expire now
-            else:
-                return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        now_dt = datetime.now(timezone.utc)
+        # Activate effects (DB-backed)
+        if key == 'sneaky_dust':
+            dur = timedelta(minutes=30)
+            cur_until = getattr(u, 'make67_invisible_until', None) or now_dt
+            u.make67_invisible_until = max(cur_until, now_dt) + dur
+        elif key == 'boost':
+            dur = timedelta(minutes=2)
+            cur_until = getattr(u, 'make67_boost_until', None) or now_dt
+            u.make67_boost_until = max(cur_until, now_dt) + dur
+        elif key == 'mud':
+            target_id = (data.get('target_id') or '').strip()
+            if not target_id:
+                # Put item back if target missing
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
+            target = db.session.get(User, target_id)
+            if not target:
+                # Put item back if target missing/invalid
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'TARGET_NOT_FOUND'}), 404
+            dur = timedelta(minutes=2)
+            cur_until = getattr(target, 'make67_mud_until', None) or now_dt
+            target.make67_mud_until = max(cur_until, now_dt) + dur
+            # Cancel boost on target while mud is active
+            target.make67_boost_until = now_dt
+        else:
+            return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        db.session.commit()
         # Return updated state
         inv = _m67_get_inventory(u.id)
         state = {
@@ -1676,25 +1704,32 @@ def api_make6or7_use():
         if not it:
             return jsonify({'ok': False, 'error': 'NOT_IN_INVENTORY'}), 400
         key = it.get('key')
-        now_ts = time.time()
-        # Activate effects (shared with Make67)
-        with _m67_effects_lock:
-            if key == 'sneaky_dust':
-                dur = 30 * 60
-                _m67_invisible[u.id] = max(_m67_invisible.get(u.id, 0), now_ts + dur)
-            elif key == 'boost':
-                dur = 2 * 60
-                _m67_boost[u.id] = max(_m67_boost.get(u.id, 0), now_ts + dur)
-            elif key == 'mud':
-                target = (data.get('target_id') or '').strip()
-                if not target:
-                    _m67_add_item(u.id, key)
-                    return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
-                dur = 2 * 60
-                _m67_mud[target] = max(_m67_mud.get(target, 0), now_ts + dur)
-                _m67_boost[target] = now_ts
-            else:
-                return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        now_dt = datetime.now(timezone.utc)
+        # Activate effects (shared rules with Make67)
+        if key == 'sneaky_dust':
+            dur = timedelta(minutes=30)
+            cur_until = getattr(u, 'make67_invisible_until', None) or now_dt
+            u.make67_invisible_until = max(cur_until, now_dt) + dur
+        elif key == 'boost':
+            dur = timedelta(minutes=2)
+            cur_until = getattr(u, 'make67_boost_until', None) or now_dt
+            u.make67_boost_until = max(cur_until, now_dt) + dur
+        elif key == 'mud':
+            target_id = (data.get('target_id') or '').strip()
+            if not target_id:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
+            target = db.session.get(User, target_id)
+            if not target:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'TARGET_NOT_FOUND'}), 404
+            dur = timedelta(minutes=2)
+            cur_until = getattr(target, 'make67_mud_until', None) or now_dt
+            target.make67_mud_until = max(cur_until, now_dt) + dur
+            target.make67_boost_until = now_dt
+        else:
+            return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        db.session.commit()
         inv = _m67_get_inventory(u.id)
         state = {
             'currency': int(u.make6or7_all_time_solves or 0),
@@ -2009,13 +2044,12 @@ def api_make67_solve():
         if hint_used:
             # Do not count solves where a hint was used
             return jsonify({'ok': True, 'all_time_total': int(u.make67_all_time_solves or 0), 'skipped': True})
-        # --- Game item effects: boost/mud influence solve credit ---
-        now_ts = time.time()
+        # --- Game item effects: boost/mud influence solve credit (DB-backed) ---
+        now_dt = datetime.now(timezone.utc)
         uid = u.id
-        # Determine active effects
         mul = 1.0
-        is_mudded = _m67_is_mudded(uid, now_ts)
-        is_boosted = _m67_is_boosted(uid, now_ts)
+        is_mudded = bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt)
+        is_boosted = bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt)
         # Mud overrides boost to normal speed; otherwise mud slows to 0.5
         if is_mudded:
             mul = 1.0 if is_boosted else 0.5
@@ -2035,7 +2069,7 @@ def api_make67_solve():
             u.make67_all_time_solves = cur + credit
 
         # Cheater detection: more than 15 solves in any 60-second window
-        now = now_ts
+        now = time.time()
         with _m67_recent_solves_lock:
             dq = _m67_recent_solves.get(u.id)
             if dq is None:
@@ -2073,11 +2107,11 @@ def api_make6or7_solve():
         hint_used = bool(data.get('hint_used'))
         if hint_used:
             return jsonify({'ok': True, 'all_time_total': int(u.make6or7_all_time_solves or 0), 'skipped': True})
-        now_ts = time.time()
+        now_dt = datetime.now(timezone.utc)
         uid = u.id
         mul = 1.0
-        is_mudded = _m67_is_mudded(uid, now_ts)
-        is_boosted = _m67_is_boosted(uid, now_ts)
+        is_mudded = bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt)
+        is_boosted = bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt)
         if is_mudded:
             mul = 1.0 if is_boosted else 0.5
         else:
@@ -2094,7 +2128,7 @@ def api_make6or7_solve():
             u.make6or7_all_time_solves = cur + credit
 
         # Same cheater detection applies across modes
-        now = now_ts
+        now = time.time()
         with _m67_recent_solves_lock:
             dq = _m67_recent_solves.get(u.id)
             if dq is None:
@@ -2123,7 +2157,7 @@ def api_make6or7_solve():
 def api_make67_leaderboard():
     try:
         # Top leaderboard: exclude cheaters and currently invisible users
-        now_ts = time.time()
+        now_dt = datetime.now(timezone.utc)
         top_users = (
             User.query
             .filter(
@@ -2138,7 +2172,7 @@ def api_make67_leaderboard():
         top = []
         for u in top_users:
             # skip invisible
-            if _m67_is_invisible(u.id, now_ts):
+            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
                 continue
             total = int(u.make67_all_time_solves or 0)
             rk = _compute_rank(total)
@@ -2150,8 +2184,8 @@ def api_make67_leaderboard():
                 'rank_title': rk['title'],
                 'rank_icon': rk['icon'],
                 'is_cheater': False,
-                'is_mudded': _m67_is_mudded(u.id, now_ts),
-                'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
+                'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
+                'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
             })
 
         # Banned users (cheaters): show in separate list (wall of shame)
@@ -2195,12 +2229,12 @@ def api_make67_leaderboard():
                     'rank_title': rk['title'],
                     'rank_icon': rk['icon'],
                     'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
-                    'is_invisible': _m67_is_invisible(u.id, now_ts),
-                    'invisible_ends_in': _m67_remaining(_m67_invisible, u.id, now_ts),
-                    'is_boosted': _m67_is_boosted(u.id, now_ts),
-                    'boost_ends_in': _m67_remaining(_m67_boost, u.id, now_ts),
-                    'is_mudded': _m67_is_mudded(u.id, now_ts),
-                    'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
+                    'is_invisible': bool(getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt),
+                    'invisible_ends_in': _remaining_from_dt(getattr(u, 'make67_invisible_until', None), now_dt),
+                    'is_boosted': bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt),
+                    'boost_ends_in': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
+                    'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
+                    'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
                 }
         return jsonify({'ok': True, 'top': top, 'banned': banned, 'me': me})
     except Exception as e:
@@ -2210,7 +2244,7 @@ def api_make67_leaderboard():
 @app.route('/api/make6or7/leaderboard', methods=['GET'])
 def api_make6or7_leaderboard():
     try:
-        now_ts = time.time()
+        now_dt = datetime.now(timezone.utc)
         top_users = (
             User.query
             .filter(
@@ -2224,7 +2258,7 @@ def api_make6or7_leaderboard():
         )
         top = []
         for u in top_users:
-            if _m67_is_invisible(u.id, now_ts):
+            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
                 continue
             total = int(u.make6or7_all_time_solves or 0)
             rk = _compute_rank(total)
@@ -2236,8 +2270,8 @@ def api_make6or7_leaderboard():
                 'rank_title': rk['title'],
                 'rank_icon': rk['icon'],
                 'is_cheater': False,
-                'is_mudded': _m67_is_mudded(u.id, now_ts),
-                'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
+                'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
+                'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
             })
 
         banned_users = (
@@ -2280,12 +2314,12 @@ def api_make6or7_leaderboard():
                     'rank_title': rk['title'],
                     'rank_icon': rk['icon'],
                     'is_cheater': bool(getattr(u, 'make67_is_cheater', False)),
-                    'is_invisible': _m67_is_invisible(u.id, now_ts),
-                    'invisible_ends_in': _m67_remaining(_m67_invisible, u.id, now_ts),
-                    'is_boosted': _m67_is_boosted(u.id, now_ts),
-                    'boost_ends_in': _m67_remaining(_m67_boost, u.id, now_ts),
-                    'is_mudded': _m67_is_mudded(u.id, now_ts),
-                    'mud_ends_in': _m67_remaining(_m67_mud, u.id, now_ts),
+                    'is_invisible': bool(getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt),
+                    'invisible_ends_in': _remaining_from_dt(getattr(u, 'make67_invisible_until', None), now_dt),
+                    'is_boosted': bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt),
+                    'boost_ends_in': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
+                    'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
+                    'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
                 }
         return jsonify({'ok': True, 'top': top, 'banned': banned, 'me': me})
     except Exception as e:
