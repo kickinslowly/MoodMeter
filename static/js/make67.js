@@ -1244,3 +1244,83 @@
     }
   });
 })();
+
+// --- Gentle Snowfall Overlay ---
+(function initMake67Snow(){
+  const canvas = document.getElementById('snowCanvas');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  let dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let W = 0, H = 0;
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.round(window.innerWidth));
+    H = Math.max(1, Math.round(window.innerHeight));
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const flakes = [];
+  function initFlakes(){
+    flakes.length = 0;
+    const base = (W * H) / 18000; // density
+    const count = Math.max(40, Math.min(180, Math.round(base)));
+    for (let i=0; i<count; i++){
+      flakes.push(makeFlake(Math.random() * W, Math.random() * H));
+    }
+  }
+  function makeFlake(x, y){
+    const r = 0.8 + Math.random() * 2.0;
+    return {
+      x, y, r,
+      vy: 0.12 + Math.random() * 0.35, // slow fall
+      vx: (-0.15 + Math.random() * 0.3),
+      amp: 8 + Math.random() * 18,
+      phase: Math.random() * Math.PI * 2,
+      tw: 0.6 + Math.random() * 0.4 // twinkle
+    };
+  }
+  initFlakes();
+  window.addEventListener('resize', initFlakes);
+
+  let rafId = 0;
+  function draw(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    for (let i=0; i<flakes.length; i++){
+      const f = flakes[i];
+      // update
+      f.y += f.vy;
+      f.x += f.vx + Math.sin((f.y * 0.015) + f.phase) * 0.3;
+      if (f.y - f.r > H) { // respawn at top
+        flakes[i] = makeFlake(Math.random() * W, -10 - Math.random() * 40);
+        continue;
+      }
+      if (f.x < -20) f.x = W + 20; else if (f.x > W + 20) f.x = -20;
+
+      // draw flake
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255,255,255,${0.65 + Math.sin((performance.now()/1000)*f.tw)*0.1})`;
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    rafId = requestAnimationFrame(draw);
+  }
+
+  function onVis(){
+    if (document.visibilityState === 'hidden'){
+      cancelAnimationFrame(rafId);
+    } else {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(draw);
+    }
+  }
+  document.addEventListener('visibilitychange', onVis);
+  rafId = requestAnimationFrame(draw);
+})();
