@@ -2184,6 +2184,8 @@ def api_make67_leaderboard():
                 'rank_title': rk['title'],
                 'rank_icon': rk['icon'],
                 'is_cheater': False,
+                'is_boosted': bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt),
+                'boost_ends_in': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
                 'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
                 'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
             })

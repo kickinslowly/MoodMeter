@@ -360,6 +360,9 @@
       li.classList.add(`rank-${rk}`);
       if (item && item.id) li.dataset.userId = String(item.id);
       if (idx === 0) li.classList.add('top1');
+      // Effect classes
+      if (item && item.is_mudded) li.classList.add('mudded');
+      if (item && item.is_boosted) li.classList.add('boosted');
       const rank = document.createElement('span');
       rank.className = 'rank';
       rank.textContent = String(idx + 1);
@@ -386,6 +389,14 @@
         mud.title = 'Mudded';
         mud.textContent = '💩';
         name.append(' ', mud);
+      }
+      // Boost indicator
+      if (item && item.is_boosted){
+        const bolt = document.createElement('span');
+        bolt.className = 'boost-ind';
+        bolt.title = 'Boosted';
+        bolt.textContent = '⚡';
+        name.append(' ', bolt);
       }
 
       // If this is the #1 leader, prepend a decorative golden star next to their name
@@ -684,7 +695,7 @@
         position: 'fixed', maxWidth: '260px', padding: '10px 12px', borderRadius: '10px',
         color:'#e6ebf4', background: 'linear-gradient(180deg, rgba(30,34,41,.96), rgba(24,28,34,.96))',
         boxShadow: '0 8px 28px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06)',
-        fontSize: '13px', lineHeight: '1.25', zIndex: 10000, display: 'none', pointerEvents:'none'
+        fontSize: '13px', lineHeight: '1.25', zIndex: 12000, display: 'none', pointerEvents:'none'
       });
       document.body.appendChild(tipEl);
     }

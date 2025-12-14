@@ -882,7 +882,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .make67-page .m67-chat-text { color: #cfd3dc; }
 .make67-page .m67-lb-title { margin: 4px 6px 10px; font-size: 14px; font-weight: 800; color: var(--axis); letter-spacing: .3px; }
 .make67-page .m67-lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.make67-page .m67-lb-item { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border:1px solid var(--cell-border); background: #1d2026; color: #e8ecf5; }
+.make67-page .m67-lb-item { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border:1px solid var(--cell-border); background: #1d2026; color: #e8ecf5; position: relative; overflow: hidden; }
 .make67-page .m67-lb-item .rank { font-weight: 900; opacity: .8; }
 .make67-page .m67-lb-item .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .make67-page .m67-lb-item .total { font-weight: 900; }
@@ -943,6 +943,62 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 /* Rank badges & regal colorways */
 .make67-page .m67-lb-item .rank-icon { margin-right: 6px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.45)); }
 .make67-page .m67-lb-item .rank-title { opacity: .95; font-weight: 800; }
+
+/* Effect badges next to names */
+.make67-page .m67-lb-item .mud-ind { filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); font-size: 14px; }
+.make67-page .m67-lb-item .boost-ind { filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); color: #8be9ff; text-shadow: 0 0 8px rgba(139,233,255,0.55); font-size: 14px; }
+
+/* Boosted electric pulse */
+@keyframes boost-pulse {
+  0% { box-shadow: var(--shadow), 0 0 0 1px rgba(0,200,255,0.45), 0 0 10px rgba(0,200,255,0.25); }
+  50% { box-shadow: var(--shadow), 0 0 0 1px rgba(0,255,255,0.7), 0 0 20px rgba(0,255,255,0.40), 0 0 36px rgba(0,255,255,0.25); }
+  100% { box-shadow: var(--shadow), 0 0 0 1px rgba(0,200,255,0.45), 0 0 10px rgba(0,200,255,0.25); }
+}
+
+@keyframes bolt-spin {
+  0% { transform: rotate(0deg); opacity: .45; }
+  50% { opacity: .75; }
+  100% { transform: rotate(360deg); opacity: .45; }
+}
+
+.make67-page .m67-lb-item.boosted {
+  border-color: rgba(0, 220, 255, 0.55);
+  background:
+    radial-gradient(160px 72px at 80% -10%, rgba(0, 200, 255, 0.10), transparent 60%),
+    #1d2026;
+  animation: boost-pulse 1.3s ease-in-out infinite;
+}
+.make67-page .m67-lb-item.boosted::before {
+  content: "";
+  position: absolute; inset: -30% -10%;
+  background: conic-gradient(from 0deg, rgba(0,255,255,0.0) 0 15%, rgba(0,255,255,0.25) 15% 18%, rgba(0,255,255,0.0) 18% 35%, rgba(0,255,255,0.35) 35% 38%, rgba(0,255,255,0.0) 38% 55%, rgba(0,255,255,0.25) 55% 58%, rgba(0,255,255,0.0) 58% 75%, rgba(0,255,255,0.32) 75% 78%, rgba(0,255,255,0.0) 78% 100%);
+  filter: blur(6px) drop-shadow(0 0 10px rgba(0,255,255,0.35));
+  animation: bolt-spin 3s linear infinite;
+  pointer-events: none;
+}
+
+/* Mudded splatter */
+@keyframes mud-drip {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1px); }
+}
+.make67-page .m67-lb-item.mudded {
+  border-color: rgba(150, 95, 45, 0.6);
+  background:
+    radial-gradient(120px 48px at -10% -20%, rgba(120, 70, 30, 0.10), transparent 60%),
+    #1d2026;
+}
+.make67-page .m67-lb-item.mudded::after {
+  content: "";
+  position: absolute; inset: -8px; pointer-events: none;
+  background:
+    radial-gradient(22px 18px at 12% 28%, rgba(95,60,30,0.65), rgba(95,60,30,0.15) 60%, transparent 70%),
+    radial-gradient(16px 12px at 28% 62%, rgba(95,60,30,0.55), rgba(95,60,30,0.12) 60%, transparent 70%),
+    radial-gradient(18px 14px at 78% 34%, rgba(95,60,30,0.60), rgba(95,60,30,0.15) 60%, transparent 70%),
+    radial-gradient(26px 22px at 86% 72%, rgba(95,60,30,0.50), rgba(95,60,30,0.10) 60%, transparent 70%);
+  filter: blur(0.5px) drop-shadow(0 2px 2px rgba(0,0,0,0.35));
+  animation: mud-drip 1.6s ease-in-out infinite;
+}
 
 /* Default (noob) muted */
 .make67-page .m67-lb-item.rank-noob .name { color: #9aa0a6; text-shadow: 0 0 6px rgba(154,160,166,0.25); }
