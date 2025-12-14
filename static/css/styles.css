@@ -1003,6 +1003,39 @@ body.m67-modal-open { overflow: hidden; }
   animation: mud-drip 1.6s ease-in-out infinite;
 }
 
+/* Mud targeting UX */
+body.m67-mud-mode { cursor: none; }
+.m67-mud-overlay {
+  position: fixed; inset: 0; display: grid; place-items: start center; padding-top: 14vh;
+  font-size: 24px; font-weight: 900; letter-spacing: 0.5px;
+  color: #ffe6c7; text-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 0 18px rgba(255,180,70,0.35);
+  pointer-events: none; z-index: 20000;
+}
+.m67-mud-cursor {
+  position: fixed; left: 0; top: 0; width: 28px; height: 28px; margin-left: -14px; margin-top: -14px;
+  border-radius: 50%;
+  background:
+    radial-gradient(18px 12px at 70% 30%, rgba(255,255,255,0.25), transparent 60%),
+    #5f3c1e;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset;
+  display: grid; place-items: center;
+  z-index: 20010; pointer-events: none;
+}
+.m67-mud-cursor::after { content: '💩'; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); font-size: 16px; }
+
+.m67-mud-throw {
+  position: fixed; left: 0; top: 0; width: 22px; height: 22px; margin-left: -11px; margin-top: -11px;
+  border-radius: 50%; background: #5f3c1e; z-index: 20005; pointer-events: none;
+  transform: translate(0,0);
+  box-shadow: 0 3px 9px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset;
+}
+@keyframes mud-throw-fly {
+  0% { transform: translate(0,0) scale(1); filter: drop-shadow(0 3px 6px rgba(0,0,0,.3)); }
+  85% { transform: translate(var(--tx), var(--ty)) scale(1.15); }
+  100% { transform: translate(var(--tx), var(--ty)) scale(0.9); filter: drop-shadow(0 1px 2px rgba(0,0,0,.2)); }
+}
+.m67-mud-throw.go { animation: mud-throw-fly 420ms cubic-bezier(.2,.9,.1,1) forwards; }
+
 /* Default (noob) muted */
 .make67-page .m67-lb-item.rank-noob .name { color: #9aa0a6; text-shadow: 0 0 6px rgba(154,160,166,0.25); }
 .make67-page .m67-lb-item.rank-noob { border-color: rgba(154,160,166,0.25); }

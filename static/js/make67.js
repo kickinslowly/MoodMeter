@@ -891,23 +891,103 @@
   function pickMudTarget(){
     return new Promise(resolve=>{
       if (!lbList){ resolve(null); return; }
-      const hint = document.createElement('div');
-      hint.textContent = 'Tap a player to throw mud';
-      hint.style.textAlign='center';
-      hint.style.fontSize='12px';
-      hint.style.opacity='.85';
-      lbList.prepend(hint);
-      const onClick = (e)=>{
+
+      // State
+      let mouseX = window.innerWidth/2, mouseY = window.innerHeight/2;
+      let done = false;
+
+      // Fullscreen overlay instruction
+      const overlay = document.createElement('div');
+      overlay.className = 'm67-mud-overlay';
+      overlay.setAttribute('role','dialog');
+      overlay.setAttribute('aria-live','polite');
+      overlay.textContent = 'choose a target to mud!';
+      document.body.appendChild(overlay);
+
+      // Custom cursor follower (mud ball)
+      const cursor = document.createElement('div');
+      cursor.className = 'm67-mud-cursor';
+      document.body.appendChild(cursor);
+
+      // Body class to hide default cursor and block scroll
+      document.body.classList.add('m67-mud-mode');
+
+      function placeCursor(x,y){
+        mouseX = x; mouseY = y;
+        cursor.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      }
+      const onMove = (e)=>{
+        const x = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+        const y = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+        placeCursor(x, y);
+      };
+      window.addEventListener('mousemove', onMove, {passive:true});
+      window.addEventListener('touchmove', onMove, {passive:true});
+      // Initialize position near center
+      placeCursor(mouseX, mouseY);
+
+      function cleanup(){
+        if (done) return; done = true;
+        try { window.removeEventListener('mousemove', onMove, {passive:true}); } catch(_){ window.removeEventListener('mousemove', onMove); }
+        try { window.removeEventListener('touchmove', onMove, {passive:true}); } catch(_){ window.removeEventListener('touchmove', onMove); }
+        lbList.removeEventListener('click', onClick, true);
+        document.removeEventListener('keydown', onKey);
+        document.removeEventListener('click', onBackdrop, true);
+        try { overlay.remove(); } catch(_){ }
+        try { cursor.remove(); } catch(_){ }
+        document.body.classList.remove('m67-mud-mode');
+      }
+
+      function throwMudTo(targetEl){
+        // Create a projectile at current cursor position and animate to target
+        const proj = document.createElement('div');
+        proj.className = 'm67-mud-throw';
+        document.body.appendChild(proj);
+        // starting position
+        proj.style.left = mouseX + 'px';
+        proj.style.top = mouseY + 'px';
+        // destination
+        const r = targetEl.getBoundingClientRect();
+        const tx = r.left + r.width*0.15; // towards name area
+        const ty = r.top + r.height*0.5;
+        // next frame to apply transition
+        requestAnimationFrame(()=>{
+          proj.style.setProperty('--tx', (tx - mouseX) + 'px');
+          proj.style.setProperty('--ty', (ty - mouseY) + 'px');
+          proj.classList.add('go');
+        });
+        // After animation ends, remove
+        proj.addEventListener('animationend', ()=>{ try{ proj.remove(); }catch(_){ } }, {once:true});
+      }
+
+      function onClick(e){
         const li = e.target && e.target.closest && e.target.closest('li.m67-lb-item');
         const id = li && li.dataset && li.dataset.userId;
         if (id){
-          lbList.removeEventListener('click', onClick, true);
-          hint.remove();
+          // Optimistic FX: add mudded look
+          li.classList.add('mudded');
+          throwMudTo(li);
+          cleanup();
           resolve(id);
         }
-      };
+      }
       lbList.addEventListener('click', onClick, true);
-      setTimeout(()=>{ lbList.removeEventListener('click', onClick, true); try{hint.remove();}catch(_){ } resolve(null); }, 12000);
+
+      function onKey(e){ if (e.key === 'Escape'){ cleanup(); resolve(null); } }
+      document.addEventListener('keydown', onKey);
+      function onBackdrop(e){
+        // If click outside leaderboard, treat as cancel (but ignore overlay itself to avoid immediate close)
+        if (!lbList.contains(e.target) && !overlay.contains(e.target)){
+          cleanup(); resolve(null);
+        }
+      }
+      document.addEventListener('click', onBackdrop, true);
+
+      // Safety timeout
+      const TO = setTimeout(()=>{ cleanup(); resolve(null); }, 15000);
+      // Ensure cleanup clears timeout
+      const prevCleanup = cleanup;
+      cleanup = function(){ clearTimeout(TO); prevCleanup(); };
     });
   }
 
