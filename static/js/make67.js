@@ -178,6 +178,14 @@
   const bannedBtn = document.getElementById('m67BannedBtn');
   const bannedRoot = document.querySelector('.m67-ban-root');
   const bannedListEl = document.getElementById('m67BannedList');
+  // Helper: lock body scroll when any modal is open
+  function updateBodyLock(){
+    const anyOpen = (invModalRoot && !invModalRoot.hidden)
+      || (shopModalRoot && !shopModalRoot.hidden)
+      || (bannedRoot && !bannedRoot.hidden)
+      || (chatOverlay && !chatOverlay.hasAttribute('hidden') && chatOverlay.style.display !== 'none');
+    document.body.classList.toggle('m67-modal-open', !!anyOpen);
+  }
   // Inventory/Shop modal controls
   const invBtn = document.getElementById('m67InvBtn');
   const shopBtn = document.getElementById('m67ShopBtn');
@@ -493,8 +501,9 @@
     if (!bannedRoot) return;
     renderBanned(bannedCache);
     bannedRoot.hidden = false;
+    updateBodyLock();
   }
-  function closeBanned(){ if (bannedRoot) bannedRoot.hidden = true; }
+  function closeBanned(){ if (bannedRoot) { bannedRoot.hidden = true; updateBodyLock(); } }
 
   if (bannedBtn){
     bannedBtn.addEventListener('click', openBanned);
@@ -515,8 +524,9 @@
     invModalRoot.hidden = false;
     // Refresh state/effects when opened
     setTimeout(()=>{ loadState(); }, 0);
+    updateBodyLock();
   }
-  function closeInventory(){ if (invModalRoot) invModalRoot.hidden = true; }
+  function closeInventory(){ if (invModalRoot) { invModalRoot.hidden = true; updateBodyLock(); } }
   function toggleInventory(){
     if (!invModalRoot) return;
     if (invModalRoot.hidden) openInventory(); else closeInventory();
@@ -537,8 +547,9 @@
     playSfx('snd_shop_open');
     // Ensure catalog is loaded/refreshed when opening
     setTimeout(()=>{ loadShop(); }, 0);
+    updateBodyLock();
   }
-  function closeShop(){ if (shopModalRoot) shopModalRoot.hidden = true; }
+  function closeShop(){ if (shopModalRoot) { shopModalRoot.hidden = true; updateBodyLock(); } }
   function toggleShop(){
     if (!shopModalRoot) return;
     if (shopModalRoot.hidden) openShop(); else closeShop();
@@ -555,6 +566,7 @@
     if (e.key === 'Escape'){
       if (invModalRoot && !invModalRoot.hidden) closeInventory();
       if (shopModalRoot && !shopModalRoot.hidden) closeShop();
+      if (bannedRoot && !bannedRoot.hidden) closeBanned();
     }
   });
 

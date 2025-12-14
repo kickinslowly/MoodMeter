@@ -711,7 +711,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 /* === Make67 page styles (scoped) === */
 .make67-page .make67-container { display: grid; gap: 16px; place-items: center; }
 .make67-page .subtitle { color: var(--axis); font-weight: 600; letter-spacing: .3px; }
-.make67-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(168px, 30.8vw)); grid-auto-rows: minmax(168px, 30.8vw); gap: 20px; --pad: 14px; padding: var(--pad); border-radius: 16px; background: rgba(255,255,255,0.05); box-shadow: var(--shadow); position: relative; overflow: hidden; }
+.make67-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(168px, 30.8vw)); grid-auto-rows: minmax(168px, 30.8vw); gap: 20px; --pad: 14px; padding: var(--pad); border-radius: 16px; background: rgba(51,51,51,1); box-shadow: var(--shadow); position: relative; overflow: hidden; z-index: 10; }
 .make67-page .card { appearance:none; border:1px solid var(--cell-border); background:#22242b; color:#fff; border-radius:18px; font-size: clamp(39px, 8.4vw, 64px); font-weight: 900; display:grid; place-items:center; position:relative; overflow:hidden; box-shadow: var(--shadow); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
 .make67-page .card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.45); border-color: var(--hover-outline); }
 .make67-page .card.selected { box-shadow: 0 0 0 2px var(--selected-outline), 0 10px 24px rgba(0,0,0,0.5); transform: translateY(-2px) scale(1.02); z-index: 2; }
@@ -776,7 +776,10 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .m67-overlay-root[hidden] { display: none !important; }
 .m67-overlay { position: absolute; inset: 0; display: grid; place-items: center; }
 .m67-overlay__backdrop { position: absolute; inset:0; z-index: 0; pointer-events: none; background: radial-gradient(900px 600px at 50% -10%, rgba(17,18,23,0.8), rgba(8,9,12,0.9)), rgba(0,0,0,0.25); -webkit-backdrop-filter: blur(6px) saturate(1.05); backdrop-filter: blur(6px) saturate(1.05); }
-.m67-overlay__panel { --accent:#9fe3b5; position: relative; z-index: 1; width: min(92vw, 540px); border-radius: 20px; padding: 20px; background: linear-gradient(165deg, color-mix(in srgb, var(--accent) 22%, #ffffff00), #11131a), linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 24px 70px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05) inset; display:grid; place-items:center; color:#fff; text-align:center; }
+.m67-overlay__panel { --accent:#9fe3b5; position: relative; z-index: 1; width: min(92vw, 540px); border-radius: 20px; padding: 20px; background: linear-gradient(165deg, color-mix(in srgb, var(--accent) 22%, #ffffff00), #11131a), linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 24px 70px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05) inset; display:grid; place-items:center; color:#fff; text-align:center; box-sizing: border-box; }
+
+/* Lock body scroll when a modal is open to prevent page scrollbars flicker */
+body.m67-modal-open { overflow: hidden; }
 .m67-overlay__glow { position:absolute; inset:-20%; z-index: -1; background: radial-gradient(40% 30% at 50% 25%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%); pointer-events:none; }
 .m67-overlay__icon { width:78px; height:78px; display:grid; place-items:center; font-size:48px; border-radius:50%; box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.12) inset; background: radial-gradient(60% 60% at 40% 30%, #ffffffcc, #ffffff22), linear-gradient(180deg, rgba(159,227,181,0.35), rgba(159,227,181,0.18)); }
 .m67-overlay__title { margin-top: 10px; font-weight: 900; letter-spacing: .3px; font-size: 22px; }
@@ -1147,7 +1150,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .m67-ban-root[hidden] { display: none !important; }
 .m67-ban-overlay { position: absolute; inset: 0; display: grid; place-items: center; }
 .m67-ban__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
-.m67-ban__panel { position: relative; z-index: 1; width: min(92vw, 640px); max-height: min(86vh, 720px); overflow: auto; border-radius: 18px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 24px 70px rgba(0,0,0,0.6); color: #e8ecf5; }
+.m67-ban__panel { position: relative; z-index: 1; width: min(92vw, 640px); max-height: min(86vh, 720px); overflow-y: auto; overflow-x: hidden; border-radius: 18px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 24px 70px rgba(0,0,0,0.6); color: #e8ecf5; box-sizing: border-box; }
 .m67-ban__title { margin: 6px 0 6px; text-align: center; font-size: 18px; font-weight: 900; letter-spacing: .3px; }
 .m67-ban__subtitle { margin: 0 0 10px; text-align: center; font-size: 13px; color: var(--axis); }
 .m67-ban__icon { width: 56px; height: 56px; display: grid; place-items: center; font-size: 34px; border-radius: 50%; margin: 0 auto 6px; background: radial-gradient(60% 60% at 40% 30%, #ffffffbb, #ffffff22), linear-gradient(180deg, rgba(255,72,72,0.35), rgba(255,72,72,0.18)); box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 2px rgba(255,255,255,0.10) inset; }
@@ -1159,10 +1162,15 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .m67-modal-root[hidden] { display: none !important; }
 .m67-modal-overlay { position: absolute; inset: 0; display: grid; place-items: center; }
 .m67-modal__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
-.m67-modal__panel { position: relative; z-index: 1; width: min(92vw, 760px); max-height: min(86vh, 780px); overflow: auto; border-radius: 18px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 24px 70px rgba(0,0,0,0.6); color: #e8ecf5; }
+.m67-modal__panel { position: relative; z-index: 1; width: min(92vw, 760px); max-height: min(86vh, 780px); overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable both-edges; border-radius: 18px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.14); box-shadow: 0 24px 70px rgba(0,0,0,0.6); color: #e8ecf5; box-sizing: border-box; overscroll-behavior: contain; }
 .m67-modal__title { margin: 4px 0 12px; text-align: center; font-size: 18px; font-weight: 900; letter-spacing: .3px; }
 .m67-modal__close { position: absolute; top: 10px; right: 10px; border: 1px solid #3a3f47; background: #1c1f26; color: #e8ecf5; border-radius: 10px; padding: 6px 8px; cursor: pointer; }
 .m67-modal__close:hover { filter: brightness(1.05); }
+/* Prevent focus outline from causing any perceived size change */
+.m67-modal__close:focus-visible { outline-offset: 2px; }
+
+/* Shop grid: isolate paint so hover glows don't affect scroll metrics */
+.m67-shop { contain: paint; }
 
 /* === Make67 Regal Empowerment Themes & FX === */
 /* Base variables (will be overridden by theme classes) */
@@ -1394,7 +1402,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   display: flex;
   gap: 16px;
   padding: 12px 24px;
-  background: rgba(20, 20, 25, 0.9);
+  background: rgba(20, 24, 30, 0.75); /* 75% "rendered" per request */
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border-radius: 24px;
@@ -1419,13 +1427,54 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   padding: 8px 14px;
   gap: 12px;
   border-radius: 16px;
+  /* Black at 75% opacity (25% transparency) — mostly opaque */
+  background: rgba(0, 0, 0, 0.75);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05) inset;
+  position: relative;
+  z-index: 10;
 }
 /* Auth actions inside header-right should not be absolutely positioned */
 .make67-page .header .auth-actions {
-  position: static;
+  position: relative;
   right: auto;
   top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  /* Black at 75% opacity (25% transparency) — mostly opaque */
+  background: rgba(0, 0, 0, 0.75);
+  /* remove frosted-glass so it's truly opaque */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05) inset;
+  z-index: 10;
 }
+
+/* Make the auth buttons readable like shoulder buttons on this page */
+.make67-page .header .auth-actions .google-login-btn,
+.make67-page .header .auth-actions .logout-btn {
+  /* Black at 75% opacity (25% transparency) — mostly opaque */
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: #e8f0ff;
+  border-radius: 10px;
+  padding: 6px 10px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset;
+}
+.make67-page .header .auth-actions .google-login-btn:hover,
+.make67-page .header .auth-actions .logout-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+/* Improve text/icon contrast inside the frosted pill */
+.make67-page .header .auth-actions .user-name { color: #e3e8f3; opacity: .95; }
+.make67-page .header .auth-actions .avatar { box-shadow: 0 0 0 1px rgba(255,255,255,0.35); }
 
 /* Chat overlay (glass) */
 .make67-page .glass-overlay { position: absolute; inset: 0; display: grid; place-items: center; z-index: 50; }
@@ -1451,7 +1500,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 5; /* Below modals (10k+), above background */
+  z-index: 1; /* Keep below primary UI, above page background */
 }
 
 .xmas-title {
@@ -1471,6 +1520,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   height: 34px;
   pointer-events: none;
   mix-blend-mode: screen;
+  z-index: 4; /* ensure lights sit above borders/outlines */
 }
 .garland-header { top: 0; }
 .garland-board { top: -8px; }
@@ -1517,6 +1567,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   border-radius: 18px;
   pointer-events: none;
   box-shadow: 0 0 0 2px rgba(255,255,255,0.05), 0 0 22px rgba(255, 60, 60, 0.18), 0 0 38px rgba(80, 200, 120, 0.18);
+  z-index: 1; /* keep this glow behind the garland */
 }
 
 /* Mobile */
