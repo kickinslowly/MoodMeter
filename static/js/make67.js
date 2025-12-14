@@ -318,7 +318,7 @@
       if (unlocked) return; unlocked = true;
       const ids = [
         'snd_brainrot','snd_meme','snd_lol','snd_hehe','snd_ah','snd_reload',
-        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost'
+        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust'
       ];
       ids.forEach(id=>{
         const el = document.getElementById(id);
@@ -882,6 +882,8 @@
         playSfx('snd_item_mud');
       } else if (it.key === 'boost') {
         playSfx('snd_item_boost');
+      } else if (it.key === 'sneaky_dust') {
+        playSfx('snd_item_dust');
       }
     } catch(_){ }
   }

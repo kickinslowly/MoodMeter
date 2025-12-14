@@ -187,5 +187,19 @@
   <audio id="snd_shop_coins" src="{{ url_for('static', filename='shop_coins.mp3') }}" preload="auto"></audio>
   <audio id="snd_item_mud" src="{{ url_for('static', filename='item_mud.wav') }}" preload="auto"></audio>
   <audio id="snd_item_boost" src="{{ url_for('static', filename='item_boost.wav') }}" preload="auto"></audio>
+  <audio id="snd_item_dust" src="{{ url_for('static', filename='item_dust.wav') }}" preload="auto"></audio>
+  
+  <style>
+    /* Mobile: shrink Santa GIF by 50% without affecting layout */
+    @media (max-width: 768px) {
+      #santa-overlay { --santa-scale: 0.5; }
+    }
+  </style>
+  
+  <!-- Santa overlay: centered at bottom, non-interactive, GIF loops inherently -->
+  <img id="santa-overlay" src="{{ url_for('static', filename='santa.gif') }}"
+       alt=""
+       aria-hidden="true"
+       style="position:fixed; left:50%; transform:translateX(-50%) scale(var(--santa-scale, 1)); transform-origin: bottom center; bottom:0; z-index:9999; pointer-events:none;" />
 </body>
 </html>
