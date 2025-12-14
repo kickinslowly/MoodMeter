@@ -23,94 +23,106 @@
         <a href="{{ url_for('index') }}" class="back-link" title="Back to Mood Meter">← Mood Meter</a>
         <a href="{{ url_for('make6or7_page') }}" class="make67-btn" title="Play Make 6 or 7">Make 6 or 7</a>
       </div>
-      <div class="auth-actions">
-        {% if current_user.is_authenticated %}
-          <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
-          <span class="user-name">{{ current_user.name or current_user.email }}</span>
-          <!-- Make67: Inventory/Shop toggle buttons next to auth info -->
-          <button id="m67InvBtn" class="logout-btn" title="Open inventory">Inventory</button>
-          <button id="m67ShopBtn" class="logout-btn" title="Open shop">Shop</button>
-          <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
-            <button type="submit" class="logout-btn" title="Sign out">Logout</button>
-          </form>
-        {% else %}
-          <a href="{{ url_for('login_view') }}" class="google-login-btn" title="Sign in with Google">Sign in with Google</a>
-        {% endif %}
+      <div class="header-right">
+        <!-- Game Dock moved to header, placed left of auth info -->
+        <div class="game-dock header-dock" role="group" aria-label="Game Dock">
+          <button id="m67InvBtn" class="dock-btn" title="Inventory">🎒</button>
+          <button id="m67ShopBtn" class="dock-btn" title="Shop">🛒</button>
+          <button id="btn-toggle-chat" class="dock-btn" title="Chat">💬</button>
+          <button id="btn-mobile-rank" class="dock-btn mobile-only" title="Rank">🏆</button>
+        </div>
+        <div class="auth-actions">
+          {% if current_user.is_authenticated %}
+            <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
+            <span class="user-name">{{ current_user.name or current_user.email }}</span>
+            <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block; margin-left:8px;">
+              <button type="submit" class="logout-btn" title="Sign out">Logout</button>
+            </form>
+          {% else %}
+            <a href="{{ url_for('login_view') }}" class="google-login-btn" title="Sign in with Google">Sign in with Google</a>
+          {% endif %}
+        </div>
       </div>
       <h1 class="title">Make67</h1>
       <div class="subtitle" style="opacity:.85; margin-top:6px;">Use + − × ÷ to combine all 4 cards and make 67</div>
     </header>
 
-    <main class="main">
-      <div class="make67-layout">
-        <aside class="m67-leaderboard" aria-label="All-time leaderboard">
-          <div class="score-row">
-            <div class="score-box" aria-live="polite">
-              <div class="score-label">Solved (this session)</div>
-              <div id="m67Score" class="score-value">0</div>
+    <main class="split-layout">
+      <aside class="panel-left">
+        <div class="stats-hud">
+          <div class="stat-row">
+            <div class="stat-item score-box">
+              <span class="label">Session</span>
+              <span id="m67Score" class="value">0</span>
             </div>
-            <div class="score-box" aria-live="polite">
-              <div class="score-label">All‑time</div>
-              <div id="m67AllTime" class="score-value">—</div>
+            <div class="stat-item gold score-box">
+              <span class="label">Bank</span>
+              <span id="m67AllTime" class="value">--</span>
             </div>
           </div>
-          <h3 class="m67-lb-title">Top 10 All‑Time</h3>
-          <ol id="m67Leaderboard" class="m67-lb-list" aria-live="polite"></ol>
-        </aside>
+          <div id="m67Effects" class="effects-bar"></div>
+        </div>
 
-        <section class="m67-game">
-          <div class="make67-container">
+        <div class="leaderboard-container">
+          <h3 class="lb-header">Top 10</h3>
+          <ol id="m67Leaderboard" class="lb-list"></ol>
+        </div>
 
-            <div class="cards-grid" role="grid" aria-label="Number cards">
-              <button class="card" data-index="0" role="gridcell" aria-label="Card 1"><span>0</span></button>
-              <button class="card" data-index="1" role="gridcell" aria-label="Card 2"><span>0</span></button>
-              <button class="card" data-index="2" role="gridcell" aria-label="Card 3"><span>0</span></button>
-              <button class="card" data-index="3" role="gridcell" aria-label="Card 4"><span>0</span></button>
-            </div>
+        <div class="panel-footer">
+          <button id="m67BannedBtn" class="text-link">Wall of Shame</button>
+        </div>
+      </aside>
 
-            <div class="ops" aria-label="Operations">
-              <button class="op-btn" data-op="+">＋</button>
-              <button class="op-btn" data-op="-">−</button>
-              <button class="op-btn" data-op="*">×</button>
-              <button class="op-btn" data-op="/">÷</button>
-              <button id="resetBtn" class="op-btn ghost" title="Reset puzzle">↺</button>
-              <button id="hintBtn" class="op-btn" title="Show a hint" aria-label="Show a hint">?</button>
-            </div>
+      <section class="panel-right">
+        <div class="game-board-wrapper">
+          <button id="hintBtn" class="shoulder-btn left" title="Hint (H)">?</button>
+          <button id="resetBtn" class="shoulder-btn right" title="Reset (R)">↺</button>
 
-            <div class="note" id="m67Hint" aria-live="polite"></div>
-
-            <!-- Inventory and Shop moved to modal popups -->
+          <div class="cards-grid" role="grid" aria-label="Number cards">
+            <button class="card" data-index="0" role="gridcell" aria-label="Card 1"><span>0</span></button>
+            <button class="card" data-index="1" role="gridcell" aria-label="Card 2"><span>0</span></button>
+            <button class="card" data-index="2" role="gridcell" aria-label="Card 3"><span>0</span></button>
+            <button class="card" data-index="3" role="gridcell" aria-label="Card 4"><span>0</span></button>
           </div>
-        </section>
+
+          <div class="ops" aria-label="Operations">
+            <button class="op-btn" data-op="+">＋</button>
+            <button class="op-btn" data-op="-">−</button>
+            <button class="op-btn" data-op="*">×</button>
+            <button class="op-btn" data-op="/">÷</button>
+          </div>
+          <div class="note" id="m67Hint" aria-live="polite"></div>
+        </div>
+
         {% if make67_chat_eligible %}
-        <aside class="m67-chat" aria-label="Live chat (Make67)">
-          <h3 class="m67-chat__title">Live Chat</h3>
-          <div id="m67ChatLog" class="m67-chat__log" aria-live="polite"></div>
-          <form id="m67ChatForm" class="m67-chat__form" autocomplete="off">
-            <input id="m67ChatInput" type="text" maxlength="300" placeholder="Say something" class="m67-chat__input" />
-            <button type="submit" class="op-btn">Send</button>
-          </form>
-        </aside>
-        {% endif %}
-      </div>
-
-      <!-- Success overlay -->
-      <div class="m67-overlay-root" hidden>
-        <div class="m67-overlay">
-          <div class="m67-overlay__backdrop"></div>
-          <div class="m67-overlay__panel">
-            <div class="m67-overlay__glow"></div>
-            <div class="m67-overlay__icon">🎉</div>
-            <div class="m67-overlay__title">67! Nicely done</div>
-            <button id="nextPuzzleBtn" class="neon-btn" style="margin-top:14px;">New puzzle</button>
+        <div id="chat-overlay" class="glass-overlay" hidden>
+          <div class="m67-chat glass-panel" aria-label="Live chat (Make67)">
+            <h3 class="m67-chat__title">Live Chat</h3>
+            <div id="m67ChatLog" class="m67-chat__log" aria-live="polite"></div>
+            <form id="m67ChatForm" class="m67-chat__form" autocomplete="off">
+              <input id="m67ChatInput" type="text" maxlength="300" placeholder="Say something" class="m67-chat__input" />
+              <button type="submit" class="op-btn">Send</button>
+            </form>
           </div>
         </div>
-      </div>
+        {% else %}
+        <div id="chat-overlay" class="glass-overlay" hidden></div>
+        {% endif %}
+
+      </section>
     </main>
 
-    <!-- Bottom actions: Banned users wall of shame trigger -->
-    <div class="page-footer" style="display:flex; justify-content:center; padding: 10px 14px 20px;">
-      <button id="m67BannedBtn" class="danger-btn" title="Show cheaters wall of shame">BANNED USERS</button>
+    <!-- Success overlay -->
+    <div class="m67-overlay-root" hidden>
+      <div class="m67-overlay">
+        <div class="m67-overlay__backdrop"></div>
+        <div class="m67-overlay__panel">
+          <div class="m67-overlay__glow"></div>
+          <div class="m67-overlay__icon">🎉</div>
+          <div class="m67-overlay__title">67! Nicely done</div>
+          <button id="nextPuzzleBtn" class="neon-btn" style="margin-top:14px;">New puzzle</button>
+        </div>
+      </div>
     </div>
 
     <!-- Cheater Wall of Shame modal -->

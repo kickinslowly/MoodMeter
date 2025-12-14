@@ -181,6 +181,11 @@
   // Inventory/Shop modal controls
   const invBtn = document.getElementById('m67InvBtn');
   const shopBtn = document.getElementById('m67ShopBtn');
+  // Chat and mobile rank toggles (new split layout controls)
+  const btnToggleChat = document.getElementById('btn-toggle-chat');
+  const chatOverlay = document.getElementById('chat-overlay');
+  const btnMobileRank = document.getElementById('btn-mobile-rank');
+  const panelLeft = document.querySelector('.panel-left');
   const invModalRoot = document.querySelector('.m67-inv-root');
   const shopModalRoot = document.querySelector('.m67-shop-root');
   let bannedCache = [];
@@ -1106,6 +1111,57 @@
   // Initialize shop and schedule state fetch (after auth detected)
   loadShop();
   setTimeout(()=>{ loadState(); }, 1200);
+
+  // Keyboard shortcuts: R (reset), H (hint)
+  window.addEventListener('keydown', (e)=>{
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'r' || e.key === 'R'){
+      if (resetBtn){ e.preventDefault(); resetBtn.click(); }
+    } else if (e.key === 'h' || e.key === 'H'){
+      if (hintBtn){ e.preventDefault(); hintBtn.click(); }
+    }
+  });
+
+  // Chat overlay toggle
+  if (btnToggleChat && chatOverlay){
+    btnToggleChat.addEventListener('click', ()=>{
+      chatOverlay.hidden = !chatOverlay.hidden;
+    });
+  }
+
+  // Mobile rank drawer toggle
+  if (btnMobileRank && panelLeft){
+    btnMobileRank.addEventListener('click', ()=>{
+      panelLeft.classList.toggle('mobile-visible');
+    });
+  }
+
+  // Fit split layout under the header (avoid page scroll)
+  function measureHeader(){
+    const header = document.querySelector('.make67-page .header');
+    if (!header || !pageRoot) return;
+    const h = Math.round(header.getBoundingClientRect().height);
+    pageRoot.style.setProperty('--header-h', h + 'px');
+  }
+  measureHeader();
+  window.addEventListener('resize', measureHeader);
+  // Re-measure once after fonts/images settle
+  setTimeout(measureHeader, 300);
+
+  // Global click-to-clear: clicking outside cards/ops clears selection
+  window.addEventListener('click', (e)=>{
+    const t = e.target;
+    // Ignore clicks in interactive text inputs (e.g., chat input)
+    const tag = (t && t.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+    // Do not clear when clicking inside puzzle controls
+    if (t.closest('.make67-page .cards-grid') || t.closest('.make67-page .ops')) return;
+    // Do not react inside overlays/modals/drawers
+    if (t.closest('.m67-modal-root') || t.closest('.m67-ban-root') || t.closest('#chat-overlay') || t.closest('.panel-left.mobile-visible')) return;
+    // Clear any current selection/op
+    if (typeof clearSelections === 'function') clearSelections();
+  }, true);
 })();
 
 // --- Make67 Live Chat (Short polling HTTP) ---
