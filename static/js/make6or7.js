@@ -149,6 +149,11 @@
   const shopBtn = document.getElementById('m67ShopBtn');
   const invModalRoot = document.querySelector('.m67-inv-root');
   const shopModalRoot = document.querySelector('.m67-shop-root');
+  // Chat and mobile rank controls (parity with Make67)
+  const btnToggleChat = document.getElementById('btn-toggle-chat');
+  const chatOverlay = document.getElementById('chat-overlay');
+  const btnMobileRank = document.getElementById('btn-mobile-rank');
+  const panelLeft = document.querySelector('.panel-left');
   let bannedCache = [];
 
   let baseCards = [];
@@ -182,6 +187,15 @@
     currentEmp = emp;
     if (!pageRoot) return;
     pageRoot.style.setProperty('--emp', String(emp));
+  }
+
+  // Lock body scroll when any modal/overlay is open
+  function updateBodyLock(){
+    const anyOpen = (invModalRoot && !invModalRoot.hidden)
+      || (shopModalRoot && !shopModalRoot.hidden)
+      || (bannedRoot && !bannedRoot.hidden)
+      || (chatOverlay && !chatOverlay.hasAttribute('hidden') && chatOverlay.style.display !== 'none');
+    document.body.classList.toggle('m67-modal-open', !!anyOpen);
   }
 
   function setCard(index, value){
@@ -460,13 +474,42 @@
   });
 
   // Shop/Inventory modal toggles
-  function showModal(root){ if (root) root.hidden = false; }
-  function hideModal(root){ if (root) root.hidden = true; }
-  if (shopBtn){ shopBtn.addEventListener('click', ()=>{ play('snd_shop_open'); showModal(shopModalRoot); }); }
-  if (invBtn){ invBtn.addEventListener('click', ()=>{ showModal(invModalRoot); }); }
-  [shopModalRoot, invModalRoot].forEach(root=>{
-    if (!root) return;
-    root.addEventListener('click', (e)=>{ if (e.target && e.target.getAttribute('data-close')) hideModal(root); });
+  // Modal helpers with body-lock parity
+  function openInventory(){
+    if (!invModalRoot) return;
+    invModalRoot.hidden = false;
+    setTimeout(()=>{ loadState(); }, 0);
+    updateBodyLock();
+  }
+  function closeInventory(){ if (invModalRoot){ invModalRoot.hidden = true; updateBodyLock(); } }
+  function toggleInventory(){ if (!invModalRoot) return; if (invModalRoot.hidden) openInventory(); else closeInventory(); }
+  if (invBtn){ invBtn.addEventListener('click', toggleInventory); }
+  if (invModalRoot){
+    invModalRoot.addEventListener('click', (e)=>{ if (e.target && e.target.getAttribute('data-close')) closeInventory(); });
+  }
+
+  function openShop(){
+    if (!shopModalRoot) return;
+    shopModalRoot.hidden = false;
+    play('snd_shop_open');
+    setTimeout(()=>{ loadShop(); }, 0);
+    updateBodyLock();
+  }
+  function closeShop(){ if (shopModalRoot){ shopModalRoot.hidden = true; updateBodyLock(); } }
+  function toggleShop(){ if (!shopModalRoot) return; if (shopModalRoot.hidden) openShop(); else closeShop(); }
+  if (shopBtn){ shopBtn.addEventListener('click', toggleShop); }
+  if (shopModalRoot){
+    shopModalRoot.addEventListener('click', (e)=>{ if (e.target && e.target.getAttribute('data-close')) closeShop(); });
+  }
+
+  // Global ESC to close any open overlay/modal
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape'){
+      if (invModalRoot && !invModalRoot.hidden) closeInventory();
+      if (shopModalRoot && !shopModalRoot.hidden) closeShop();
+      if (bannedRoot && !bannedRoot.hidden) { bannedRoot.hidden = true; updateBodyLock(); }
+      if (chatOverlay && !chatOverlay.hidden) { chatOverlay.hidden = true; updateBodyLock(); }
+    }
   });
 
   // Banned list
@@ -479,12 +522,48 @@
       for (const u of bannedCache){ list.appendChild(makeLiUser(u, true)); }
     }
     bannedRoot.hidden = false;
+    updateBodyLock();
   }
-  function hideBanned(){ if (bannedRoot) bannedRoot.hidden = true; }
+  function hideBanned(){ if (bannedRoot){ bannedRoot.hidden = true; updateBodyLock(); } }
   if (bannedBtn){ bannedBtn.addEventListener('click', showBanned); }
   if (bannedRoot){
     bannedRoot.addEventListener('click', (e)=>{ if (e.target && e.target.getAttribute('data-close')) hideBanned(); });
   }
+
+  // Chat overlay toggle & mobile rank drawer (parity with Make67)
+  if (btnToggleChat && chatOverlay){
+    btnToggleChat.addEventListener('click', ()=>{
+      chatOverlay.hidden = !chatOverlay.hidden;
+      updateBodyLock();
+    });
+  }
+  if (chatOverlay){
+    chatOverlay.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-close-chat')==='1'){
+        chatOverlay.hidden = true; updateBodyLock();
+      }
+      if (t && t.id === 'chat-overlay'){ chatOverlay.hidden = true; updateBodyLock(); }
+    });
+  }
+  if (btnMobileRank && panelLeft){
+    btnMobileRank.addEventListener('click', ()=>{ panelLeft.classList.toggle('mobile-visible'); });
+    document.addEventListener('click', (e)=>{
+      if (!panelLeft.classList.contains('mobile-visible')) return;
+      if (!panelLeft.contains(e.target) && e.target !== btnMobileRank){ panelLeft.classList.remove('mobile-visible'); }
+    });
+  }
+
+  // Fit split layout under header height
+  function measureHeader(){
+    const header = document.querySelector('.make67-page .header');
+    if (!header || !pageRoot) return;
+    const h = Math.round(header.getBoundingClientRect().height);
+    pageRoot.style.setProperty('--header-h', h + 'px');
+  }
+  measureHeader();
+  window.addEventListener('resize', measureHeader);
+  setTimeout(measureHeader, 300);
 
   async function submitSolve(){
     try{
@@ -632,4 +711,57 @@
       }
     } catch(_){ }
   });
+})();
+
+// --- Gentle Snowfall Overlay (parity with Make67) ---
+(function initMake6or7Snow(){
+  const canvas = document.getElementById('snowCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let W = 0, H = 0;
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.round(window.innerWidth));
+    H = Math.max(1, Math.round(window.innerHeight));
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  const flakes = [];
+  function makeFlake(x, y){
+    const r = 0.8 + Math.random() * 2.0;
+    return { x, y, r, vy: 0.12 + Math.random() * 0.35, vx: (-0.15 + Math.random() * 0.3), amp: 8 + Math.random() * 18, phase: Math.random() * Math.PI * 2, tw: 0.6 + Math.random() * 0.4 };
+  }
+  function initFlakes(){
+    flakes.length = 0;
+    const base = (W * H) / 18000;
+    const count = Math.max(40, Math.min(180, Math.round(base)));
+    for (let i=0;i<count;i++) flakes.push(makeFlake(Math.random()*W, Math.random()*H));
+  }
+  initFlakes();
+  window.addEventListener('resize', initFlakes);
+  let rafId = 0;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save(); ctx.scale(dpr,dpr);
+    for (let i=0;i<flakes.length;i++){
+      const f = flakes[i];
+      f.y += f.vy; f.x += f.vx + Math.sin((f.y*0.015)+f.phase)*0.3;
+      if (f.y - f.r > H){ flakes[i] = makeFlake(Math.random()*W, -10 - Math.random()*40); continue; }
+      if (f.x < -20) f.x = W + 20; else if (f.x > W + 20) f.x = -20;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255,255,255,${0.65 + Math.sin((performance.now()/1000)*f.tw)*0.1})`;
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+    rafId = requestAnimationFrame(draw);
+  }
+  function onVis(){
+    if (document.visibilityState === 'hidden'){ cancelAnimationFrame(rafId); }
+    else { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(draw); }
+  }
+  document.addEventListener('visibilitychange', onVis);
+  rafId = requestAnimationFrame(draw);
 })();

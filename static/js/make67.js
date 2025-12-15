@@ -1477,3 +1477,113 @@
   document.addEventListener('visibilitychange', onVis);
   rafId = requestAnimationFrame(draw);
 })();
+
+// --- Santa hover-triggered horizontal move ---
+(function initSantaHoverMove(){
+  function setup(){
+    const santa = document.getElementById('santa-overlay');
+    if (!santa) return false;
+
+    // Keep Santa centered vertically at bottom; we only adjust horizontal position via `left` (%)
+    // Santa is non-interactive (pointer-events:none). We detect pointing by tracking mouse coordinates
+    // against Santa's bounding box for a continuous 3 seconds.
+
+    let isOver = false;
+    let hoverTimer = null;
+    let isMoving = false;
+    let cooldown = false;
+
+    function isPointerOverSanta(mx, my){
+      const r = santa.getBoundingClientRect();
+      return mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
+    }
+
+    function startHoverTimer(){
+      clearHoverTimer();
+      hoverTimer = setTimeout(()=>{
+        hoverTimer = null;
+        if (isOver && !isMoving) moveSanta();
+      }, 3000);
+    }
+
+    function clearHoverTimer(){
+      if (hoverTimer){
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+      }
+    }
+
+    function moveSanta(){
+      const rect = santa.getBoundingClientRect();
+      const vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+      const margin = 8; // small margin from edges
+      const centerMin = margin + rect.width / 2;
+      const centerMax = vw - margin - rect.width / 2;
+      let currentCenter = rect.left + rect.width / 2;
+
+      // Choose random direction and distance, then clamp within screen
+      const dir = Math.random() < 0.5 ? -1 : 1; // left or right
+      const available = centerMax - centerMin;
+      const minDelta = Math.min(160, Math.max(40, available * 0.15));
+      const maxDelta = Math.min(Math.max(220, vw * 0.4), available);
+      const delta = minDelta + Math.random() * Math.max(0, (maxDelta - minDelta));
+      let targetCenter = currentCenter + dir * delta;
+      targetCenter = Math.max(centerMin, Math.min(centerMax, targetCenter));
+
+      // If movement is negligible due to clamping, try opposite direction, else pick random within range
+      if (Math.abs(targetCenter - currentCenter) < 10){
+        const alt = currentCenter - dir * delta;
+        targetCenter = Math.max(centerMin, Math.min(centerMax, alt));
+        if (Math.abs(targetCenter - currentCenter) < 10){
+          targetCenter = centerMin + Math.random() * (centerMax - centerMin);
+        }
+      }
+
+      // Animate horizontal move by updating `left` as a percentage; we keep translateX(-50%) for centering
+      isMoving = true;
+      // Ensure we have a transition on `left`
+      const existing = santa.style.transition || '';
+      if (!/left\s+\d/.test(existing)){
+        santa.style.transition = (existing ? existing + ', ' : '') + 'left 600ms ease';
+      }
+      santa.style.willChange = 'left, transform';
+      const percent = (targetCenter / vw) * 100;
+      santa.style.left = percent.toFixed(4) + '%';
+
+      const onEnd = (ev)=>{
+        if (ev.propertyName !== 'left') return;
+        santa.removeEventListener('transitionend', onEnd);
+        isMoving = false;
+        cooldown = true;
+        // Small cooldown to avoid immediate re-trigger while pointer still over
+        setTimeout(()=>{
+          cooldown = false;
+          if (isOver) startHoverTimer();
+        }, 500);
+      };
+      santa.addEventListener('transitionend', onEnd);
+    }
+
+    function onMouseMove(e){
+      const mx = e.clientX, my = e.clientY;
+      const nowOver = isPointerOverSanta(mx, my);
+      if (nowOver && !isOver && !isMoving && !cooldown){
+        isOver = true;
+        startHoverTimer();
+      } else if (!nowOver && isOver){
+        isOver = false;
+        clearHoverTimer();
+      }
+    }
+
+    document.addEventListener('mousemove', onMouseMove, { passive: true });
+    return true;
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', () => { setup(); }, { once: true });
+  } else {
+    // DOM already parsed
+    setup();
+  }
+})();
