@@ -637,11 +637,25 @@
   // Track request ordering to drop out-of-order responses
   let stateReqSeq = 0;
   let stateReqApplied = 0;
-
+  
   function fmtTime(sec){
     sec = Math.max(0, Math.floor(Number(sec)||0));
     const m = Math.floor(sec/60), s = sec%60;
     return `${m}:${String(s).padStart(2,'0')}`;
+  }
+
+  // Disable shop when inventory is full (Make67)
+  function updateShopCapacityUI(){
+    const isFull = Array.isArray(inventory) && inventory.length >= 4;
+    if (shopRoot){
+      const btns = shopRoot.querySelectorAll('button');
+      btns.forEach(b=>{ b.disabled = !!isFull; });
+    }
+    if (shopNoteEl){
+      shopNoteEl.textContent = isFull
+        ? 'Inventory full. Use an item to free a slot before purchasing.'
+        : 'Inventory has 4 slots. Items cost all-time solves.';
+    }
   }
 
   function updateEffectsSummary(eff){
@@ -766,7 +780,7 @@
       btn.addEventListener('blur', hideTip);
       shopRoot.appendChild(btn);
     });
-    if (shopNoteEl) shopNoteEl.textContent = 'Inventory has 4 slots. Items cost all-time solves.';
+    updateShopCapacityUI();
   }
 
   function renderInventory(){
@@ -797,6 +811,8 @@
       }
       invRoot.appendChild(slot);
     }
+    // Reflect capacity in the shop UI too
+    updateShopCapacityUI();
   }
 
   function makeLongPress(el, onActivate){
@@ -823,6 +839,11 @@
 
   async function buyItem(key){
     if (!isAuthed) return;
+    // Block purchases client-side when inventory is full
+    if (Array.isArray(inventory) && inventory.length >= 4){
+      updateShopCapacityUI();
+      return;
+    }
     // Find item meta for confirmation
     const meta = catalog.find(c=> c.key===key);
     const name = meta?.name || 'Item';
@@ -895,6 +916,24 @@
       // State
       let mouseX = window.innerWidth/2, mouseY = window.innerHeight/2;
       let done = false;
+
+      // Minimize/close any open popups before entering mud targeting mode
+      try {
+        if (typeof closeInventory === 'function' && invModalRoot && !invModalRoot.hidden) closeInventory();
+      } catch(_){}
+      try {
+        if (typeof closeShop === 'function' && shopModalRoot && !shopModalRoot.hidden) closeShop();
+      } catch(_){}
+      try {
+        if (typeof closeBanned === 'function' && bannedRoot && !bannedRoot.hidden) closeBanned();
+      } catch(_){}
+      try {
+        if (chatOverlay && !chatOverlay.hidden) { chatOverlay.hidden = true; }
+      } catch(_){}
+      try {
+        if (overlayRoot && !overlayRoot.hidden) { overlayRoot.hidden = true; }
+      } catch(_){}
+      try { updateBodyLock && updateBodyLock(); } catch(_){}
 
       // Fullscreen overlay instruction
       const overlay = document.createElement('div');
