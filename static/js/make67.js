@@ -1587,3 +1587,85 @@
     setup();
   }
 })();
+
+// --- Santa click-to-hide for 2 minutes ---
+(function initSantaClickHide(){
+  const HIDE_MS = 2 * 60 * 1000; // 2 minutes
+  const LS_KEY = 'm67SantaHiddenUntil';
+
+  function setup(){
+    const santa = document.getElementById('santa-overlay');
+    if (!santa) return false;
+
+    let revealTimer = null;
+
+    function clearRevealTimer(){
+      if (revealTimer){
+        clearTimeout(revealTimer);
+        revealTimer = null;
+      }
+    }
+
+    function scheduleReveal(ms){
+      clearRevealTimer();
+      if (ms <= 0){
+        reveal();
+      } else {
+        revealTimer = setTimeout(reveal, ms);
+      }
+    }
+
+    function hideFor(durationMs){
+      // Use the hidden attribute so the element is not hit-tested and has no rect
+      santa.hidden = true;
+      const until = Date.now() + Math.max(0, durationMs|0);
+      try { localStorage.setItem(LS_KEY, String(until)); } catch(e) {}
+      scheduleReveal(until - Date.now());
+    }
+
+    function reveal(){
+      santa.hidden = false;
+      try { localStorage.removeItem(LS_KEY); } catch(e) {}
+      clearRevealTimer();
+    }
+
+    // Restore hidden state if applicable
+    let hiddenUntil = 0;
+    try { hiddenUntil = parseInt(localStorage.getItem(LS_KEY) || '0', 10) || 0; } catch(e) { hiddenUntil = 0; }
+    const remaining = hiddenUntil - Date.now();
+    if (remaining > 0){
+      santa.hidden = true;
+      scheduleReveal(remaining);
+    }
+
+    // Intercept clicks that land on Santa's visual bounds without changing pointer-events on the image
+    function isPointInSanta(x, y){
+      if (santa.hidden) return false;
+      const r = santa.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return false;
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    }
+
+    function onDocClick(ev){
+      const x = ev.clientX, y = ev.clientY;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      if (isPointInSanta(x, y)){
+        // Prevent underlying UI from also handling this click
+        ev.preventDefault();
+        ev.stopPropagation();
+        hideFor(HIDE_MS);
+      }
+    }
+
+    // Use capture so we can cancel before underlying targets receive the click
+    document.addEventListener('click', onDocClick, { capture: true });
+
+    return true;
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', () => { setup(); }, { once: true });
+  } else {
+    setup();
+  }
+})();
