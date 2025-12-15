@@ -1598,6 +1598,11 @@
     if (!santa) return false;
 
     let revealTimer = null;
+    let suppressClickUntil = 0; // avoid double-fire across pointer/mouse/touch/click
+
+    // Ensure Santa can receive direct clicks/taps (reliable on all browsers)
+    // This only intercepts interactions when the user actually clicks Santa.
+    santa.style.pointerEvents = 'auto';
 
     function clearRevealTimer(){
       if (revealTimer){
@@ -1646,19 +1651,67 @@
       return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
     }
 
-    function onDocClick(ev){
-      const x = ev.clientX, y = ev.clientY;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    function handleHit(ev, x, y){
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
       if (isPointInSanta(x, y)){
-        // Prevent underlying UI from also handling this click
         ev.preventDefault();
         ev.stopPropagation();
+        suppressClickUntil = Date.now() + 500; // suppress trailing click
         hideFor(HIDE_MS);
+        return true;
       }
+      return false;
     }
 
-    // Use capture so we can cancel before underlying targets receive the click
+    function onPointerDown(ev){
+      const x = ev.clientX, y = ev.clientY;
+      handleHit(ev, x, y);
+    }
+
+    function onMouseDown(ev){
+      // Fallback if Pointer Events are unavailable
+      if (window.PointerEvent) return; // prefer pointerdown when supported
+      const x = ev.clientX, y = ev.clientY;
+      handleHit(ev, x, y);
+    }
+
+    function onTouchStart(ev){
+      if (window.PointerEvent) return; // prefer pointerdown when supported
+      const t = ev.touches && ev.touches[0];
+      if (!t) return;
+      handleHit(ev, t.clientX, t.clientY);
+    }
+
+    function onDocClick(ev){
+      if (Date.now() < suppressClickUntil){
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      const x = ev.clientX, y = ev.clientY;
+      handleHit(ev, x, y);
+    }
+
+    function onSantaDown(ev){
+      // Direct hit on Santa element — hide immediately
+      ev.preventDefault();
+      ev.stopPropagation();
+      suppressClickUntil = Date.now() + 500;
+      hideFor(HIDE_MS);
+    }
+
+    function onSantaClick(ev){
+      // Redundant safety for environments without Pointer Events
+      onSantaDown(ev);
+    }
+
+    // Use capture so we can cancel before underlying targets receive the event
+    document.addEventListener('pointerdown', onPointerDown, { capture: true });
+    document.addEventListener('mousedown', onMouseDown, { capture: true });
+    document.addEventListener('touchstart', onTouchStart, { capture: true, passive: false });
     document.addEventListener('click', onDocClick, { capture: true });
+    santa.addEventListener('pointerdown', onSantaDown, { capture: true });
+    santa.addEventListener('click', onSantaClick, { capture: true });
 
     return true;
   }
