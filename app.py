@@ -192,6 +192,16 @@ class User(db.Model, UserMixin):
     make67_mud_until = db.Column(db.DateTime(timezone=True), nullable=True)
 
 
+class M67UserItem(db.Model):
+    __tablename__ = 'm67_user_items'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
+    key = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+    user = db.relationship('User', backref=db.backref('m67_items', lazy=True, cascade='all, delete-orphan'))
+
+
 class Group(db.Model):
     __tablename__ = 'groups'
     id = db.Column(db.Integer, primary_key=True)
@@ -1341,7 +1351,7 @@ _m67_message_count: int = 0
 _m67_recent_solves_lock = threading.Lock()
 _m67_recent_solves: dict[str, deque] = {}
 
-# --- In-memory Make67 shop/inventory and effects (process-local) ---
+# --- Make67 inventory (DB-backed); legacy in-memory kept for backward compat ---
 _m67_inventory_lock = threading.Lock()
 _m67_inventories: dict[str, list[dict]] = {}
 
@@ -1443,8 +1453,30 @@ def _remaining_from_dt(dt_val: datetime | None, now_dt: datetime | None = None) 
 
 
 def _m67_get_inventory(uid: str) -> list[dict]:
-    with _m67_inventory_lock:
-        return list(_m67_inventories.get(uid, []))
+    """Return user's inventory from DB, enriched with catalog metadata.
+    Falls back to legacy in-memory store if DB query fails for any reason.
+    """
+    try:
+        rows: list[M67UserItem] = (
+            M67UserItem.query.filter(M67UserItem.user_id == uid)
+            .order_by(M67UserItem.created_at.asc())
+            .all()
+        )
+        out: list[dict] = []
+        for r in rows:
+            meta = _M67_CATALOG.get(r.key) or {}
+            out.append({
+                'id': r.id,
+                'key': r.key,
+                'name': meta.get('name', r.key),
+                'icon': meta.get('icon', ''),
+                'color': meta.get('color', '#999'),
+            })
+        return out
+    except Exception:
+        # Fallback to in-memory if DB is unavailable (best-effort)
+        with _m67_inventory_lock:
+            return list(_m67_inventories.get(uid, []))
 
 
 def _m67_get_state_version(uid: str) -> int:
@@ -1460,31 +1492,53 @@ def _m67_bump_state_version(uid: str) -> int:
 
 
 def _m67_add_item(uid: str, key: str) -> dict:
+    """Add an item to user's inventory in DB. Does not commit; caller should commit.
+    Returns the enriched item dict matching API shape.
+    """
     if key not in _M67_CATALOG:
         raise ValueError('INVALID_ITEM')
-    item = {
-        'id': str(uuid.uuid4()),
+    row = M67UserItem(user_id=uid, key=key)
+    db.session.add(row)
+    # Do not commit here; let caller control transaction boundaries
+    meta = _M67_CATALOG[key]
+    return {
+        'id': row.id,
         'key': key,
-        'name': _M67_CATALOG[key]['name'],
-        'icon': _M67_CATALOG[key]['icon'],
-        'color': _M67_CATALOG[key]['color'],
+        'name': meta['name'],
+        'icon': meta['icon'],
+        'color': meta['color'],
     }
-    with _m67_inventory_lock:
-        inv = _m67_inventories.get(uid)
-        if inv is None:
-            inv = []
-            _m67_inventories[uid] = inv
-        inv.append(item)
-    return item
 
 
 def _m67_pop_item(uid: str, item_id: str) -> dict | None:
-    with _m67_inventory_lock:
-        inv = _m67_inventories.get(uid) or []
-        for i, it in enumerate(inv):
-            if it.get('id') == item_id:
-                return inv.pop(i)
-    return None
+    """Remove and return an inventory item from DB for given user. Does not commit."""
+    try:
+        row: M67UserItem | None = (
+            M67UserItem.query
+            .filter(M67UserItem.id == item_id, M67UserItem.user_id == uid)
+            .first()
+        )
+        if not row:
+            return None
+        meta = _M67_CATALOG.get(row.key) or {}
+        item = {
+            'id': row.id,
+            'key': row.key,
+            'name': meta.get('name', row.key),
+            'icon': meta.get('icon', ''),
+            'color': meta.get('color', '#999'),
+        }
+        db.session.delete(row)
+        # Do not commit here
+        return item
+    except Exception:
+        # Fallback: attempt from in-memory store
+        with _m67_inventory_lock:
+            inv = _m67_inventories.get(uid) or []
+            for i, it in enumerate(inv):
+                if it.get('id') == item_id:
+                    return inv.pop(i)
+        return None
 
 
 @app.route('/api/make67/shop', methods=['GET'])
@@ -1588,10 +1642,10 @@ def api_make67_buy():
         cur = int(u.make67_all_time_solves or 0)
         if cur < cost:
             return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS'}), 400
-        # Deduct and add item
+        # Deduct and add item (single commit for atomicity)
         u.make67_all_time_solves = cur - cost
-        db.session.commit()
         item = _m67_add_item(u.id, key)
+        db.session.commit()
         ver = _m67_bump_state_version(u.id)
         return jsonify({'ok': True, 'currency': int(u.make67_all_time_solves or 0), 'item': item, 'state_version': ver})
     except Exception as e:
@@ -1620,10 +1674,10 @@ def api_make6or7_buy():
         cur = int(u.make6or7_all_time_solves or 0)
         if cur < cost:
             return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS'}), 400
-        # Deduct and add item
+        # Deduct and add item (single commit for atomicity)
         u.make6or7_all_time_solves = cur - cost
-        db.session.commit()
         item = _m67_add_item(u.id, key)
+        db.session.commit()
         ver = _m67_bump_state_version(u.id)
         return jsonify({'ok': True, 'currency': int(u.make6or7_all_time_solves or 0), 'item': item, 'state_version': ver})
     except Exception as e:
