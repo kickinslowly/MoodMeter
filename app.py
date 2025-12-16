@@ -12,6 +12,9 @@ from queue import Queue, Empty
 import logging
 import socket
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+import sqlite3
 from flask_migrate import Migrate, upgrade as alembic_upgrade
 from flask_login import LoginManager, UserMixin, current_user, logout_user, login_user
 from authlib.integrations.flask_client import OAuth
@@ -192,6 +195,20 @@ class User(db.Model, UserMixin):
     make67_mud_until = db.Column(db.DateTime(timezone=True), nullable=True)
     # Divine Shield: blocks negative effects for a duration
     make67_shield_until = db.Column(db.DateTime(timezone=True), nullable=True)
+
+
+# If using SQLite locally, enable WAL mode to reduce writer blocking and improve read concurrency.
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    try:
+        if isinstance(dbapi_connection, sqlite3.Connection):
+            cur = dbapi_connection.cursor()
+            cur.execute("PRAGMA journal_mode=WAL")
+            cur.execute("PRAGMA synchronous=NORMAL")
+            cur.close()
+    except Exception:
+        # Best-effort only; ignore if not supported.
+        pass
 
 
 class M67UserItem(db.Model):
@@ -1445,6 +1462,19 @@ _M67_CATALOG = {
 }
 
 
+# --- Lightweight caches to prevent read-thrash and head-of-line blocking during spikes ---
+# Leaderboard small TTL cache (top/banned lists only; per-user "me" calculated live)
+_m67_lb_cache_lock = threading.Lock()
+_m67_lb_cache: dict[str, object] = {  # keys: 'expires', 'data'
+    'expires': 0.0,
+    'data': None,
+}
+
+# Per-user state cache keyed by (uid, state_version). Avoids DB on repeated polls when nothing changed.
+_m67_state_cache_lock = threading.Lock()
+_m67_state_cache: dict[tuple[str, int], dict] = {}
+
+
 def _m67_cleanup(store: dict[str, float], now_ts: float | None = None):
     now_ts = now_ts or time.time()
     dead = [k for k, v in store.items() if v <= now_ts]
@@ -1622,10 +1652,25 @@ def api_make67_state():
     if not getattr(current_user, 'is_authenticated', False):
         return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
     try:
-        u = db.session.get(User, current_user.get_id())
+        t0 = time.perf_counter()
+        # Resolve user id without extra queries where possible
+        uid = current_user.get_id()
+        # Fast path: if we don't have a user id (shouldn't happen if authenticated)
+        if not uid:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+
+        ver = _m67_get_state_version(uid)
+        cache_key = (uid, ver)
+        with _m67_state_cache_lock:
+            cached = _m67_state_cache.get(cache_key)
+        if cached is not None:
+            app.logger.debug("m67_state cache_hit=True ver=%s rid=%s", ver, getattr(g, '__request_id', '-'))
+            return jsonify({'ok': True, 'state': cached})
+
+        # Cache miss: load from DB once and store under this version key
+        u = db.session.get(User, uid)
         if not u:
             return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
-        uid = u.id
         now_dt = datetime.now(timezone.utc)
         inv = _m67_get_inventory(uid)
         state = {
@@ -1637,8 +1682,16 @@ def api_make67_state():
                 'mud': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
                 'shield': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
             },
-            'state_version': _m67_get_state_version(uid),
+            'state_version': ver,
         }
+        with _m67_state_cache_lock:
+            _m67_state_cache[cache_key] = state
+        app.logger.debug(
+            "m67_state cache_hit=False ver=%s build_ms=%d rid=%s",
+            ver,
+            int((time.perf_counter() - t0) * 1000),
+            getattr(g, '__request_id', '-'),
+        )
         return jsonify({'ok': True, 'state': state})
     except Exception as e:
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
@@ -1696,7 +1749,9 @@ def api_make67_buy():
         # Deduct and add item (single commit for atomicity)
         u.make67_all_time_solves = cur - cost
         item = _m67_add_item(u.id, key)
+        t0 = time.perf_counter()
         db.session.commit()
+        app.logger.debug("m67_buy commit_ms=%d rid=%s", int((time.perf_counter() - t0) * 1000), getattr(g, '__request_id', '-'))
         ver = _m67_bump_state_version(u.id)
         return jsonify({'ok': True, 'currency': int(u.make67_all_time_solves or 0), 'item': item, 'state_version': ver})
     except Exception as e:
@@ -1809,7 +1864,9 @@ def api_make67_use():
             target.make67_boost_until = now_dt
         else:
             return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
+        t_commit0 = time.perf_counter()
         db.session.commit()
+        app.logger.debug("m67_use commit_ms=%d rid=%s", int((time.perf_counter() - t_commit0) * 1000), getattr(g, '__request_id', '-'))
         # If Divine Shield activated, broadcast to all clients
         if key == 'divine_shield':
             try:
@@ -1826,11 +1883,15 @@ def api_make67_use():
                 pass
         # Return updated state
         inv = _m67_get_inventory(u.id)
+        new_ver = _m67_bump_state_version(u.id)
         state = {
             'currency': int(u.make67_all_time_solves or 0),
             'inventory': inv,
-            'state_version': _m67_bump_state_version(u.id),
+            'state_version': new_ver,
         }
+        # Update state cache for this new version to minimize immediate follow-up polls
+        with _m67_state_cache_lock:
+            _m67_state_cache[(u.id, new_ver)] = state
         return jsonify({'ok': True, 'state': state})
     except Exception as e:
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
@@ -2401,66 +2462,89 @@ def api_make6or7_solve():
 @app.route('/api/make67/leaderboard', methods=['GET'])
 def api_make67_leaderboard():
     try:
-        # Top leaderboard: exclude cheaters and currently invisible users
-        now_dt = datetime.now(timezone.utc)
-        top_users = (
-            User.query
-            .filter(
-                (User.make67_all_time_solves != None)
-                & (User.make67_all_time_solves > 0)
-                & (User.make67_is_cheater == False)
+        # Use a tiny TTL cache to avoid hitting DB during polling storms
+        ttl_sec = int(os.environ.get('M67_LB_TTL_SEC', '2'))
+        now_ts = time.time()
+        cached_payload = None
+        with _m67_lb_cache_lock:
+            if (_m67_lb_cache.get('data') is not None) and (now_ts < float(_m67_lb_cache.get('expires') or 0)):
+                cached_payload = _m67_lb_cache['data']
+        if cached_payload is None:
+            t0 = time.perf_counter()
+            # Top leaderboard: exclude cheaters and currently invisible users
+            now_dt = datetime.now(timezone.utc)
+            top_users = (
+                User.query
+                .filter(
+                    (User.make67_all_time_solves != None)
+                    & (User.make67_all_time_solves > 0)
+                    & (User.make67_is_cheater == False)
+                )
+                .order_by(User.make67_all_time_solves.desc(), User.created_at.asc())
+                .limit(10)
+                .all()
             )
-            .order_by(User.make67_all_time_solves.desc(), User.created_at.asc())
-            .limit(10)
-            .all()
-        )
-        top = []
-        for u in top_users:
-            # skip invisible
-            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
-                continue
-            total = int(u.make67_all_time_solves or 0)
-            rk = _compute_rank(total)
-            top.append({
-                'id': u.id,
-                'name': _format_display_name(u),
-                'total': total,
-                'rank_key': rk['key'],
-                'rank_title': rk['title'],
-                'rank_icon': rk['icon'],
-                'is_cheater': False,
-                'is_boosted': bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt),
-                'boost_ends_in': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
-                'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
-                'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
-                'is_shielded': bool(getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt),
-                'shield_ends_in': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
-            })
+            top = []
+            for u in top_users:
+                # skip invisible
+                if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
+                    continue
+                total = int(u.make67_all_time_solves or 0)
+                rk = _compute_rank(total)
+                top.append({
+                    'id': u.id,
+                    'name': _format_display_name(u),
+                    'total': total,
+                    'rank_key': rk['key'],
+                    'rank_title': rk['title'],
+                    'rank_icon': rk['icon'],
+                    'is_cheater': False,
+                    'is_boosted': bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt),
+                    'boost_ends_in': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
+                    'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
+                    'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
+                    'is_shielded': bool(getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt),
+                    'shield_ends_in': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
+                })
 
-        # Banned users (cheaters): show in separate list (wall of shame)
-        banned_users = (
-            User.query
-            .filter(
-                (User.make67_all_time_solves != None)
-                & (User.make67_all_time_solves > 0)
-                & (User.make67_is_cheater == True)
+            # Banned users (cheaters): show in separate list (wall of shame)
+            banned_users = (
+                User.query
+                .filter(
+                    (User.make67_all_time_solves != None)
+                    & (User.make67_all_time_solves > 0)
+                    & (User.make67_is_cheater == True)
+                )
+                .order_by(User.make67_all_time_solves.desc(), User.created_at.asc())
+                .limit(100)
+                .all()
             )
-            .order_by(User.make67_all_time_solves.desc(), User.created_at.asc())
-            .limit(100)
-            .all()
-        )
-        banned = []
-        for u in banned_users:
-            total = int(u.make67_all_time_solves or 0)
-            rk = {"key": "cheater", "title": "BANNED", "icon": "🚫"}
-            banned.append({
-                'name': _format_display_name(u),
-                'total': total,
-                'rank_key': rk['key'],
-                'rank_title': rk['title'],
-                'rank_icon': rk['icon'],
-                'is_cheater': True,
-            })
+            banned = []
+            for u in banned_users:
+                total = int(u.make67_all_time_solves or 0)
+                rk = {"key": "cheater", "title": "BANNED", "icon": "🚫"}
+                banned.append({
+                    'name': _format_display_name(u),
+                    'total': total,
+                    'rank_key': rk['key'],
+                    'rank_title': rk['title'],
+                    'rank_icon': rk['icon'],
+                    'is_cheater': True,
+                })
+            payload = {'top': top, 'banned': banned}
+            with _m67_lb_cache_lock:
+                _m67_lb_cache['data'] = payload
+                _m67_lb_cache['expires'] = now_ts + max(1, ttl_sec)
+            app.logger.debug(
+                "m67_lb cache_hit=False build_ms=%d ttl=%s rid=%s",
+                int((time.perf_counter() - t0) * 1000),
+                ttl_sec,
+                getattr(g, '__request_id', '-'),
+            )
+        else:
+            app.logger.debug("m67_lb cache_hit=True rid=%s", getattr(g, '__request_id', '-'))
+            payload = cached_payload
+
         me = None
         if getattr(current_user, 'is_authenticated', False):
             u = db.session.get(User, current_user.get_id())
@@ -2487,7 +2571,7 @@ def api_make67_leaderboard():
                     'is_shielded': bool(getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt),
                     'shield_ends_in': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
                 }
-        return jsonify({'ok': True, 'top': top, 'banned': banned, 'me': me})
+        return jsonify({'ok': True, 'top': payload['top'], 'banned': payload['banned'], 'me': me})
     except Exception as e:
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
 
