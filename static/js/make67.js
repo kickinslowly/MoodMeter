@@ -797,9 +797,20 @@
       const it = inventory[i];
       if (it){
         slot.dataset.itemId = it.id;
-        slot.title = `${it.name}`;
+        // Non-stackable effects: disable use if already active
+        let disabledReason = '';
+        if (it.key === 'boost' && effects && Number(effects.boost||0) > 0){
+          disabledReason = 'Already boosted — wait until it ends.';
+          slot.disabled = true;
+        } else if (it.key === 'sneaky_dust' && effects && Number(effects.invisible||0) > 0){
+          disabledReason = 'Already invisible — wait until it ends.';
+          slot.disabled = true;
+        }
+        slot.title = disabledReason ? `${it.name} — ${disabledReason}` : `${it.name}`;
         slot.innerHTML = `<span style="font-size:22px; color:${it.color||'#fff'}; text-shadow:0 0 8px color-mix(in srgb, ${it.color||'#fff'} 60%, transparent);">${it.icon||'•'}</span><div style="font-size:12px; font-weight:700; opacity:.95;">${it.name}</div>`;
-        makeLongPress(slot, ()=>useItem(it));
+        if (!slot.disabled){
+          makeLongPress(slot, ()=>useItem(it));
+        }
         // Hover/focus tooltip
         slot.addEventListener('mouseenter', ()=> showTipFor(slot, invItemTooltip(it)));
         slot.addEventListener('mouseleave', hideTip);
@@ -881,6 +892,17 @@
 
   async function useItem(it){
     if (!it) return;
+    // Client-side guard for non-stackable status effects
+    try {
+      if (it.key === 'boost' && effects && Number(effects.boost||0) > 0){
+        alert('You are already boosted. Wait until it ends before using another Boost.');
+        return;
+      }
+      if (it.key === 'sneaky_dust' && effects && Number(effects.invisible||0) > 0){
+        alert('You are already invisible. Wait until it ends before using another Sneaky Dust.');
+        return;
+      }
+    } catch(_){ }
     let payload = { item_id: it.id };
     if (it.key === 'mud'){
       // pick a target from leaderboard
@@ -891,7 +913,18 @@
     try {
       const r = await fetch('/api/make67/use', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
       const d = await r.json().catch(()=>({ok:false}));
-      if (!d.ok) return;
+      if (!d.ok){
+        const code = d.error || 'ERROR';
+        if (code === 'EFFECT_ACTIVE'){
+          const eff = String(d.effect||'effect');
+          alert(`That ${eff} is already active. Please wait until it ends.`);
+          loadState();
+        } else if (code === 'TARGET_EFFECT_ACTIVE'){
+          alert('That player is already muddied. Pick someone else.');
+          loadState();
+        }
+        return;
+      }
       const sv = Number(d.state?.state_version || 0);
       if (sv) lastStateVersion = Math.max(lastStateVersion, sv);
       inventory = Array.isArray(d.state?.inventory)? d.state.inventory : inventory;
@@ -1002,13 +1035,17 @@
       function onClick(e){
         const li = e.target && e.target.closest && e.target.closest('li.m67-lb-item');
         const id = li && li.dataset && li.dataset.userId;
-        if (id){
-          // Optimistic FX: add mudded look
-          li.classList.add('mudded');
-          throwMudTo(li);
-          cleanup();
-          resolve(id);
+        if (!li || !id) return;
+        // Prevent selecting already-mudded targets
+        if (li.classList && li.classList.contains('mudded')){
+          try { sparkAt(li, 4); } catch(_){ }
+          return;
         }
+        // Optimistic FX: add mudded look
+        li.classList.add('mudded');
+        throwMudTo(li);
+        cleanup();
+        resolve(id);
       }
       lbList.addEventListener('click', onClick, true);
 

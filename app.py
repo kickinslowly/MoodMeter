@@ -1704,13 +1704,19 @@ def api_make67_use():
         now_dt = datetime.now(timezone.utc)
         # Activate effects (DB-backed)
         if key == 'sneaky_dust':
+            # Non-stackable: if already invisible, reject and return item
+            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'invisible'}), 400
             dur = timedelta(minutes=30)
-            cur_until = getattr(u, 'make67_invisible_until', None) or now_dt
-            u.make67_invisible_until = max(cur_until, now_dt) + dur
+            u.make67_invisible_until = now_dt + dur
         elif key == 'boost':
+            # Non-stackable: if already boosted, reject and return item
+            if getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'boost'}), 400
             dur = timedelta(minutes=2)
-            cur_until = getattr(u, 'make67_boost_until', None) or now_dt
-            u.make67_boost_until = max(cur_until, now_dt) + dur
+            u.make67_boost_until = now_dt + dur
         elif key == 'mud':
             target_id = (data.get('target_id') or '').strip()
             if not target_id:
@@ -1722,9 +1728,12 @@ def api_make67_use():
                 # Put item back if target missing/invalid
                 _m67_add_item(u.id, key)
                 return jsonify({'ok': False, 'error': 'TARGET_NOT_FOUND'}), 404
+            # Non-stackable: if target is already muddied, reject and return item
+            if getattr(target, 'make67_mud_until', None) and target.make67_mud_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'TARGET_EFFECT_ACTIVE', 'effect': 'mud'}), 400
             dur = timedelta(minutes=2)
-            cur_until = getattr(target, 'make67_mud_until', None) or now_dt
-            target.make67_mud_until = max(cur_until, now_dt) + dur
+            target.make67_mud_until = now_dt + dur
             # Cancel boost on target while mud is active
             target.make67_boost_until = now_dt
         else:
