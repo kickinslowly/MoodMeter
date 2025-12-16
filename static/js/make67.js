@@ -318,6 +318,9 @@
     } catch(_){ }
   }
 
+  // Guard to avoid double-playing shield SFX when both local use and SSE fire
+  let lastShieldSfxAt = 0;
+
   // On first user interaction, try to unlock audio playback on mobile browsers
   (function setupAudioUnlock(){
     let unlocked = false;
@@ -842,8 +845,11 @@
               } catch(_){ }
               // 1s flash removal
               setTimeout(()=>{ try{ li.classList.remove('flash-shield'); }catch(_){ } }, 1000);
-              // Play shield sfx for all online viewers
-              playSfx('snd_item_shield');
+              // Play shield sfx for all online viewers (avoid double if just played locally)
+              if (!lastShieldSfxAt || (Date.now() - lastShieldSfxAt) > 800){
+                playSfx('snd_item_shield');
+              }
+              lastShieldSfxAt = Date.now();
               // Best effort: remove shielded class after duration; page refresh also handles it
               const endsIn = Number(msg.ends_in || 0);
               if (endsIn > 0){
@@ -1335,7 +1341,9 @@
       } else if (it.key === 'sneaky_dust') {
         playSfx('snd_item_dust');
       } else if (it.key === 'divine_shield') {
-        // Sound for shield is broadcast to all online users only if on leaderboard; handled via SSE
+        // Play locally on successful activation so the user always hears it
+        playSfx('snd_item_shield');
+        lastShieldSfxAt = Date.now();
       }
     } catch(_){ }
   }
