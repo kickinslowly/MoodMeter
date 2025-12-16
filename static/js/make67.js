@@ -585,7 +585,11 @@
   // --- Snowballs Feature ---
   let holdingSnowball = false;
   let snowCursorEl = null;
-  let eventsEs = null;
+  // Switch from SSE to short-poll to avoid long-held connections starving the server
+  let eventsEs = null; // legacy placeholder (no longer used)
+  let eventsLastSeq = 0;
+  let eventsPollTimer = 0;
+  let eventsPollDelay = 10000; // base delay ms
 
   function ensureFx(){
     if (FX || !window.PIXI) return;
@@ -817,50 +821,84 @@
     } catch(_){ /* no-op */ }
   }
 
-  function ensureEventsStream(){
-    if (eventsEs || !isAuthed) return;
+  function handleIncomingEvent(msg){
     try {
-      eventsEs = new EventSource('/api/make67/events');
-      eventsEs.onmessage = (ev)=>{
-        if (!ev || !ev.data) return;
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg && msg.type === 'snowball_hit' && myUid && String(msg.to) === String(myUid)){
-            // Mega burst at center on hit
-            ensureFx();
-            if (FX && typeof FX.burst === 'function'){
-              FX.burst(window.innerWidth/2, window.innerHeight/2, {big:true});
-            }
-            showFullscreenSplat();
-          } else if (msg && msg.type === 'divine_shield'){
-            const uid = String(msg.user_id || msg.uid || msg.id || '');
-            if (!uid) return;
-            // If target is on leaderboard, flash and set glow
-            const li = lbList && lbList.querySelector ? lbList.querySelector(`li.m67-lb-item[data-user-id="${uid}"]`) : null;
-            if (li){
-              try {
-                li.classList.add('shielded');
-                li.classList.remove('mudded'); // immediate dispel in UI
-                li.classList.add('flash-shield');
-              } catch(_){ }
-              // 1s flash removal
-              setTimeout(()=>{ try{ li.classList.remove('flash-shield'); }catch(_){ } }, 1000);
-              // Play shield sfx for all online viewers (avoid double if just played locally)
-              if (!lastShieldSfxAt || (Date.now() - lastShieldSfxAt) > 800){
-                playSfx('snd_item_shield');
-              }
-              lastShieldSfxAt = Date.now();
-              // Best effort: remove shielded class after duration; page refresh also handles it
-              const endsIn = Number(msg.ends_in || 0);
-              if (endsIn > 0){
-                setTimeout(()=>{ try{ li.classList.remove('shielded'); }catch(_){ } }, Math.min(endsIn, 600) * 1000);
-              }
-            }
+      if (msg && msg.type === 'snowball_hit' && myUid && String(msg.to) === String(myUid)){
+        // Mega burst at center on hit
+        ensureFx();
+        if (FX && typeof FX.burst === 'function'){
+          FX.burst(window.innerWidth/2, window.innerHeight/2, {big:true});
+        }
+        showFullscreenSplat();
+      } else if (msg && msg.type === 'divine_shield'){
+        const uid = String(msg.user_id || msg.uid || msg.id || '');
+        if (!uid) return;
+        // If target is on leaderboard, flash and set glow
+        const li = lbList && lbList.querySelector ? lbList.querySelector(`li.m67-lb-item[data-user-id="${uid}"]`) : null;
+        if (li){
+          try {
+            li.classList.add('shielded');
+            li.classList.remove('mudded'); // immediate dispel in UI
+            li.classList.add('flash-shield');
+          } catch(_){ }
+          // 1s flash removal
+          setTimeout(()=>{ try{ li.classList.remove('flash-shield'); }catch(_){ } }, 1000);
+          // Play shield sfx for all online viewers (avoid double if just played locally)
+          if (!lastShieldSfxAt || (Date.now() - lastShieldSfxAt) > 800){
+            playSfx('snd_item_shield');
           }
-        } catch(_){ /* ignore */ }
-      };
-      eventsEs.onerror = ()=>{ /* keep silent; browser will retry */ };
+          lastShieldSfxAt = Date.now();
+          // Best effort: remove shielded class after duration; page refresh also handles it
+          const endsIn = Number(msg.ends_in || 0);
+          if (endsIn > 0){
+            setTimeout(()=>{ try{ li.classList.remove('shielded'); }catch(_){ } }, Math.min(endsIn, 600) * 1000);
+          }
+        }
+      }
     } catch(_){ /* ignore */ }
+  }
+
+  function scheduleNextEventsPoll(delay){
+    clearTimeout(eventsPollTimer);
+    eventsPollTimer = setTimeout(eventsPollLoop, delay);
+  }
+
+  async function eventsPollLoop(){
+    if (!isAuthed){
+      // stop polling if not authenticated
+      clearTimeout(eventsPollTimer);
+      eventsPollTimer = 0;
+      return;
+    }
+    // Back off when tab is hidden
+    const delay = document.hidden ? Math.max(15000, eventsPollDelay) : eventsPollDelay;
+    try {
+      const res = await fetch(`/api/make67/events/poll?since=${encodeURIComponent(String(eventsLastSeq||0))}`);
+      const data = await res.json().catch(()=>({ok:false}));
+      if (data && data.ok){
+        const evs = Array.isArray(data.events) ? data.events : [];
+        for (const e of evs){ handleIncomingEvent(e); }
+        const ls = Number(data.last_seq || eventsLastSeq || 0);
+        if (!Number.isNaN(ls)) eventsLastSeq = Math.max(eventsLastSeq||0, ls);
+        // reset delay on success
+        eventsPollDelay = 10000 + Math.floor(Math.random()*3000);
+      } else {
+        // mild backoff on error
+        eventsPollDelay = Math.min(60000, (eventsPollDelay||10000) * 1.5);
+      }
+    } catch(_){
+      eventsPollDelay = Math.min(60000, (eventsPollDelay||10000) * 1.5);
+    }
+    scheduleNextEventsPoll(delay);
+  }
+
+  function ensureEventsStream(){
+    // Start polling events once; subsequent calls are ignored
+    if (eventsPollTimer || !isAuthed) return;
+    eventsPollDelay = 10000 + Math.floor(Math.random()*3000);
+    scheduleNextEventsPoll(0);
+    // Cleanup on unload
+    window.addEventListener('beforeunload', ()=>{ try{ clearTimeout(eventsPollTimer); }catch(_){ } });
   }
 
   function showFullscreenSplat(){

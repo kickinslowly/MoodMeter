@@ -1370,6 +1370,8 @@ _m67_message_count: int = 0
 _m67_presence_lock = threading.Lock()
 _m67_online_counts: dict[str, int] = {}
 _m67_queue_owner: dict[Queue, str] = {}
+# Additional lightweight presence for polling clients (last ping timestamp, seconds)
+_m67_poll_presence: dict[str, float] = {}
 
 def _m67_presence_connect(uid: str | None, q: Queue):
     if not uid:
@@ -1401,8 +1403,24 @@ def _m67_is_user_online(uid: str | int | None) -> bool:
         uid_s = str(uid)
     except Exception:
         return False
+    now = time.time()
     with _m67_presence_lock:
-        return _m67_online_counts.get(uid_s, 0) > 0
+        if _m67_online_counts.get(uid_s, 0) > 0:
+            return True
+        # consider recent poll pings as online for a short TTL
+        last = _m67_poll_presence.get(uid_s, 0.0)
+        return (now - last) <= 60.0
+
+# Mark polling presence for current user
+def _m67_presence_poll_ping(uid: str | int | None):
+    if uid is None:
+        return
+    try:
+        uid_s = str(uid)
+    except Exception:
+        return
+    with _m67_presence_lock:
+        _m67_poll_presence[uid_s] = time.time()
 
 # --- In-memory Make67 solve-rate tracking (process-local) ---
 _m67_recent_solves_lock = threading.Lock()
@@ -1424,6 +1442,11 @@ _m67_mud: dict[str, float] = {}
 
 _m67_progress_lock = threading.Lock()
 _m67_progress: dict[str, float] = {}
+
+# --- Lightweight gameplay events log for polling clients ---
+_m67_event_lock = threading.Lock()
+_m67_event_seq: int = 0
+_m67_event_log: deque = deque(maxlen=2000)
 
 # Static shop catalog
 _M67_CATALOG = {
@@ -1959,6 +1982,25 @@ def api_make6or7_use():
 def _m67_broadcast(msg: dict):
     global _m67_message_count
     _m67_message_count += 1
+    # Append gameplay events to in-memory log for poll-based delivery
+    try:
+        mtype = str(msg.get('type')) if isinstance(msg, dict) else ''
+    except Exception:
+        mtype = ''
+    if mtype in {'snowball_hit', 'divine_shield'}:
+        with _m67_event_lock:
+            try:
+                # Attach monotonically increasing sequence for ordering
+                global _m67_event_seq
+                _m67_event_seq += 1
+                seq = _m67_event_seq
+                # Shallow copy to avoid mutating original
+                rec = dict(msg)
+                rec.setdefault('ts', int(time.time()))
+                rec['seq'] = seq
+                _m67_event_log.append(rec)
+            except Exception:
+                pass
     with _m67_subscribers_lock:
         dead = []
         for q in list(_m67_subscribers):
@@ -2075,6 +2117,45 @@ def make67_events_stream():
         'Connection': 'keep-alive',
     }
     return Response(stream_with_context(gen()), mimetype='text/event-stream; charset=utf-8', headers=headers)
+
+
+@app.route('/api/make67/events/poll')
+def make67_events_poll():
+    """Short-poll endpoint for Make67 gameplay events.
+    Clients pass ?since=<last_seq> and receive any events with seq > since.
+    Also serves as a presence ping for the authenticated user.
+    """
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    # presence ping for polling clients
+    try:
+        _m67_presence_poll_ping(current_user.get_id())
+    except Exception:
+        pass
+    try:
+        since_s = request.args.get('since') or '0'
+        try:
+            since = int(since_s)
+        except Exception:
+            since = 0
+        out = []
+        last_seq = since
+        with _m67_event_lock:
+            for rec in _m67_event_log:
+                try:
+                    rec_seq = int(rec.get('seq') or 0)
+                except Exception:
+                    rec_seq = 0
+                if rec_seq > since:
+                    out.append(rec)
+                    if rec_seq > last_seq:
+                        last_seq = rec_seq
+        # Limit payload size
+        if len(out) > 100:
+            out = out[-100:]
+        return jsonify({'ok': True, 'events': out, 'last_seq': last_seq})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
 
 
 @app.route('/api/make67/snowball', methods=['POST'])
