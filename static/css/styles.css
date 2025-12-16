@@ -743,7 +743,7 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   .make67-page .m67-leaderboard { max-height: calc(100vh - 120px); overflow: auto; }
   .make67-page .make67-container { --board: min(78vh, calc(100vw - 420px)); gap: 12px; place-items: center; }
     .make67-page .m67-game { display: grid; place-items: center; justify-self: center; }
-  .make67-page .cards-grid { grid-template-columns: repeat(2, minmax(180px, min(24vw, 32vh))); grid-auto-rows: minmax(180px, min(24vw, 32vh)); gap: 16px; }
+  .make67-page .cards-grid { grid-template-columns: repeat(2, minmax(180px, min(24vw, 30vh))); grid-auto-rows: minmax(180px, min(24vw, 30vh)); gap: 16px; }
   .make67-page .card { font-size: clamp(36px, 6.8vh, 64px); border-radius: 16px; }
   .make67-page .ops { gap: 10px; }
   .make67-page .op-btn { min-width: clamp(44px, 6vh, 56px); min-height: clamp(44px, 6vh, 56px); font-size: clamp(18px, 3.2vh, 22px); border-radius: 14px; }
@@ -753,6 +753,19 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
   /* Small, low‑priority back link in top-left */
   .make67-page .back-link { position: absolute; left: 16px; top: 12px; font-size: 12px; color: var(--axis); opacity: .85; background: transparent; border: 1px solid transparent; padding: 4px 6px; border-radius: 8px; text-decoration: none; }
   .make67-page .back-link:hover { text-decoration: underline; opacity: 1; }
+}
+
+/* Height-aware fit rules to ensure operations stay visible without fullscreen */
+@media (min-width: 901px) and (max-height: 900px) {
+  .make67-page .game-board-wrapper { padding: clamp(12px, 3.2vh, 28px); }
+  .make67-page .cards-grid { grid-template-columns: repeat(2, minmax(160px, min(22vw, 28vh))); grid-auto-rows: minmax(160px, min(22vw, 28vh)); gap: 14px; }
+  .make67-page .op-btn { min-width: clamp(40px, 5.2vh, 52px); min-height: clamp(40px, 5.2vh, 52px); font-size: clamp(16px, 2.8vh, 22px); }
+}
+
+@media (min-width: 901px) and (max-height: 740px) {
+  .make67-page .game-board-wrapper { padding: clamp(10px, 2.6vh, 22px); }
+  .make67-page .cards-grid { grid-template-columns: repeat(2, minmax(140px, min(20vw, 24vh))); grid-auto-rows: minmax(140px, min(20vw, 24vh)); gap: 12px; }
+  .make67-page .op-btn { min-width: clamp(38px, 4.8vh, 48px); min-height: clamp(38px, 4.8vh, 48px); font-size: clamp(15px, 2.5vh, 20px); }
 }
 
 /* Merge fly animation */
