@@ -583,6 +583,18 @@
   });
 
   // --- Snowballs Feature ---
+  // Detect mobile-like environments (coarse pointer / no hover or touch)
+  const isMobileLike = (() => {
+    try {
+      const mql = (q) => (window.matchMedia ? window.matchMedia(q).matches : false);
+      const touch = ('ontouchstart' in window) || ((navigator.maxTouchPoints || 0) > 0);
+      const coarse = mql('(pointer: coarse)');
+      const noHover = mql('(hover: none)');
+      return (coarse && noHover) || touch;
+    } catch(_) {
+      return false;
+    }
+  })();
   let holdingSnowball = false;
   let snowCursorEl = null;
   // Switch from SSE to short-poll to avoid long-held connections starving the server
@@ -924,6 +936,8 @@
   }
 
   function throwSnowball(ev){
+    // Disable snowball throwing on mobile-like devices
+    if (isMobileLike) { return; }
     const x = (ev && typeof ev.clientX === 'number') ? ev.clientX : (window.innerWidth/2);
     const y = (ev && typeof ev.clientY === 'number') ? ev.clientY : (window.innerHeight/2);
     // Snowballs are local-only now: spawn a local explosion at click/release position
@@ -932,6 +946,8 @@
   }
 
   function beginHoldSnowball(){
+    // Disable snowball interactions on mobile-like devices
+    if (isMobileLike) return;
     if (holdingSnowball) return;
     holdingSnowball = true;
     document.body.classList.add('holding-snowball');
@@ -954,7 +970,7 @@
     document.addEventListener('click', up, {once:true, capture:true});
   }
 
-  if (snowballPile){
+  if (snowballPile && !isMobileLike){
     snowballPile.addEventListener('click', (e)=>{
       const t = e.target;
       if (t && t.classList && t.classList.contains('snowball')){

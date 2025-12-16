@@ -1825,3 +1825,9 @@ body.holding-snowball { cursor: none; }
   70% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* Hide snowball UI on mobile/touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .snowball-pile, .snowball-cursor { display: none !important; }
+  body.holding-snowball { cursor: auto; }
+}
