@@ -1762,28 +1762,32 @@ body.m67-mud-mode { cursor: none; }
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 14px;
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  display: inline-block; /* size to image */
   z-index: 500;
   pointer-events: auto;
 }
+.snowball-pile-img {
+  display: block;
+  height: auto;
+  max-width: 120px; /* prevent oversized image on small screens */
+  pointer-events: none; /* clicks go to overlays */
+}
 .snowball {
-  width: 22px;
-  height: 22px;
+  position: absolute;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #ffffff, #e8f1f9 55%, #d9e6f2 70%, rgba(200,220,240,0.85) 100%);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 3px rgba(255,255,255,0.9);
-  border: 1px solid rgba(255,255,255,0.65);
+  background: transparent;
+  box-shadow: none;
+  border: 0;
   cursor: grab;
-  transition: transform .15s ease, filter .15s ease;
 }
 .snowball:active { cursor: grabbing; }
-.snowball.s1 { transform: translateY(10px) scale(0.95); opacity: .9; }
-.snowball.s2 { transform: translateY(4px) scale(1.0); }
-.snowball.s3 { transform: translateY(0) scale(1.05); }
-.snowball:hover { filter: brightness(1.08) saturate(1.05); }
+/* approximate hotspots over the image (works regardless of image's natural size) */
+.snowball.s1 { top: 16%; left: 50%; transform: translateX(-50%); }
+.snowball.s2 { bottom: 8%; left: 22%; }
+.snowball.s3 { bottom: 8%; right: 22%; }
 
 /* Cursor helper when holding a snowball */
 body.holding-snowball { cursor: none; }

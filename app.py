@@ -2160,39 +2160,19 @@ def make67_events_poll():
 
 @app.route('/api/make67/snowball', methods=['POST'])
 def api_make67_snowball():
-    """Throw a snowball. If target_uid provided and target is online, broadcast a hit event to that user.
-    Payload JSON: { target_uid: str | null }
-    Response: { ok: bool, online: bool }
+    """Legacy endpoint: snowballs are now local-only visual effects.
+    No network broadcast occurs. Kept for backward compatibility; always returns ok.
+    Response: { ok: bool, online: false }
     """
     if not getattr(current_user, 'is_authenticated', False):
         return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    # Consume payload if any, but do nothing.
     try:
-        data = request.get_json(silent=True) or {}
+        _ = request.get_json(silent=True) or {}
     except Exception:
-        data = {}
-    target_uid = data.get('target_uid') or data.get('targetId') or ''
-    if isinstance(target_uid, (int, float)):
-        target_uid = str(int(target_uid))
-    if not isinstance(target_uid, str):
-        target_uid = ''
-
-    online = False
-    if target_uid:
-        online = _m67_is_user_online(target_uid)
-        if online:
-            try:
-                from_name = _format_display_name(current_user)
-            except Exception:
-                from_name = 'Player'
-            payload = {
-                'type': 'snowball_hit',
-                'to': target_uid,
-                'from': str(current_user.get_id()),
-                'from_name': from_name,
-                'ts': int(time.time()),
-            }
-            _m67_broadcast(payload)
-    return jsonify({'ok': True, 'online': bool(online)})
+        pass
+    # Do not emit any events; report online as False to discourage targeting UX in old clients
+    return jsonify({'ok': True, 'online': False})
 
 
 @app.route('/api/make67/chat/post', methods=['POST'])

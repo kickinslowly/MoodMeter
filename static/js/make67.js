@@ -823,14 +823,8 @@
 
   function handleIncomingEvent(msg){
     try {
-      if (msg && msg.type === 'snowball_hit' && myUid && String(msg.to) === String(myUid)){
-        // Mega burst at center on hit
-        ensureFx();
-        if (FX && typeof FX.burst === 'function'){
-          FX.burst(window.innerWidth/2, window.innerHeight/2, {big:true});
-        }
-        showFullscreenSplat();
-      } else if (msg && msg.type === 'divine_shield'){
+      // Ignore legacy snowball_hit events; snowballs are now local-only visual effects
+      if (msg && msg.type === 'divine_shield'){
         const uid = String(msg.user_id || msg.uid || msg.id || '');
         if (!uid) return;
         // If target is on leaderboard, flash and set glow
@@ -932,23 +926,8 @@
   function throwSnowball(ev){
     const x = (ev && typeof ev.clientX === 'number') ? ev.clientX : (window.innerWidth/2);
     const y = (ev && typeof ev.clientY === 'number') ? ev.clientY : (window.innerHeight/2);
-    let targetLi = null;
-    try {
-      if (ev && ev.target && ev.target.closest) targetLi = ev.target.closest('li.m67-lb-item');
-    } catch(_){ targetLi = null; }
-    if (targetLi && targetLi.dataset && targetLi.dataset.userId){
-      const targetId = String(targetLi.dataset.userId);
-      try {
-        fetch('/api/make67/snowball', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target_uid: targetId })
-        }).catch(()=>{});
-      } catch(_){ /* ignore */ }
-      try { targetLi.classList.add('hit'); setTimeout(()=> targetLi.classList.remove('hit'), 600); } catch(_){ }
-    } else {
-      spawnExplosionAt(x, y);
-    }
+    // Snowballs are local-only now: spawn a local explosion at click/release position
+    spawnExplosionAt(x, y);
     endHoldSnowball();
   }
 
