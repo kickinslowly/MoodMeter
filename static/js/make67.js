@@ -178,6 +178,13 @@
   const bannedBtn = document.getElementById('m67BannedBtn');
   const bannedRoot = document.querySelector('.m67-ban-root');
   const bannedListEl = document.getElementById('m67BannedList');
+  const snowballPile = document.getElementById('snowballPile');
+  const myUid = (document.body && document.body.dataset && document.body.dataset.userId) ? String(document.body.dataset.userId) : '';
+  // FX: Pixi overlay (lazy)
+  const prefersReducedMotion = (function(){
+    try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(_){ return false; }
+  })();
+  let FX = null; // will hold pixi app + emitters when available
   // Helper: lock body scroll when any modal is open
   function updateBodyLock(){
     const anyOpen = (invModalRoot && !invModalRoot.hidden)
@@ -484,6 +491,7 @@
           });
           // Load full state (inventory etc.) when authenticated
           loadState();
+          ensureEventsStream();
         } else {
           isAuthed = false;
           allTime = null;
@@ -569,6 +577,348 @@
       if (bannedRoot && !bannedRoot.hidden) closeBanned();
     }
   });
+
+  // --- Snowballs Feature ---
+  let holdingSnowball = false;
+  let snowCursorEl = null;
+  let eventsEs = null;
+
+  function ensureFx(){
+    if (FX || !window.PIXI) return;
+    try {
+      const app = new PIXI.Application({
+        backgroundAlpha: 0,
+        antialias: true,
+        resolution: Math.min(window.devicePixelRatio || 1, 2),
+        autoDensity: true,
+        resizeTo: window
+      });
+      const view = app.view;
+      view.style.position = 'fixed';
+      view.style.inset = '0';
+      view.style.pointerEvents = 'none';
+      view.style.zIndex = '900';
+      document.body.appendChild(view);
+
+      const root = new PIXI.Container();
+      app.stage.addChild(root);
+
+      // Textures
+      function makeShardTexture(){
+        const g = new PIXI.Graphics();
+        const w = 24, h = 36;
+        const c1 = 0xffffff, c2 = 0xcfe9ff;
+        g.beginFill(c2, 0.95);
+        // Triangle shard
+        g.moveTo(0, 0);
+        g.lineTo(w, h*0.25);
+        g.lineTo(w*0.2, h);
+        g.closePath();
+        g.endFill();
+        // highlight edge
+        g.lineStyle(2, c1, 0.6)
+         .moveTo(w*0.2, h)
+         .lineTo(w, h*0.25);
+        const tex = app.renderer.generateTexture(g);
+        g.destroy(true);
+        return tex;
+      }
+      function makePuffTexture(){
+        const g = new PIXI.Graphics();
+        const r = 24;
+        g.beginFill(0xffffff, 0.9);
+        g.drawCircle(r, r, r);
+        g.endFill();
+        const tex = app.renderer.generateTexture(g);
+        g.destroy(true);
+        return tex;
+      }
+      function makeRingTexture(){
+        const g = new PIXI.Graphics();
+        const R = 64;
+        g.lineStyle(6, 0xffffff, 0.8);
+        g.drawCircle(R, R, R);
+        const tex = app.renderer.generateTexture(g);
+        g.destroy(true);
+        return tex;
+      }
+      const shardTextures = [makeShardTexture(), makeShardTexture()];
+      const puffTex = makePuffTexture();
+      const ringTex = makeRingTexture();
+
+      // Pools
+      const shardLayer = new PIXI.ParticleContainer(800, { scale: true, position: true, rotation: true, uvs: true, alpha: true });
+      const ringLayer = new PIXI.Container();
+      const puffLayer = new PIXI.ParticleContainer(300, { scale: true, position: true, rotation: true, alpha: true });
+      root.addChild(puffLayer);
+      root.addChild(shardLayer);
+      root.addChild(ringLayer);
+
+      const shardPool = [];
+      const shards = [];
+      const puffs = [];
+      const puffPool = [];
+      const rings = [];
+
+      function getShard(){
+        let s = shardPool.pop();
+        if (!s){
+          s = new PIXI.Sprite(shardTextures[Math.random()<0.5?0:1]);
+          s.anchor.set(0.5, 0.5);
+        }
+        return s;
+      }
+      function releaseShard(s){
+        if (!s) return;
+        s.visible = false;
+        s.parent && s.parent.removeChild(s);
+        shardPool.push(s);
+      }
+      function getPuff(){
+        let s = puffPool.pop();
+        if (!s){
+          s = new PIXI.Sprite(puffTex);
+          s.anchor.set(0.5);
+        }
+        return s;
+      }
+      function releasePuff(s){
+        if (!s) return;
+        s.visible = false;
+        s.parent && s.parent.removeChild(s);
+        puffPool.push(s);
+      }
+
+      function spawnBurst(x, y, opts){
+        const big = !!(opts && opts.big);
+        const quality = big ? 1.0 : 0.8;
+        const baseCount = prefersReducedMotion ? (big ? 50 : 24) : (big ? 160 : 90);
+        const count = Math.min(320, Math.max(20, Math.round(baseCount * quality)));
+        const g = prefersReducedMotion ? 600 : 900; // gravity px/s^2
+        const drag = 0.985;
+        const lifeBase = big ? 1.1 : 0.9;
+        const speedBase = big ? 820 : 640;
+
+        // shards
+        for (let i=0;i<count;i++){
+          const sp = getShard();
+          sp.texture = shardTextures[i % shardTextures.length];
+          sp.x = x; sp.y = y;
+          sp.scale.set(0.35 + Math.random()*0.35);
+          sp.rotation = Math.random() * Math.PI * 2;
+          sp.alpha = 1;
+          const ang = Math.random() * Math.PI * 2;
+          const speed = speedBase * (0.45 + Math.random()*0.75);
+          sp.__vx = Math.cos(ang) * speed;
+          sp.__vy = Math.sin(ang) * speed * 0.85 - (big ? 120 : 60);
+          sp.__spin = (Math.random() * 6 - 3) * (prefersReducedMotion ? 0.4 : 1);
+          sp.__life = lifeBase + Math.random()*0.6; // seconds
+          sp.__drag = drag;
+          sp.__g = g;
+          shards.push(sp);
+          shardLayer.addChild(sp);
+          sp.visible = true;
+        }
+
+        // puffs (soft snow)
+        const puffCount = prefersReducedMotion ? (big? 6:4) : (big? 16:10);
+        for (let i=0;i<puffCount;i++){
+          const p = getPuff();
+          p.x = x; p.y = y; p.alpha = 0.9;
+          const ang = Math.random() * Math.PI * 2;
+          const speed = (big ? 280 : 220) * (0.6 + Math.random()*0.8);
+          p.__vx = Math.cos(ang) * speed;
+          p.__vy = Math.sin(ang) * speed * 0.7;
+          p.scale.set(0.4 + Math.random()*0.6);
+          p.__life = 0.8 + Math.random()*0.7;
+          p.__drag = 0.99;
+          puffs.push(p);
+          puffLayer.addChild(p);
+          p.visible = true;
+        }
+
+        // shockwave ring
+        const ring = new PIXI.Sprite(ringTex);
+        ring.anchor.set(0.5);
+        ring.x = x; ring.y = y;
+        ring.scale.set(0.1);
+        ring.alpha = big ? 0.75 : 0.6;
+        ring.__life = big ? 0.65 : 0.5;
+        ring.__scaleTo = big ? 3.4 : 2.4;
+        rings.push(ring);
+        ringLayer.addChild(ring);
+      }
+
+      let lastTime = performance.now();
+      app.ticker.add(() => {
+        const now = performance.now();
+        const dt = Math.min(0.05, (now - lastTime) / 1000); // cap 50ms
+        lastTime = now;
+
+        // shards update
+        for (let i=shards.length-1;i>=0;i--){
+          const s = shards[i];
+          s.__vy += s.__g * dt;
+          s.__vx *= s.__drag; s.__vy *= s.__drag;
+          s.x += s.__vx * dt; s.y += s.__vy * dt;
+          s.rotation += s.__spin * dt;
+          s.__life -= dt;
+          s.alpha = Math.max(0, Math.min(1, s.__life / 1.2));
+          if (s.__life <= 0 || s.x < -200 || s.x > window.innerWidth + 200 || s.y > window.innerHeight + 200){
+            releaseShard(s);
+            shards.splice(i,1);
+          }
+        }
+
+        // puffs
+        for (let i=puffs.length-1;i>=0;i--){
+          const p = puffs[i];
+          p.__vx *= p.__drag; p.__vy *= p.__drag;
+          p.x += p.__vx * dt; p.y += p.__vy * dt;
+          p.__life -= dt;
+          p.alpha = Math.max(0, Math.min(1, p.__life / 1.0));
+          if (p.__life <= 0){
+            releasePuff(p);
+            puffs.splice(i,1);
+          }
+        }
+
+        // rings
+        for (let i=rings.length-1;i>=0;i--){
+          const r = rings[i];
+          const life0 = r.__life;
+          r.__life -= dt;
+          const t = 1 - Math.max(0, r.__life / life0);
+          const s = 0.1 + (r.__scaleTo - 0.1) * t;
+          r.scale.set(s);
+          r.alpha = Math.max(0, (prefersReducedMotion ? 0.5 : 0.7) * (1 - t));
+          if (r.__life <= 0){
+            r.parent && r.parent.removeChild(r);
+            r.destroy({ children: false, texture: false, baseTexture: false });
+            rings.splice(i,1);
+          }
+        }
+      });
+
+      // Pause updates when hidden
+      document.addEventListener('visibilitychange', ()=>{
+        app.ticker.autoStart = !document.hidden;
+        app.ticker.started = !document.hidden;
+      });
+
+      FX = {
+        app,
+        burst: (x, y, opts) => { spawnBurst(x,y,opts||{}); }
+      };
+    } catch(_){ /* no-op */ }
+  }
+
+  function ensureEventsStream(){
+    if (eventsEs || !isAuthed) return;
+    try {
+      eventsEs = new EventSource('/api/make67/events');
+      eventsEs.onmessage = (ev)=>{
+        if (!ev || !ev.data) return;
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg && msg.type === 'snowball_hit' && myUid && String(msg.to) === String(myUid)){
+            // Mega burst at center on hit
+            ensureFx();
+            if (FX && typeof FX.burst === 'function'){
+              FX.burst(window.innerWidth/2, window.innerHeight/2, {big:true});
+            }
+            showFullscreenSplat();
+          }
+        } catch(_){ /* ignore */ }
+      };
+      eventsEs.onerror = ()=>{ /* keep silent; browser will retry */ };
+    } catch(_){ /* ignore */ }
+  }
+
+  function showFullscreenSplat(){
+    const el = document.createElement('div');
+    el.className = 'splat-overlay';
+    document.body.appendChild(el);
+    setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 1100);
+  }
+
+  function spawnExplosionAt(x, y){
+    ensureFx();
+    if (FX && typeof FX.burst === 'function'){
+      FX.burst(x, y, {big:false});
+      return;
+    }
+    // Fallback CSS-based puff
+    const ex = document.createElement('div');
+    ex.className = 'snow-explosion';
+    ex.style.left = String(x) + 'px';
+    ex.style.top = String(y) + 'px';
+    document.body.appendChild(ex);
+    ex.addEventListener('animationend', ()=>{ try{ ex.remove(); }catch(_){} }, {once:true});
+  }
+
+  function endHoldSnowball(){
+    holdingSnowball = false;
+    document.body.classList.remove('holding-snowball');
+    if (snowCursorEl){ try{ snowCursorEl.remove(); }catch(_){} snowCursorEl = null; }
+  }
+
+  function throwSnowball(ev){
+    const x = (ev && typeof ev.clientX === 'number') ? ev.clientX : (window.innerWidth/2);
+    const y = (ev && typeof ev.clientY === 'number') ? ev.clientY : (window.innerHeight/2);
+    let targetLi = null;
+    try {
+      if (ev && ev.target && ev.target.closest) targetLi = ev.target.closest('li.m67-lb-item');
+    } catch(_){ targetLi = null; }
+    if (targetLi && targetLi.dataset && targetLi.dataset.userId){
+      const targetId = String(targetLi.dataset.userId);
+      try {
+        fetch('/api/make67/snowball', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_uid: targetId })
+        }).catch(()=>{});
+      } catch(_){ /* ignore */ }
+      try { targetLi.classList.add('hit'); setTimeout(()=> targetLi.classList.remove('hit'), 600); } catch(_){ }
+    } else {
+      spawnExplosionAt(x, y);
+    }
+    endHoldSnowball();
+  }
+
+  function beginHoldSnowball(){
+    if (holdingSnowball) return;
+    holdingSnowball = true;
+    document.body.classList.add('holding-snowball');
+    snowCursorEl = document.createElement('div');
+    snowCursorEl.className = 'snowball-cursor';
+    document.body.appendChild(snowCursorEl);
+    const move = (ev)=>{
+      if (!snowCursorEl) return;
+      const cx = ev.clientX, cy = ev.clientY;
+      snowCursorEl.style.left = String(cx) + 'px';
+      snowCursorEl.style.top = String(cy) + 'px';
+    };
+    const up = (ev)=>{
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('click', up, true);
+      throwSnowball(ev);
+    };
+    document.addEventListener('mousemove', move);
+    // Capture next click anywhere to perform throw
+    document.addEventListener('click', up, {once:true, capture:true});
+  }
+
+  if (snowballPile){
+    snowballPile.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.classList && t.classList.contains('snowball')){
+        beginHoldSnowball();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+  }
 
   function setCard(i, value){
     curCards[i] = value;

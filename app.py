@@ -1347,6 +1347,44 @@ _m67_subscribers: set[Queue] = set()
 _m67_last_post_by_ip: dict[str, float] = {}
 _m67_message_count: int = 0
 
+# --- Make67 presence tracking (process-local) ---
+_m67_presence_lock = threading.Lock()
+_m67_online_counts: dict[str, int] = {}
+_m67_queue_owner: dict[Queue, str] = {}
+
+def _m67_presence_connect(uid: str | None, q: Queue):
+    if not uid:
+        return
+    try:
+        uid_s = str(uid)
+    except Exception:
+        uid_s = None
+    if not uid_s:
+        return
+    with _m67_presence_lock:
+        _m67_queue_owner[q] = uid_s
+        _m67_online_counts[uid_s] = _m67_online_counts.get(uid_s, 0) + 1
+
+def _m67_presence_disconnect(q: Queue):
+    with _m67_presence_lock:
+        uid_s = _m67_queue_owner.pop(q, None)
+        if uid_s is not None:
+            cur = _m67_online_counts.get(uid_s, 0)
+            if cur <= 1:
+                _m67_online_counts.pop(uid_s, None)
+            else:
+                _m67_online_counts[uid_s] = cur - 1
+
+def _m67_is_user_online(uid: str | int | None) -> bool:
+    if uid is None:
+        return False
+    try:
+        uid_s = str(uid)
+    except Exception:
+        return False
+    with _m67_presence_lock:
+        return _m67_online_counts.get(uid_s, 0) > 0
+
 # --- In-memory Make67 solve-rate tracking (process-local) ---
 _m67_recent_solves_lock = threading.Lock()
 _m67_recent_solves: dict[str, deque] = {}
@@ -1841,6 +1879,12 @@ def make67_chat_stream():
                             len(_m67_subscribers), getattr(g, '__client_ip', 'unknown'), INSTANCE_ID)
         except Exception:
             pass
+    # Register presence for authenticated users
+    try:
+        if getattr(current_user, 'is_authenticated', False):
+            _m67_presence_connect(current_user.get_id(), q)
+    except Exception:
+        pass
 
     def gen():
         # Initial comment and periodic keep-alives to prevent idle timeouts
@@ -1862,6 +1906,11 @@ def make67_chat_stream():
                                     len(_m67_subscribers), getattr(g, '__client_ip', 'unknown'), INSTANCE_ID)
                 except Exception:
                     pass
+            # Presence cleanup
+            try:
+                _m67_presence_disconnect(q)
+            except Exception:
+                pass
 
     headers = {
         'Cache-Control': 'no-cache',
@@ -1869,6 +1918,86 @@ def make67_chat_stream():
         'Connection': 'keep-alive',
     }
     return Response(stream_with_context(gen()), mimetype='text/event-stream; charset=utf-8', headers=headers)
+
+
+@app.route('/api/make67/events')
+def make67_events_stream():
+    """General Make67 SSE stream for gameplay events (e.g., snowballs).
+    Available to any authenticated user. Shares the same broadcast bus as chat.
+    """
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    q: Queue = Queue(maxsize=100)
+    with _m67_subscribers_lock:
+        _m67_subscribers.add(q)
+    # Presence register
+    try:
+        _m67_presence_connect(current_user.get_id(), q)
+    except Exception:
+        pass
+
+    def gen():
+        yield f": connected instance={INSTANCE_ID} events=1 time={int(time.time())}\n\n"
+        try:
+            while True:
+                try:
+                    msg = q.get(timeout=25)
+                    yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
+                except Empty:
+                    yield ': keep-alive\n\n'
+        except GeneratorExit:
+            pass
+        finally:
+            with _m67_subscribers_lock:
+                _m67_subscribers.discard(q)
+            try:
+                _m67_presence_disconnect(q)
+            except Exception:
+                pass
+
+    headers = {
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
+    }
+    return Response(stream_with_context(gen()), mimetype='text/event-stream; charset=utf-8', headers=headers)
+
+
+@app.route('/api/make67/snowball', methods=['POST'])
+def api_make67_snowball():
+    """Throw a snowball. If target_uid provided and target is online, broadcast a hit event to that user.
+    Payload JSON: { target_uid: str | null }
+    Response: { ok: bool, online: bool }
+    """
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
+    target_uid = data.get('target_uid') or data.get('targetId') or ''
+    if isinstance(target_uid, (int, float)):
+        target_uid = str(int(target_uid))
+    if not isinstance(target_uid, str):
+        target_uid = ''
+
+    online = False
+    if target_uid:
+        online = _m67_is_user_online(target_uid)
+        if online:
+            try:
+                from_name = _format_display_name(current_user)
+            except Exception:
+                from_name = 'Player'
+            payload = {
+                'type': 'snowball_hit',
+                'to': target_uid,
+                'from': str(current_user.get_id()),
+                'from_name': from_name,
+                'ts': int(time.time()),
+            }
+            _m67_broadcast(payload)
+    return jsonify({'ok': True, 'online': bool(online)})
 
 
 @app.route('/api/make67/chat/post', methods=['POST'])
