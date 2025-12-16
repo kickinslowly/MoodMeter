@@ -993,6 +993,35 @@ body.m67-modal-open { overflow: hidden; }
   pointer-events: none;
 }
 
+/* Divine Shield: persistent protective glow */
+@keyframes shield-glow {
+  0% { box-shadow: var(--shadow), 0 0 0 1px rgba(255, 215, 0, 0.45), 0 0 12px rgba(255, 215, 0, 0.25), inset 0 0 22px rgba(255,215,0,0.18); }
+  50% { box-shadow: var(--shadow), 0 0 0 1px rgba(255, 215, 0, 0.65), 0 0 22px rgba(255, 215, 0, 0.35), inset 0 0 32px rgba(255,215,0,0.24); }
+  100% { box-shadow: var(--shadow), 0 0 0 1px rgba(255, 215, 0, 0.45), 0 0 12px rgba(255, 215, 0, 0.25), inset 0 0 22px rgba(255,215,0,0.18); }
+}
+.make67-page .m67-lb-item.shielded {
+  border-color: rgba(255, 215, 0, 0.55);
+  background:
+    radial-gradient(180px 80px at 50% -20%, rgba(255, 215, 0, 0.10), transparent 60%),
+    #1d2026;
+  animation: shield-glow 2.2s ease-in-out infinite;
+}
+
+/* Divine Shield activation: brief golden flash visible to all online users */
+@keyframes shield-flash {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.make67-page .m67-lb-item.flash-shield::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(220px 120px at 50% -10%, rgba(255, 240, 180, 0.55), transparent 70%);
+  filter: blur(1px);
+  animation: shield-flash 900ms ease-out forwards;
+}
+
 /* Mudded splatter */
 @keyframes mud-drip {
   0%, 100% { transform: translateY(0); }

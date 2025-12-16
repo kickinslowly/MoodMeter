@@ -325,7 +325,7 @@
       if (unlocked) return; unlocked = true;
       const ids = [
         'snd_brainrot','snd_meme','snd_lol','snd_hehe','snd_ah','snd_reload',
-        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust'
+        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust','snd_item_shield'
       ];
       ids.forEach(id=>{
         const el = document.getElementById(id);
@@ -383,6 +383,7 @@
       // Effect classes
       if (item && item.is_mudded) li.classList.add('mudded');
       if (item && item.is_boosted) li.classList.add('boosted');
+      if (item && item.is_shielded) li.classList.add('shielded');
       const rank = document.createElement('span');
       rank.className = 'rank';
       rank.textContent = String(idx + 1);
@@ -828,6 +829,27 @@
               FX.burst(window.innerWidth/2, window.innerHeight/2, {big:true});
             }
             showFullscreenSplat();
+          } else if (msg && msg.type === 'divine_shield'){
+            const uid = String(msg.user_id || msg.uid || msg.id || '');
+            if (!uid) return;
+            // If target is on leaderboard, flash and set glow
+            const li = lbList && lbList.querySelector ? lbList.querySelector(`li.m67-lb-item[data-user-id="${uid}"]`) : null;
+            if (li){
+              try {
+                li.classList.add('shielded');
+                li.classList.remove('mudded'); // immediate dispel in UI
+                li.classList.add('flash-shield');
+              } catch(_){ }
+              // 1s flash removal
+              setTimeout(()=>{ try{ li.classList.remove('flash-shield'); }catch(_){ } }, 1000);
+              // Play shield sfx for all online viewers
+              playSfx('snd_item_shield');
+              // Best effort: remove shielded class after duration; page refresh also handles it
+              const endsIn = Number(msg.ends_in || 0);
+              if (endsIn > 0){
+                setTimeout(()=>{ try{ li.classList.remove('shielded'); }catch(_){ } }, Math.min(endsIn, 600) * 1000);
+              }
+            }
           }
         } catch(_){ /* ignore */ }
       };
@@ -978,7 +1000,7 @@
   const shopNoteEl = document.getElementById('m67ShopNote');
   let catalog = [];
   let inventory = [];
-  let effects = { invisible:0, boost:0, mud:0 };
+  let effects = { invisible:0, boost:0, mud:0, shield:0 };
   let stateTimer = null;
   // Guard against stale state coming from other instances: server provides a monotonic state_version per user
   let lastStateVersion = 0;
@@ -1016,6 +1038,7 @@
     if (effects.invisible>0) parts.push(`🌫️ Invisible ${fmtTime(effects.invisible)}`);
     if (effects.boost>0) parts.push(`⚡ Boost ${fmtTime(effects.boost)}`);
     if (effects.mud>0) parts.push(`💩 Slowed ${fmtTime(effects.mud)}`);
+    if (effects.shield>0) parts.push(`🛡️ Divine Shield ${fmtTime(effects.shield)}`);
     if (parts.length===0) {
       const span = document.createElement('span');
       span.textContent = 'No active effects';
@@ -1100,9 +1123,12 @@
 
   function shopItemTooltip(item){
     const desc = item.desc || '';
+    const isShield = item.key === 'divine_shield';
+    const costLine = isShield ? `Use cost: ${item.cost} solves` : `Cost: ${item.cost} solves`;
+    const note = isShield ? `<div style="opacity:.75; margin-top:4px; font-size:12px;">Pay only when you activate it.</div>` : '';
     return `<div style="font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:8px;"><span style="font-size:18px">${item.icon||'•'}</span> ${item.name}</div>
             <div style="opacity:.92">${desc}</div>
-            <div style="opacity:.8; margin-top:6px; font-size:12px;">Cost: ${item.cost} solves</div>`;
+            <div style="opacity:.8; margin-top:6px; font-size:12px;">${costLine}</div>${note}`;
   }
 
   function invItemTooltip(it){
@@ -1120,8 +1146,12 @@
       const btn = document.createElement('button');
       btn.className = 'op-btn';
       btn.style.borderColor = '#3a3f47';
-      btn.title = `${item.name} — ${item.desc} (Cost: ${item.cost})`;
-      btn.innerHTML = `<span style="font-size:22px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">${item.icon||'•'}</span><div style="font-weight:800; font-size:14px;">${item.name}</div><div style="font-size:12px; opacity:.9;">${item.cost} solves</div>`;
+      const isShield = item.key === 'divine_shield';
+      btn.title = isShield
+        ? `${item.name} — ${item.desc} (Use cost: ${item.cost})`
+        : `${item.name} — ${item.desc} (Cost: ${item.cost})`;
+      const costStr = isShield ? `Use: ${item.cost} solves` : `${item.cost} solves`;
+      btn.innerHTML = `<span style="font-size:22px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">${item.icon||'•'}</span><div style="font-weight:800; font-size:14px;">${item.name}</div><div style="font-size:12px; opacity:.9;">${costStr}</div>`;
       btn.addEventListener('click', ()=> buyItem(item.key));
       // Tooltip on hover/focus
       btn.addEventListener('mouseenter', ()=> showTipFor(btn, shopItemTooltip(item)));
@@ -1154,6 +1184,9 @@
           slot.disabled = true;
         } else if (it.key === 'sneaky_dust' && effects && Number(effects.invisible||0) > 0){
           disabledReason = 'Already invisible — wait until it ends.';
+          slot.disabled = true;
+        } else if (it.key === 'divine_shield' && effects && Number(effects.shield||0) > 0){
+          disabledReason = 'Shield already active — wait until it ends.';
           slot.disabled = true;
         }
         slot.title = disabledReason ? `${it.name} — ${disabledReason}` : `${it.name}`;
@@ -1214,7 +1247,12 @@
       if (shopNoteEl) shopNoteEl.textContent = 'Not enough solves.';
       return;
     }
-    const ok = window.confirm(`Purchase ${name} for ${cost} solves?`);
+    let ok;
+    if (key === 'divine_shield'){
+      ok = window.confirm(`Add ${name} to inventory? (Costs ${cost} solves when used)`);
+    } else {
+      ok = window.confirm(`Purchase ${name} for ${cost} solves?`);
+    }
     if (!ok) return;
     try {
       const r = await fetch('/api/make67/buy', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
@@ -1252,6 +1290,10 @@
         alert('You are already invisible. Wait until it ends before using another Sneaky Dust.');
         return;
       }
+      if (it.key === 'divine_shield' && effects && Number(effects.shield||0) > 0){
+        alert('Shield is already active.');
+        return;
+      }
     } catch(_){ }
     let payload = { item_id: it.id };
     if (it.key === 'mud'){
@@ -1272,6 +1314,10 @@
         } else if (code === 'TARGET_EFFECT_ACTIVE'){
           alert('That player is already muddied. Pick someone else.');
           loadState();
+        } else if (code === 'THWARTED_SHIELD'){
+          const msg = d.message || 'Thwarted: target is protected by Divine Shield.';
+          alert(msg);
+          loadState();
         }
         return;
       }
@@ -1288,6 +1334,8 @@
         playSfx('snd_item_boost');
       } else if (it.key === 'sneaky_dust') {
         playSfx('snd_item_dust');
+      } else if (it.key === 'divine_shield') {
+        // Sound for shield is broadcast to all online users only if on leaderboard; handled via SSE
       }
     } catch(_){ }
   }
