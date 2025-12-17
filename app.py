@@ -421,7 +421,8 @@ def make67_page():
 @app.route('/make6or7')
 def make6or7_page():
     """Exact duplicate of Make67 page, but target is 6 or 7 and score is independent."""
-    return render_template('make6or7.html', make67_chat_eligible=_is_make67_chat_eligible())
+    # Preserve independent chat eligibility rules for Make 6 or 7
+    return render_template('make6or7.html', make67_chat_eligible=_is_make6or7_chat_eligible())
 
 
 @app.route('/api/last-entry', methods=['GET'])

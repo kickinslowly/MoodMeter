@@ -335,19 +335,49 @@
     return li;
   }
 
-  function makeLiUser(u, isBanned){
+  function makeLiUser(u, isBanned, idx){
     const li = document.createElement('li');
-    li.className = isBanned ? 'm67-lb-item rank-cheater' : 'm67-lb-item';
+    li.className = 'm67-lb-item';
+    const rk = (u && u.rank_key) ? String(u.rank_key) : (isBanned ? 'cheater' : 'noob');
+    li.classList.add(`rank-${rk}`);
+    if (!isBanned && typeof idx === 'number' && idx === 0) li.classList.add('top1');
+    if (u && u.is_mudded) li.classList.add('mudded');
+    if (u && u.is_boosted) li.classList.add('boosted');
+    if (u && u.is_shielded) li.classList.add('shielded');
+
+    const rankNum = document.createElement('span');
+    rankNum.className = 'rank';
+    rankNum.textContent = String((idx ?? 0) + 1);
+
     const name = document.createElement('span');
-    name.className = 'm67-name';
-    name.textContent = u.name || 'User';
+    name.className = 'name';
+    const icon = document.createElement('span');
+    icon.className = 'rank-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = isBanned ? (u?.rank_icon || '🚫') : (u?.rank_icon || '•');
+    const title = document.createElement('span');
+    title.className = 'rank-title';
+    title.textContent = isBanned ? 'BANNED' : (u?.rank_title || '');
+    const playerName = document.createTextNode(` ${u?.name || 'Player'} - `);
+    name.append(icon, playerName, title);
+
+    // Golden star for #1
+    if (!isBanned && typeof idx === 'number' && idx === 0){
+      const star = document.createElement('span');
+      star.className = 'top1-star';
+      star.setAttribute('aria-hidden', 'true');
+      star.title = 'All-time #1';
+      star.textContent = '★';
+      name.prepend(star);
+      li.title = 'All-time #1 leader';
+    }
+
     const total = document.createElement('span');
-    total.className = 'm67-total';
-    total.textContent = String(u.total || 0);
-    const rank = document.createElement('span');
-    rank.className = 'm67-rank';
-    rank.textContent = (u.rank_icon || '') + ' ' + (u.rank_title || '');
-    li.appendChild(name); li.appendChild(total); li.appendChild(rank);
+    total.className = 'total';
+    total.textContent = String(u?.total ?? 0);
+
+    li.append(rankNum, name, total);
+    if (isBanned) li.classList.add('rank-cheater');
     return li;
   }
 
@@ -361,7 +391,10 @@
       if (!data || !data.ok){ lbList.appendChild(makeLiEmpty('No data')); return; }
       const items = data.top || [];
       if (!items.length){ lbList.appendChild(makeLiEmpty('No entries yet')); return; }
-      for (const u of items){ lbList.appendChild(makeLiUser(u, false)); }
+      for (let i=0; i<items.length; i++){
+        const u = items[i];
+        lbList.appendChild(makeLiUser(u, false, i));
+      }
       // update my state visuals
       const me = data.me || null;
       if (me){
@@ -519,7 +552,10 @@
     list.innerHTML = '';
     if (!bannedCache.length){ list.appendChild(makeLiEmpty('No banned users')); }
     else {
-      for (const u of bannedCache){ list.appendChild(makeLiUser(u, true)); }
+      for (let i=0; i<bannedCache.length; i++){
+        const u = bannedCache[i];
+        list.appendChild(makeLiUser(u, true, i));
+      }
     }
     bannedRoot.hidden = false;
     updateBodyLock();
