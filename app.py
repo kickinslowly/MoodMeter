@@ -158,7 +158,8 @@ def _auto_upgrade_db():
     """
     try:
         with app.app_context():
-            alembic_upgrade()
+            # Use 'heads' to handle multiple-head repositories gracefully
+            alembic_upgrade(revision="heads")
             app.logger.info("Database schema is up to date (auto-upgrade successful).")
     except Exception as e:
         # Log and continue; app might still work if schema already compatible
@@ -269,6 +270,16 @@ class MoodSubmission(db.Model):
 # --- Make67 chat (DB-backed, short polling) ---
 class ChatMessage(db.Model):
     __tablename__ = 'make67_chat_messages'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, index=True)
+    username = db.Column(db.String(255), nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+# --- Make 6 or 7 chat (DB-backed, short polling) ---
+class ChatMessage6or7(db.Model):
+    __tablename__ = 'make6or7_chat_messages'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True, index=True)
     username = db.Column(db.String(255), nullable=False)
@@ -1360,6 +1371,17 @@ def _is_make67_chat_eligible() -> bool:
         return False
 
 
+def _is_make6or7_chat_eligible() -> bool:
+    """Return True if the current user can access Make 6 or 7 chat: logged in and score > 50."""
+    try:
+        if not getattr(current_user, 'is_authenticated', False):
+            return False
+        solves = int(getattr(current_user, 'make6or7_all_time_solves', 0) or 0)
+        return solves > 50
+    except Exception:
+        return False
+
+
 # --- In-memory Make67 chat hub (process-local) ---
 _m67_subscribers_lock = threading.Lock()
 _m67_subscribers: set[Queue] = set()
@@ -2352,6 +2374,86 @@ def make67_chat_debug():
         'time': int(time.time()),
     }
     return jsonify(data)
+
+
+# --- Make 6 or 7 chat (short polling, isolated from Make67) ---
+@app.route('/api/make6or7/chat/send', methods=['POST'])
+def make6or7_chat_send():
+    """Insert a chat message in the Make 6 or 7 chat DB and return it."""
+    # Reuse same feature flag, or default to enabled
+    if not app.config.get('MAKE67_CHAT_ENABLED', True):
+        return jsonify({'error': 'DISABLED'}), 503
+    if not _is_make6or7_chat_eligible():
+        return jsonify({'error': 'FORBIDDEN'}), 403
+
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'error': 'EMPTY'}), 400
+    if len(text) > 300:
+        text = text[:300]
+
+    try:
+        username = _format_display_name(current_user) if getattr(current_user, 'is_authenticated', False) else 'Anonymous'
+        user_id = getattr(current_user, 'id', None) if getattr(current_user, 'is_authenticated', False) else None
+    except Exception:
+        username = 'Anonymous'
+        user_id = None
+
+    msg = ChatMessage6or7(user_id=user_id, username=username, text=text)
+    db.session.add(msg)
+    db.session.commit()
+
+    payload = {
+        'id': msg.id,
+        'user': msg.username,
+        'text': msg.text,
+        'created_at': (msg.created_at.isoformat() + 'Z'),
+        'type': 'message',
+    }
+    return jsonify(payload)
+
+
+@app.route('/api/make6or7/chat/since', methods=['GET'])
+def make6or7_chat_since():
+    """Return Make 6 or 7 chat history (bounded, ascending)."""
+    if not app.config.get('MAKE67_CHAT_ENABLED', True):
+        return jsonify({'error': 'DISABLED'}), 503
+    if not _is_make6or7_chat_eligible():
+        return jsonify({'error': 'FORBIDDEN'}), 403
+
+    try:
+        last_id = request.args.get('last_id', type=int) or 0
+    except Exception:
+        last_id = 0
+
+    if last_id > 0:
+        msgs = (
+            ChatMessage6or7.query
+            .filter(ChatMessage6or7.id > last_id)
+            .order_by(ChatMessage6or7.id.asc())
+            .limit(50)
+            .all()
+        )
+    else:
+        latest = (
+            ChatMessage6or7.query
+            .order_by(ChatMessage6or7.id.desc())
+            .limit(50)
+            .all()
+        )
+        msgs = list(reversed(latest))
+
+    return jsonify([
+        {
+            'id': m.id,
+            'user': m.username,
+            'text': m.text,
+            'created_at': (m.created_at.isoformat() + 'Z'),
+            'type': 'message',
+        }
+        for m in msgs
+    ])
 def _format_display_name(user: 'User') -> str:
     """Return first name + last initial when possible; fall back to email username."""
     try:

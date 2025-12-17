@@ -583,15 +583,17 @@
   });
 
   // --- Snowballs Feature ---
-  // Detect mobile-like environments (coarse pointer / no hover or touch)
+  // Detect truly "touch-only" environments (no fine pointer and no hover).
+  // Many Chromebooks have touch screens (maxTouchPoints > 0) but also a fine, hoverable pointer via a trackpad or mouse.
+  // We should NOT disable snowballs in that case. Consider it mobile-like only if there is no fine pointer and no hover.
   const isMobileLike = (() => {
     try {
       const mql = (q) => (window.matchMedia ? window.matchMedia(q).matches : false);
-      const touch = ('ontouchstart' in window) || ((navigator.maxTouchPoints || 0) > 0);
-      const coarse = mql('(pointer: coarse)');
-      const noHover = mql('(hover: none)');
-      return (coarse && noHover) || touch;
+      const hasFine = mql('(pointer: fine)') || mql('(any-pointer: fine)');
+      const hasHover = mql('(hover: hover)') || mql('(any-hover: hover)');
+      return !(hasFine && hasHover);
     } catch(_) {
+      // If we can't detect, default to enabling (treat as non-mobile-like)
       return false;
     }
   })();
@@ -962,23 +964,33 @@
     };
     const up = (ev)=>{
       document.removeEventListener('mousemove', move);
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up, true);
+      document.removeEventListener('mouseup', up, true);
       document.removeEventListener('click', up, true);
       throwSnowball(ev);
     };
+    // Track pointer/mouse movement while holding
+    document.addEventListener('pointermove', move);
     document.addEventListener('mousemove', move);
-    // Capture next click anywhere to perform throw
+    // Capture the next pointer/mouse up or click anywhere to perform throw
+    document.addEventListener('pointerup', up, {once:true, capture:true});
+    document.addEventListener('mouseup', up, {once:true, capture:true});
     document.addEventListener('click', up, {once:true, capture:true});
   }
 
   if (snowballPile && !isMobileLike){
-    snowballPile.addEventListener('click', (e)=>{
+    const startHold = (e)=>{
       const t = e.target;
       if (t && t.classList && t.classList.contains('snowball')){
         beginHoldSnowball();
         e.preventDefault();
         e.stopPropagation();
       }
-    });
+    };
+    // Use pointer events for broader device support (Chromebooks, touchpads), keep click as a fallback
+    snowballPile.addEventListener('pointerdown', startHold);
+    snowballPile.addEventListener('click', startHold);
   }
 
   function setCard(i, value){

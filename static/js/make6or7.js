@@ -654,7 +654,7 @@
   setTimeout(()=>{ loadState(); }, 1200);
 })();
 
-// --- Live Chat (shared with Make67; uses same endpoints) ---
+// --- Live Chat (isolated for Make 6 or 7; own endpoints) ---
 (function initMakeChat(){
   const logEl = document.getElementById('m67ChatLog');
   const formEl = document.getElementById('m67ChatForm');
@@ -682,7 +682,7 @@
   async function pollLoop(){
     while (polling){
       try {
-        const res = await fetch(`/api/make67/chat/since?last_id=${lastId}`);
+        const res = await fetch(`/api/make6or7/chat/since?last_id=${lastId}`);
         if (res.ok){
           const items = await res.json();
           if (Array.isArray(items)){
@@ -704,7 +704,7 @@
     if (!text) return;
     inputEl.value = '';
     try{
-      const res = await fetch('/api/make67/chat/send', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
+      const res = await fetch('/api/make6or7/chat/send', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
       if (res.ok){
         const m = await res.json();
         if (m) appendMessage(m);
