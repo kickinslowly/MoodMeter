@@ -1687,8 +1687,17 @@ def api_make67_state():
         with _m67_state_cache_lock:
             cached = _m67_state_cache.get(cache_key)
         if cached is not None:
+            # Always refresh currency on cache hits to reflect latest solves
+            # (solves do not bump state_version, so cached currency may be stale).
+            try:
+                u_cur = db.session.get(User, uid)
+                fresh_currency = int(getattr(u_cur, 'make67_all_time_solves', 0) or 0) if u_cur else 0
+            except Exception:
+                fresh_currency = int(cached.get('currency', 0) or 0)
+            cached_out = dict(cached)
+            cached_out['currency'] = fresh_currency
             app.logger.debug("m67_state cache_hit=True ver=%s rid=%s", ver, getattr(g, '__request_id', '-'))
-            return jsonify({'ok': True, 'state': cached})
+            return jsonify({'ok': True, 'state': cached_out})
 
         # Cache miss: load from DB once and store under this version key
         u = db.session.get(User, uid)
@@ -2607,6 +2616,8 @@ def api_make67_leaderboard():
             payload = cached_payload
 
         me = None
+        # Ensure now_dt is defined regardless of cache path
+        now_dt = datetime.now(timezone.utc)
         if getattr(current_user, 'is_authenticated', False):
             u = db.session.get(User, current_user.get_id())
             if u:
