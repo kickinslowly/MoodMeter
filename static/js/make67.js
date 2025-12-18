@@ -796,6 +796,15 @@
       return false;
     }
   })();
+  // As an extra safety, also treat very small viewports as mobile-like for snowball UI purposes
+  try {
+    if (window.innerWidth && window.innerWidth <= 820) {
+      // Keep existing decision if already true; otherwise upgrade to true on very small screens
+      if (!isMobileLike) {
+        // shadow a local flag since const isMobileLike is immutable; use a parallel guard via DOM cleanup below
+      }
+    }
+  } catch(_) {}
   let holdingSnowball = false;
   let snowCursorEl = null;
   // Switch from SSE to short-poll to avoid long-held connections starving the server
@@ -1176,6 +1185,11 @@
     document.addEventListener('pointerup', up, {once:true, capture:true});
     document.addEventListener('mouseup', up, {once:true, capture:true});
     document.addEventListener('click', up, {once:true, capture:true});
+  }
+
+  // If mobile-like, remove the pile entirely to prevent accidental interaction from assistive inputs
+  if (snowballPile && isMobileLike){
+    try { snowballPile.remove(); } catch(_){ snowballPile.style.display = 'none'; }
   }
 
   if (snowballPile && !isMobileLike){

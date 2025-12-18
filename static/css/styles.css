@@ -1831,3 +1831,11 @@ body.holding-snowball { cursor: none; }
   .snowball-pile, .snowball-cursor { display: none !important; }
   body.holding-snowball { cursor: auto; }
 }
+
+/* Additional viewport fallback: hide snowballs on small screens
+   Some devices (e.g., certain Chromebooks) may report a fine pointer even when used in touch-first modes.
+   As a safety net, also hide the snowball UI on narrow viewports. */
+@media (max-width: 820px) {
+  .snowball-pile, .snowball-cursor { display: none !important; }
+  body.holding-snowball { cursor: auto; }
+}
