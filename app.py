@@ -2475,39 +2475,86 @@ def _format_display_name(user: 'User') -> str:
     return 'Anonymous'
 
 
+# --- Make67 ranks configuration loader (external file, cached in-memory) ---
+# To make ranks easily editable without runtime overhead, we keep a JSON file
+# at the project root (make67_ranks.json) and load it once per process. You can
+# override the path via env var M67_RANKS_FILE. If the file is missing or
+# invalid, we fall back to the defaults below (identical to the prior inline
+# mapping), ensuring no performance penalty.
+DEFAULT_M67_RANKS = [
+    {"min": 1300, "key": "alien",    "title": "ALIEN",               "icon": "👽"},
+    {"min": 1200, "key": "sixseven", "title": "67676767676767",      "icon": "6️⃣"},
+    {"min": 1100, "key": "freak",    "title": "FREAK of NATURE",     "icon": "🧬"},
+    {"min": 1000, "key": "master",   "title": "MASTER",              "icon": "🥇"},
+    {"min": 900,  "key": "supreme",  "title": "SUPREME OVERLORD",    "icon": "🫅"},
+    {"min": 800,  "key": "overlord", "title": "OVERLORD",            "icon": "🦅"},
+    {"min": 700,  "key": "captain",  "title": "Captain",             "icon": "🎖️"},
+    {"min": 600,  "key": "godlike",  "title": "Godlike",             "icon": "👑"},
+    {"min": 500,  "key": "legend",   "title": "Legend",              "icon": "⚔️"},
+    {"min": 400,  "key": "genius",   "title": "Genius",              "icon": "🏵️"},
+    {"min": 300,  "key": "soldier",  "title": "Soldier",             "icon": "🛡️"},
+    {"min": 200,  "key": "nerd",     "title": "Nerd",                "icon": "🧠"},
+    {"min": 100,  "key": "beast",    "title": "Beast",               "icon": "🏅"},
+    {"min": 0,    "key": "noob",     "title": "Noob",                "icon": "⚪"},
+]
+
+@lru_cache(maxsize=1)
+def _get_make67_ranks():
+    """Load Make67 ranks from JSON once; fallback to defaults on error.
+    Returns a tuple of dicts sorted by 'min' descending.
+    """
+    # Candidates: env override first, then default file next to app.py
+    candidates = []
+    env_path = os.environ.get('M67_RANKS_FILE')
+    if env_path:
+        candidates.append(env_path)
+    try:
+        candidates.append(str(BASE_DIR / 'make67_ranks.json'))
+    except Exception:
+        pass
+
+    ranks = None
+    for p in candidates:
+        try:
+            with open(p, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                tmp = []
+                for item in data:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        m = int(item.get('min'))
+                        k = str(item['key'])
+                        title = str(item['title'])
+                        icon = str(item.get('icon', ''))
+                        tmp.append({'min': m, 'key': k, 'title': title, 'icon': icon})
+                    except Exception:
+                        continue
+                if tmp:
+                    ranks = tmp
+                    break
+        except Exception:
+            continue
+
+    if not ranks:
+        ranks = list(DEFAULT_M67_RANKS)
+    # Sort descending by minimum threshold
+    ranks.sort(key=lambda r: int(r.get('min') or 0), reverse=True)
+    return tuple(ranks)
+
+
 def _compute_rank(total: int) -> dict:
-    """Return rank metadata based on all-time solves.
-    Keys: key (css key), title (label), icon (unicode/emoji)
+    """Return rank metadata based on all-time solves using external config.
+    Keys: key (css key), title (label), icon (unicode/emoji).
     """
     t = int(total or 0)
-    # Ordered from highest to lowest threshold
-    if t >= 1300:
-        return {"key": "alien", "title": "ALIEN", "icon": "👽"}
-    if t >= 1200:
-        return {"key": "sixseven", "title": "67676767676767", "icon": "6️⃣"}
-    if t >= 1100:
-        return {"key": "freak", "title": "FREAK of NATURE", "icon": "🧬"}
-    if t >= 1000:
-        return {"key": "master", "title": "MASTER", "icon": "🥇"}
-    if t >= 900:
-        return {"key": "supreme", "title": "SUPREME OVERLORD", "icon": "🫅"}
-    if t >= 800:
-        return {"key": "overlord", "title": "OVERLORD", "icon": "🦅"}
-    if t >= 700:
-        return {"key": "captain", "title": "Captain", "icon": "🎖️"}
-    if t >= 600:
-        return {"key": "godlike", "title": "Godlike", "icon": "👑"}
-    if t >= 500:
-        return {"key": "legend", "title": "Legend", "icon": "⚔️"}
-    if t >= 400:
-        return {"key": "genius", "title": "Genius", "icon": "🏵️"}
-    if t >= 300:
-        return {"key": "soldier", "title": "Soldier", "icon": "🛡️"}
-    if t >= 200:
-        return {"key": "nerd", "title": "Nerd", "icon": "🧠"}
-    if t >= 100:
-        return {"key": "beast", "title": "Beast", "icon": "🏅"}
-    return {"key": "noob", "title": "Noob", "icon": "⚪"}
+    for r in _get_make67_ranks():
+        if t >= int(r.get('min') or 0):
+            return {"key": r.get('key', 'noob'), "title": r.get('title', 'Noob'), "icon": r.get('icon', '⚪')}
+    # Fallback should never happen since defaults include min:0
+    r = DEFAULT_M67_RANKS[-1]
+    return {"key": r['key'], "title": r['title'], "icon": r['icon']}
 
 
 @app.route('/api/make67/solve', methods=['POST'])
