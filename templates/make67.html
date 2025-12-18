@@ -34,6 +34,8 @@
           <button id="m67ShopBtn" class="dock-btn" title="Shop">🛒</button>
           <button id="btn-toggle-chat" class="dock-btn" title="Chat">💬</button>
           <button id="btn-mobile-rank" class="dock-btn mobile-only" title="Rank">🏆</button>
+          <!-- New: Solve sound selector -->
+          <button id="m67SoundBtn" class="dock-btn" title="Select Solve Sound" aria-haspopup="listbox" aria-expanded="false">🔊</button>
         </div>
         <div class="auth-actions">
           {% if current_user.is_authenticated %}
@@ -72,9 +74,7 @@
           <ol id="m67Leaderboard" class="lb-list"></ol>
         </div>
 
-        <div class="panel-footer">
-          <button id="m67BannedBtn" class="text-link">Wall of Shame</button>
-        </div>
+        <div class="panel-footer"><!-- reserved spacing; link moved to fixed footer --></div>
       </aside>
 
       <section class="panel-right">
@@ -182,9 +182,17 @@
 
   </div>
 
+  <!-- Low-priority fixed link: does not affect layout of existing elements -->
+  <button
+    id="m67BannedBtn"
+    class="text-link"
+    style="position:fixed; left:12px; bottom:10px; font-size:12px; opacity:.75; z-index:3; text-decoration:underline; background:transparent; border:0;"
+    title="View Cheater Wall of Shame"
+  >Wall of Shame</button>
+
   <!-- Lightweight WebGL renderer for particle FX (optional). Loaded only on Make67 page. -->
   <script defer src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
-  <script src="{{ url_for('static', filename='js/make67.js') }}?v=20251216e"></script>
+  <script src="{{ url_for('static', filename='js/make67.js') }}?v=20251218a"></script>
   <!-- Preload solve sounds -->
   <audio id="snd_brainrot" src="{{ url_for('static', filename='67_brainrot.mp3') }}" preload="auto"></audio>
   <audio id="snd_meme" src="{{ url_for('static', filename='67_meme.mp3') }}" preload="auto"></audio>
@@ -192,6 +200,12 @@
   <audio id="snd_hehe" src="{{ url_for('static', filename='67_hehe.mp3') }}" preload="auto"></audio>
   <audio id="snd_ah" src="{{ url_for('static', filename='67_ah.mp3') }}" preload="auto"></audio>
   <audio id="snd_reload" src="{{ url_for('static', filename='67_reload.mp3') }}" preload="auto"></audio>
+  <!-- New milestone sounds (next 200-interval blocks) -->
+  <audio id="snd_cry" src="{{ url_for('static', filename='67_cry.mp3') }}" preload="auto"></audio>
+  <audio id="snd_enemy" src="{{ url_for('static', filename='67_enemy.mp3') }}" preload="auto"></audio>
+  <audio id="snd_huh" src="{{ url_for('static', filename='67_huh.mp3') }}" preload="auto"></audio>
+  <audio id="snd_minecraft" src="{{ url_for('static', filename='67_minecraft.mp3') }}" preload="auto"></audio>
+  <audio id="snd_yes" src="{{ url_for('static', filename='67_yes.mp3') }}" preload="auto"></audio>
   <!-- Preload shop and item sounds -->
   <audio id="snd_shop_open" src="{{ url_for('static', filename='shop_open.wav') }}" preload="auto"></audio>
   <audio id="snd_shop_coins" src="{{ url_for('static', filename='shop_coins.mp3') }}" preload="auto"></audio>
@@ -199,6 +213,8 @@
   <audio id="snd_item_boost" src="{{ url_for('static', filename='item_boost.wav') }}" preload="auto"></audio>
   <audio id="snd_item_dust" src="{{ url_for('static', filename='item_dust.wav') }}" preload="auto"></audio>
   <audio id="snd_item_shield" src="{{ url_for('static', filename='item_shield.wav') }}" preload="auto"></audio>
+  <!-- Preload rank-up sound -->
+  <audio id="snd_level_up" src="{{ url_for('static', filename='level_up.mp3') }}" preload="auto"></audio>
   
 </body>
 </html>

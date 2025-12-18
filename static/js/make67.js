@@ -180,6 +180,9 @@
   const bannedListEl = document.getElementById('m67BannedList');
   const snowballPile = document.getElementById('snowballPile');
   const myUid = (document.body && document.body.dataset && document.body.dataset.userId) ? String(document.body.dataset.userId) : '';
+  // Sound selector UI
+  const soundBtn = document.getElementById('m67SoundBtn');
+  let soundMenuEl = null; // created lazily
   // FX: Pixi overlay (lazy)
   const prefersReducedMotion = (function(){
     try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(_){ return false; }
@@ -215,6 +218,9 @@
   let allTime = null;
   let isAuthed = false;
   let hintUsed = false;
+  // Track last known rank and all-time to detect rank-ups
+  let lastKnownRankKey = null;
+  let lastKnownAllTime = null;
 
   // --- Empowerment & Theme Logic ---
   function clamp01(x){ return Math.max(0, Math.min(1, x)); }
@@ -279,24 +285,83 @@
     return t;
   }
 
+  // --- Solve Sound Preference & Thresholds ---
+  const SOUND_OPTIONS = [
+    { id: 'snd_brainrot', label: 'Brainrot', threshold: 0 },
+    { id: 'snd_meme', label: 'Meme', threshold: 200 },
+    { id: 'snd_lol', label: 'Lol', threshold: 400 },
+    { id: 'snd_hehe', label: 'Hehe', threshold: 600 },
+    { id: 'snd_ah', label: 'Ah', threshold: 800 },
+    { id: 'snd_reload', label: 'Reload', threshold: 1000 },
+    { id: 'snd_cry', label: 'Cry', threshold: 1200 },
+    { id: 'snd_enemy', label: 'Enemy', threshold: 1400 },
+    { id: 'snd_huh', label: 'Huh', threshold: 1600 },
+    { id: 'snd_minecraft', label: 'Minecraft', threshold: 1800 },
+    { id: 'snd_yes', label: 'Yes', threshold: 2000 }
+  ];
+
+  function currentSoundThreshold(){
+    const t = predictedTotalForSound();
+    return (t > 2000) ? 2000
+      : (t > 1800) ? 1800
+      : (t > 1600) ? 1600
+      : (t > 1400) ? 1400
+      : (t > 1200) ? 1200
+      : (t > 1000) ? 1000
+      : (t > 800) ? 800
+      : (t > 600) ? 600
+      : (t > 400) ? 400
+      : (t > 200) ? 200
+      : 0;
+  }
+
+  function _prefSoundKey(){ return 'm67_pref_sound:' + (myUid || 'anon'); }
+  function getPreferredSolveSoundId(){
+    try { return window.localStorage.getItem(_prefSoundKey()) || ''; } catch(_){ return ''; }
+  }
+  function setPreferredSolveSoundId(id){
+    try { window.localStorage.setItem(_prefSoundKey(), String(id||'')); } catch(_){ }
+  }
+  function isSoundUnlocked(id){
+    const opt = SOUND_OPTIONS.find(o => o.id === id);
+    if (!opt) return false;
+    return currentSoundThreshold() >= opt.threshold;
+  }
+  function pickPreferredSolveSoundElement(){
+    const id = getPreferredSolveSoundId();
+    if (id && isSoundUnlocked(id)) return document.getElementById(id);
+    return null;
+  }
+
   function pickSolveSoundElement(){
     const t = predictedTotalForSound();
-    const id = (t > 1000)
-      ? 'snd_reload'
-      : (t > 800)
-        ? 'snd_ah'
-        : (t > 600)
-          ? 'snd_hehe'
-          : (t > 400)
-            ? 'snd_lol'
-            : (t > 200)
-              ? 'snd_meme'
-              : 'snd_brainrot';
+    const id = (t > 2000)
+      ? 'snd_yes'
+      : (t > 1800)
+        ? 'snd_minecraft'
+        : (t > 1600)
+          ? 'snd_huh'
+          : (t > 1400)
+            ? 'snd_enemy'
+            : (t > 1200)
+              ? 'snd_cry'
+              : (t > 1000)
+                ? 'snd_reload'
+                : (t > 800)
+                  ? 'snd_ah'
+                  : (t > 600)
+                    ? 'snd_hehe'
+                    : (t > 400)
+                      ? 'snd_lol'
+                      : (t > 200)
+                        ? 'snd_meme'
+                        : 'snd_brainrot';
     return document.getElementById(id);
   }
 
   function playSolveSound(){
-    const el = pickSolveSoundElement();
+    const preferred = pickPreferredSolveSoundElement();
+    const el = preferred || pickSolveSoundElement();
     if (!el) return;
     try { el.pause(); } catch(_){}
     try { el.currentTime = 0; } catch(_){}
@@ -328,7 +393,11 @@
       if (unlocked) return; unlocked = true;
       const ids = [
         'snd_brainrot','snd_meme','snd_lol','snd_hehe','snd_ah','snd_reload',
-        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust','snd_item_shield'
+        // New milestone sounds
+        'snd_cry','snd_enemy','snd_huh','snd_minecraft','snd_yes',
+        // Other SFX
+        'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust','snd_item_shield',
+        'snd_level_up'
       ];
       ids.forEach(id=>{
         const el = document.getElementById(id);
@@ -483,7 +552,18 @@
         bannedCache = Array.isArray(data.banned) ? data.banned : [];
         if (data.me){
           isAuthed = true;
-          allTime = Number(data.me.total || 0);
+          const newAllTime = Number(data.me.total || 0);
+          const newRankKey = String(data.me.rank_key || '');
+          // Detect rank up: rank key changed and all-time increased
+          if (lastKnownRankKey !== null && newRankKey && newRankKey !== lastKnownRankKey &&
+              (typeof lastKnownAllTime === 'number' ? newAllTime > lastKnownAllTime : true)){
+            // Play rank-up sound
+            try { playSfx('snd_level_up'); } catch(_){ }
+          }
+          // Update trackers
+          lastKnownRankKey = newRankKey || lastKnownRankKey;
+          lastKnownAllTime = (typeof newAllTime === 'number') ? newAllTime : lastKnownAllTime;
+          allTime = newAllTime;
           if (allTimeEl) allTimeEl.textContent = String(allTime);
           if (allTimeBoxEl) allTimeBoxEl.style.removeProperty('display');
           applyEmpowerment();
@@ -579,8 +659,127 @@
       if (invModalRoot && !invModalRoot.hidden) closeInventory();
       if (shopModalRoot && !shopModalRoot.hidden) closeShop();
       if (bannedRoot && !bannedRoot.hidden) closeBanned();
+      if (soundMenuEl && !soundMenuEl.hidden) closeSoundMenu();
     }
   });
+
+  // --- Solve Sound Dropdown UI ---
+  function ensureSoundMenu(){
+    if (soundMenuEl) return soundMenuEl;
+    const el = document.createElement('div');
+    el.id = 'm67SoundMenu';
+    el.setAttribute('role', 'listbox');
+    el.hidden = true;
+    // Inline styles to avoid CSS file changes
+    el.style.position = 'absolute';
+    el.style.minWidth = '180px';
+    el.style.maxWidth = '240px';
+    el.style.background = 'rgba(34,36,43,.96)';
+    el.style.border = '1px solid #3a3f4b';
+    el.style.borderRadius = '10px';
+    el.style.boxShadow = '0 10px 32px rgba(0,0,0,.45)';
+    el.style.padding = '6px';
+    el.style.backdropFilter = 'blur(6px)';
+    el.style.zIndex = '1000';
+    document.body.appendChild(el);
+    soundMenuEl = el;
+    return el;
+  }
+
+  function renderSoundMenu(){
+    const el = ensureSoundMenu();
+    const threshold = currentSoundThreshold();
+    const pref = getPreferredSolveSoundId();
+    el.innerHTML = '';
+    const header = document.createElement('div');
+    header.textContent = 'Solve Sound';
+    header.style.cssText = 'font-size:12px;color:#9aa4b2;opacity:.9;padding:6px 8px 8px;';
+    el.appendChild(header);
+    SOUND_OPTIONS.filter(o => threshold >= o.threshold).forEach(o => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('role','option');
+      btn.setAttribute('aria-selected', String(pref === o.id));
+      btn.dataset.id = o.id;
+      btn.style.display = 'flex';
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'space-between';
+      btn.style.gap = '10px';
+      btn.style.width = '100%';
+      btn.style.padding = '8px 10px';
+      btn.style.margin = '2px 0';
+      btn.style.background = pref === o.id ? 'rgba(159,227,181,.12)' : 'transparent';
+      btn.style.border = '1px solid ' + (pref === o.id ? 'var(--selected-outline, #3aa876)' : 'transparent');
+      btn.style.color = '#e6ebf5';
+      btn.style.borderRadius = '8px';
+      btn.style.cursor = 'pointer';
+      btn.style.fontSize = '14px';
+      btn.addEventListener('mouseenter', ()=>{ if (pref !== o.id) btn.style.background = 'rgba(255,255,255,.04)'; });
+      btn.addEventListener('mouseleave', ()=>{ btn.style.background = (pref === o.id ? 'rgba(159,227,181,.12)' : 'transparent'); });
+      const name = document.createElement('span');
+      name.textContent = o.label;
+      const mark = document.createElement('span');
+      mark.textContent = pref === o.id ? '✓' : '';
+      mark.style.opacity = '.9';
+      mark.style.color = '#9fe3b5';
+      btn.appendChild(name);
+      btn.appendChild(mark);
+      btn.addEventListener('click', ()=>{
+        setPreferredSolveSoundId(o.id);
+        // Re-render to update checkmark
+        renderSoundMenu();
+        // Optional: play a short preview
+        const previewEl = document.getElementById(o.id);
+        if (previewEl){ try { previewEl.currentTime = 0; previewEl.play().catch(()=>{}); } catch(_){} }
+        // Close after selection on mobile for convenience
+        setTimeout(()=> closeSoundMenu(), 50);
+      });
+      el.appendChild(btn);
+    });
+  }
+
+  function positionSoundMenu(){
+    const el = ensureSoundMenu();
+    const btn = soundBtn;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const top = r.bottom + 6 + window.scrollY;
+    const left = Math.min(Math.max(12, r.left + window.scrollX - 40), window.scrollX + (window.innerWidth - 220));
+    el.style.top = top + 'px';
+    el.style.left = left + 'px';
+  }
+
+  function openSoundMenu(){
+    if (!soundBtn) return;
+    const el = ensureSoundMenu();
+    renderSoundMenu();
+    positionSoundMenu();
+    el.hidden = false;
+    soundBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closeSoundMenu(){
+    if (!soundMenuEl) return;
+    soundMenuEl.hidden = true;
+    if (soundBtn) soundBtn.setAttribute('aria-expanded', 'false');
+  }
+  function toggleSoundMenu(){
+    if (!soundMenuEl || soundMenuEl.hidden) openSoundMenu(); else closeSoundMenu();
+  }
+  if (soundBtn){
+    soundBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      toggleSoundMenu();
+    });
+  }
+  document.addEventListener('pointerdown', (e)=>{
+    if (!soundMenuEl || soundMenuEl.hidden) return;
+    const t = e.target;
+    if (t === soundMenuEl || soundMenuEl.contains(t)) return;
+    if (t === soundBtn) return;
+    closeSoundMenu();
+  });
+  window.addEventListener('resize', ()=>{ if (soundMenuEl && !soundMenuEl.hidden) positionSoundMenu(); });
+  window.addEventListener('scroll', ()=>{ if (soundMenuEl && !soundMenuEl.hidden) positionSoundMenu(); }, {passive:true});
 
   // --- Snowballs Feature ---
   // Detect truly "touch-only" environments (no fine pointer and no hover).
@@ -1132,6 +1331,10 @@
       if (sv) lastStateVersion = Math.max(lastStateVersion, sv);
       allTime = Number(st.currency||0);
       if (allTimeEl) allTimeEl.textContent = String(allTime);
+      // Keep last-known currency in sync so we can detect increases reliably
+      if (typeof allTime === 'number' && !Number.isNaN(allTime)){
+        lastKnownAllTime = allTime;
+      }
       if (Array.isArray(st.inventory)) inventory = st.inventory;
       effects = st.effects || effects;
       renderInventory();
