@@ -421,7 +421,8 @@
     const alive = [0,1,2,3].filter(ix=>!removed.has(ix));
     if (alive.length === 1){
       const val = Number(curCards[alive[0]]);
-      if (Math.abs(val - TARGET) <= TOL){
+      const av = Math.abs(val);
+      if (Math.abs(av - 6) <= TOL || Math.abs(av - 7) <= TOL){
         // success
         score += 1;
         if (scoreEl) scoreEl.textContent = String(score);

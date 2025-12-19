@@ -1811,7 +1811,7 @@
     for (let i=0;i<curCards.length;i++) if (!removed.has(i)) alive.push(i);
     if (alive.length === 1){
       const val = curCards[alive[0]];
-      if (Math.abs(val - 67) <= TOL){
+      if (Math.abs(val - 67) <= TOL || Math.abs(val + 67) <= TOL){
         if (!hintUsed) {
           score += 1;
           scoreEl.textContent = String(score);
