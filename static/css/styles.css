@@ -1922,3 +1922,17 @@ body.holding-snowball { cursor: none; }
     opacity: 0;
   }
 }
+
+/* --- Mobile-only Lightweight Optimizations --- */
+@media (max-width: 820px) {
+  /* Hide heavy decorative elements to save rendering power and data */
+  .snow-canvas,
+  .xmas-garland,
+  .santa-overlay,
+  .snowball-pile {
+    display: none !important;
+  }
+  
+  /* Simplify some backgrounds if needed, or keep as is if they are just CSS patterns.
+     The garlands are CSS patterns, so hiding them is enough to save some paint operations. */
+}

@@ -392,7 +392,7 @@
     let unlocked = false;
     function unlock(){
       if (unlocked) return; unlocked = true;
-      const ids = [
+      let ids = [
         'snd_brainrot','snd_meme','snd_lol','snd_hehe','snd_ah','snd_reload',
         // New milestone sounds
         'snd_cry','snd_enemy','snd_huh','snd_minecraft','snd_yes',
@@ -400,6 +400,11 @@
         'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust','snd_item_shield',
         'snd_level_up'
       ];
+      // Optimization: on mobile, only unlock a few critical sounds to avoid triggering massive downloads
+      // since preload is set to "none".
+      if (window.innerWidth < 820) {
+        ids = ['snd_brainrot', 'snd_level_up', 'snd_shop_open'];
+      }
       ids.forEach(id=>{
         const el = document.getElementById(id);
         if (!el) return;
@@ -884,7 +889,7 @@
   let eventsPollDelay = 10000; // base delay ms
 
   function ensureFx(){
-    if (FX || !window.PIXI) return;
+    if (FX || !window.PIXI || isMobileLike) return;
     try {
       const app = new PIXI.Application({
         backgroundAlpha: 0,
@@ -2177,6 +2182,20 @@
 (function initMake67Snow(){
   const canvas = document.getElementById('snowCanvas');
   if (!canvas) return;
+
+  // Optimize: Skip snowfall on mobile/touch devices to save battery and CPU
+  const isMobile = (() => {
+    try {
+      const mql = (q) => (window.matchMedia ? window.matchMedia(q).matches : false);
+      const hasFine = mql('(pointer: fine)') || mql('(any-pointer: fine)');
+      const hasHover = mql('(hover: hover)') || mql('(any-hover: hover)');
+      return !(hasFine && hasHover) || (window.innerWidth < 820);
+    } catch(_) { return false; }
+  })();
+  if (isMobile) {
+    canvas.style.display = 'none';
+    return;
+  }
 
   const ctx = canvas.getContext('2d');
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
