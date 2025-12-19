@@ -73,9 +73,7 @@
           <ol id="m67Leaderboard" class="lb-list"></ol>
         </div>
 
-        <div class="panel-footer">
-          <button id="m67BannedBtn" class="text-link">Wall of Shame</button>
-        </div>
+        <div class="panel-footer"></div>
       </aside>
 
       <section class="panel-right">
@@ -171,7 +169,23 @@
       </div>
     </div>
 
+    <!-- Rank Up Hype Overlay -->
+    <div id="rankUpOverlay" class="rank-up-overlay" style="display: none; pointer-events: none;">
+      <div class="rank-up-content">
+        <h2 class="rank-up-header">⚠️ RANK UP! ⚠️</h2>
+        <div class="rank-up-names" id="rankUpNames">NOOB → ROOKIE</div>
+        <div class="rank-up-flavor" id="rankUpFlavor">BRAIN EXPANDING...</div>
+      </div>
+    </div>
+
   </div>
+
+  <button
+    id="m67BannedBtn"
+    class="text-link"
+    style="position:fixed; left:12px; bottom:10px; font-size:12px; opacity:.75; z-index:3; text-decoration:underline; background:transparent; border:0;"
+    title="View Cheater Wall of Shame"
+  >Wall of Shame</button>
 
   <script src="{{ url_for('static', filename='js/make6or7.js') }}"></script>
   <!-- Preload solve sounds -->

@@ -181,6 +181,7 @@
   let isAuthed = false;
   let hintUsed = false;
   let lastKnownRankKey = null;
+  let lastKnownRankTitle = null;
   let lastKnownAllTime = null;
 
   function clamp01(x){ return Math.max(0, Math.min(1, x)); }
@@ -522,6 +523,94 @@
     return li;
   }
 
+  const rankUpOverlayEl = document.getElementById('rankUpOverlay');
+  const rankUpNamesEl = document.getElementById('rankUpNames');
+  const rankUpFlavorEl = document.getElementById('rankUpFlavor');
+
+  const FLAVOR_TEXTS = [
+    "BRAIN EXPANDING...",
+    "KNOWLEDGE ASCENDING...",
+    "MAXIMUM COGNITION...",
+    "NEURONS FIRING...",
+    "ABSOLUTE UNIT...",
+    "CRITICAL THINKING++",
+    "GIGABRAIN MOMENT...",
+    "UNSTOPPABLE FORCE...",
+    "PEAK PERFORMANCE..."
+  ];
+
+  function triggerRankHype(oldTitle, newTitle) {
+    if (!rankUpOverlayEl) return;
+
+    // Set titles
+    if (rankUpNamesEl) {
+      rankUpNamesEl.textContent = `${(oldTitle || 'NOOB').toUpperCase()} → ${(newTitle || 'ROOKIE').toUpperCase()}`;
+    }
+
+    // Set random flavor text
+    if (rankUpFlavorEl) {
+      rankUpFlavorEl.textContent = randomChoice(FLAVOR_TEXTS);
+    }
+
+    // Show overlay
+    rankUpOverlayEl.style.display = 'flex';
+
+    // Generate particles
+    const emojis = ['💯', '🔥', '🧠', '🦍', '🆙', '🚨', '💎', '📈', '🤪', '🤩'];
+    const particleCount = 30;
+    const container = rankUpOverlayEl;
+
+    // Clear any old emojis just in case
+    container.querySelectorAll('.rank-up-emoji').forEach(el => el.remove());
+
+    for (let i = 0; i < particleCount; i++) {
+      const emoji = document.createElement('div');
+      emoji.className = 'rank-up-emoji';
+      emoji.textContent = randomChoice(emojis);
+
+      // Random position
+      emoji.style.left = Math.random() * 100 + 'vw';
+      emoji.style.top = (80 + Math.random() * 20) + 'vh';
+
+      // Random size
+      emoji.style.fontSize = (2 + Math.random() * 3) + 'rem';
+
+      // Random delay
+      emoji.style.animationDelay = (Math.random() * 0.5) + 's';
+
+      container.appendChild(emoji);
+    }
+
+    // Auto-cleanup after 3.5s
+    setTimeout(() => {
+      rankUpOverlayEl.style.display = 'none';
+      container.querySelectorAll('.rank-up-emoji').forEach(el => el.remove());
+    }, 3500);
+  }
+
+  function sparkAt(el, count){
+    if (!el) return;
+    const base = (typeof count === 'number') ? count : 6;
+    const n = Math.round(Math.max(3, Math.min(16, base + 6 * currentEmp)));
+    for (let i=0;i<n;i++){
+      const s = document.createElement('span');
+      s.className = 'spark';
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 24 + Math.random()*(28 + 36 * currentEmp);
+      s.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+      s.style.setProperty('--dy', Math.sin(ang) * dist + 'px');
+      el.appendChild(s);
+      s.addEventListener('animationend', ()=> s.remove(), {once:true});
+    }
+  }
+
+  function burstCharge(){
+    const el = document.querySelector('.xmas-title');
+    if (!el) return;
+    el.classList.add('celebrate-spark');
+    setTimeout(()=> el.classList.remove('celebrate-spark'), 1000);
+  }
+
   async function loadLeaderboard(){
     try {
       const res = await fetch('/api/make6or7/leaderboard');
@@ -541,11 +630,14 @@
       if (me){
         const newAllTime = Number(me.total || 0);
         const newRankKey = String(me.rank_key || '');
+        const newRankTitle = String(me.rank_title || '');
         if (lastKnownRankKey !== null && newRankKey && newRankKey !== lastKnownRankKey &&
             (typeof lastKnownAllTime === 'number' ? newAllTime > lastKnownAllTime : true)){
           play('snd_level_up');
+          triggerRankHype(lastKnownRankTitle, newRankTitle);
         }
         lastKnownRankKey = newRankKey || lastKnownRankKey;
+        lastKnownRankTitle = newRankTitle || lastKnownRankTitle;
         lastKnownAllTime = (typeof newAllTime === 'number') ? newAllTime : lastKnownAllTime;
         allTime = newAllTime;
         isAuthed = true;
@@ -553,6 +645,15 @@
         if (allTimeBoxEl) allTimeBoxEl.style.display = '';
         if (sessionBoxEl) sessionBoxEl.style.display = '';
         applyEmpowerment();
+        // Update effects note
+        updateEffectsSummary({
+          invisible: Number(me.invisible_ends_in||0),
+          boost: Number(me.boost_ends_in||0),
+          mud: Number(me.mud_ends_in||0),
+          shield: Number(me.shield_ends_in||0)
+        });
+        // Load full state (inventory etc.) when authenticated
+        loadState();
       } else {
         isAuthed = false;
         if (allTimeEl) allTimeEl.textContent = '—';
@@ -565,31 +666,205 @@
     }
   }
 
+  // --- Tiny tooltip helper ---
+  let tipEl = null; let tipTimer = null;
+  function ensureTip(){
+    if (!tipEl){
+      tipEl = document.createElement('div');
+      tipEl.className = 'm67-tip';
+      Object.assign(tipEl.style, {
+        position: 'fixed', maxWidth: '260px', padding: '10px 12px', borderRadius: '10px',
+        color:'#e6ebf4', background: 'linear-gradient(180deg, rgba(30,34,41,.96), rgba(24,28,34,.96))',
+        boxShadow: '0 8px 28px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06)',
+        fontSize: '13px', lineHeight: '1.25', zIndex: 12000, display: 'none', pointerEvents:'none'
+      });
+      document.body.appendChild(tipEl);
+    }
+    return tipEl;
+  }
+  function showTipFor(target, html){
+    const el = ensureTip();
+    el.innerHTML = html;
+    el.style.display = 'block';
+    const r = target.getBoundingClientRect();
+    const gap = 8;
+    let x = r.left + r.width/2; let y = r.top - gap;
+    el.style.left = '0px'; el.style.top = '-1000px'; // set offscreen to measure
+    const w = el.offsetWidth; const h = el.offsetHeight;
+    x = Math.min(window.innerWidth - 8 - w/2, Math.max(8 + w/2, x));
+    el.style.left = (x - w/2) + 'px';
+    el.style.top = (y - h) + 'px';
+    clearTimeout(tipTimer);
+  }
+  function hideTip(){ if (tipEl){ tipEl.style.display='none'; } }
+
+  function shopItemTooltip(item){
+    const desc = item.desc || '';
+    const isShield = item.key === 'divine_shield';
+    const costLine = isShield ? `Use cost: ${item.cost} solves` : `Cost: ${item.cost} solves`;
+    const note = isShield ? `<div style="opacity:.75; margin-top:4px; font-size:12px;">Pay only when you activate it.</div>` : '';
+    return `<div style="font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:8px;"><span style="font-size:18px">${item.icon||'•'}</span> ${item.name}</div>
+            <div style="opacity:.92">${desc}</div>
+            <div style="opacity:.8; margin-top:6px; font-size:12px;">${costLine}</div>${note}`;
+  }
+
+  function invItemTooltip(it){
+    const meta = catalog.find(c=> c.key===it.key) || {};
+    const desc = meta.desc || '';
+    return `<div style="font-weight:800; margin-bottom:6px; display:flex; align-items:center; gap:8px;"><span style="font-size:18px">${it.icon||'•'}</span> ${it.name}</div>
+            <div style="opacity:.92">${desc}</div>
+            <div style="opacity:.8; margin-top:6px; font-size:12px;">Hold to use</div>`;
+  }
+
   // Inventory & Shop
   const invRoot = document.getElementById('m67Inv');
   const shopRoot = document.getElementById('m67ShopList');
   const effectsRoot = document.getElementById('m67Effects');
   const shopNoteEl = document.getElementById('m67ShopNote');
+  let catalog = [];
+  let inventory = [];
+  let effects = {};
+
+  function updateShopCapacityUI(){
+    if (!shopRoot) return;
+    const isFull = Array.isArray(inventory) && inventory.length >= 4;
+    const btns = shopRoot.querySelectorAll('button');
+    btns.forEach(b=>{
+      if (isFull) b.disabled = true;
+      else b.disabled = false;
+    });
+    if (shopNoteEl){
+      shopNoteEl.textContent = isFull ? 'Inventory full (4/4)' : '';
+    }
+  }
 
   async function loadShop(){
     try {
       const r = await fetch('/api/make6or7/shop');
       if (!r.ok) return;
-      const data = await r.json();
-      const catalog = data.catalog || [];
-      const cur = data.currency;
-      if (typeof cur === 'number' && allTimeEl) allTimeEl.textContent = String(cur);
-      shopRoot.innerHTML = '';
-      for (const it of catalog){
-        const li = document.createElement('div');
-        li.className = 'm67-shop-item';
-        li.innerHTML = `<div class="m67-shop-icon" style="background:${it.color || '#333'}">${it.icon || ''}</div>
-                        <div class="m67-shop-name">${it.name || ''}</div>
-                        <div class="m67-shop-cost">${it.cost || 0}</div>
-                        <button class="m67-shop-buy" data-key="${it.key}">Buy</button>`;
-        shopRoot.appendChild(li);
-      }
+      const d = await r.json();
+      if (!d.ok) return;
+      catalog = Array.isArray(d.catalog)? d.catalog : [];
+      allTime = Number(d.currency||0);
+      if (allTimeEl) allTimeEl.textContent = String(allTime);
+      renderShop();
     } catch (_){ }
+  }
+
+  function renderShop(){
+    if (!shopRoot) return;
+    shopRoot.innerHTML='';
+    catalog.forEach(item=>{
+      const btn = document.createElement('button');
+      btn.className = 'op-btn';
+      btn.style.borderColor = '#3a3f47';
+      const isShield = item.key === 'divine_shield';
+      btn.title = isShield
+        ? `${item.name} — ${item.desc} (Use cost: ${item.cost})`
+        : `${item.name} — ${item.desc} (Cost: ${item.cost})`;
+      const costStr = isShield ? `Use: ${item.cost} solves` : `${item.cost} solves`;
+      btn.innerHTML = `<span style="font-size:22px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))">${item.icon||'•'}</span><div style="font-weight:800; font-size:14px;">${item.name}</div><div style="font-size:12px; opacity:.9;">${costStr}</div>`;
+      btn.addEventListener('click', ()=> buyItem(item.key));
+      // Tooltip on hover/focus
+      btn.addEventListener('mouseenter', ()=> showTipFor(btn, shopItemTooltip(item)));
+      btn.addEventListener('mouseleave', hideTip);
+      btn.addEventListener('focus', ()=> showTipFor(btn, shopItemTooltip(item)));
+      btn.addEventListener('blur', hideTip);
+      shopRoot.appendChild(btn);
+    });
+    updateShopCapacityUI();
+  }
+
+  function renderInventory(){
+    if (!invRoot) return;
+    invRoot.innerHTML='';
+    const slots = 4;
+    for (let i=0;i<slots;i++){
+      const slot = document.createElement('button');
+      slot.className = 'op-btn';
+      slot.style.minHeight = '64px';
+      slot.style.display = 'grid';
+      slot.style.placeItems = 'center';
+      slot.style.position = 'relative';
+      const it = inventory[i];
+      if (it){
+        slot.dataset.itemId = it.id;
+        // Non-stackable effects: disable use if already active
+        let disabledReason = '';
+        if (it.key === 'boost' && effects && Number(effects.boost||0) > 0){
+          disabledReason = 'Already boosted — wait until it ends.';
+          slot.disabled = true;
+        } else if (it.key === 'sneaky_dust' && effects && Number(effects.invisible||0) > 0){
+          disabledReason = 'Already invisible — wait until it ends.';
+          slot.disabled = true;
+        } else if (it.key === 'divine_shield' && effects && Number(effects.shield||0) > 0){
+          disabledReason = 'Shield already active — wait until it ends.';
+          slot.disabled = true;
+        }
+        slot.title = disabledReason ? `${it.name} — ${disabledReason}` : `${it.name}`;
+        slot.innerHTML = `<span style="font-size:22px; color:${it.color||'#fff'}; text-shadow:0 0 8px color-mix(in srgb, ${it.color||'#fff'} 60%, transparent);">${it.icon||'•'}</span><div style="font-size:12px; font-weight:700; opacity:.95;">${it.name}</div>`;
+        if (!slot.disabled){
+          makeLongPress(slot, ()=>useItem(it));
+        }
+        // Hover/focus tooltip
+        slot.addEventListener('mouseenter', ()=> showTipFor(slot, invItemTooltip(it)));
+        slot.addEventListener('mouseleave', hideTip);
+        slot.addEventListener('focus', ()=> showTipFor(slot, invItemTooltip(it)));
+        slot.addEventListener('blur', hideTip);
+      } else {
+        slot.classList.add('ghost');
+        slot.textContent = '—';
+      }
+      invRoot.appendChild(slot);
+    }
+    // Reflect capacity in the shop UI too
+    updateShopCapacityUI();
+  }
+
+  function makeLongPress(el, onActivate){
+    let t= null, start=0, ring;
+    const holdMs = 900;
+    const clear = ()=>{ if (t){ clearInterval(t); t=null; } if (ring){ ring.remove(); ring=null; } };
+    const begin = (x,y)=>{
+      start = performance.now();
+      ring = document.createElement('div');
+      ring.style.position='absolute'; ring.style.inset='6px'; ring.style.borderRadius='14px'; ring.style.boxShadow='0 0 0 2px rgba(255,255,255,.2) inset, 0 0 24px rgba(255,255,255,.15)';
+      ring.style.background='radial-gradient(120px 80px at 50% -10%, rgba(255,255,255,.08), transparent)';
+      el.appendChild(ring);
+      t = setInterval(()=>{
+        const p = Math.min(1, (performance.now()-start)/holdMs);
+        ring.style.setProperty('opacity', String(.6+.4*Math.sin(p*10)));
+        ring.style.setProperty('filter', `drop-shadow(0 0 ${4+14*p}px rgba(255,255,255,${.15+.25*p}))`);
+        if (p>=1){ clear(); onActivate && onActivate(); }
+      }, 30);
+    };
+    el.addEventListener('mousedown', e=>{ if (e.button===0) begin(e.clientX,e.clientY); });
+    el.addEventListener('touchstart', e=>{ begin(); });
+    ['mouseleave','mouseup','touchend','touchcancel'].forEach(evt=> el.addEventListener(evt, clear));
+  }
+
+  function updateEffectsSummary(fx){
+    if (!effectsRoot) return;
+    effectsRoot.innerHTML = '';
+    const parts = [];
+    if (fx.invisible > 0) parts.push(`Invisible (${fmtTime(fx.invisible)})`);
+    if (fx.boost > 0) parts.push(`Boost (${fmtTime(fx.boost)})`);
+    if (fx.mud > 0) parts.push(`Mud (${fmtTime(fx.mud)})`);
+    if (fx.shield > 0) parts.push(`Shield (${fmtTime(fx.shield)})`);
+
+    if (parts.length === 0){
+      const empty = document.createElement('span');
+      empty.textContent = 'No active effects';
+      empty.style.opacity = '0.5';
+      effectsRoot.appendChild(empty);
+    } else {
+      parts.forEach(p=>{
+        const tag = document.createElement('span');
+        tag.textContent = p;
+        tag.className = 'tag';
+        effectsRoot.appendChild(tag);
+      });
+    }
   }
 
   async function loadState(){
@@ -599,26 +874,73 @@
       const data = await r.json();
       if (!data || !data.ok) return;
       const st = data.state || {};
-      if (typeof st.currency === 'number' && allTimeEl) allTimeEl.textContent = String(st.currency);
-      // Inventory
-      invRoot.innerHTML = '';
-      const inv = Array.isArray(st.inventory) ? st.inventory : [];
-      for (const it of inv){
-        const el = document.createElement('div');
-        el.className = 'm67-inv-item';
-        el.innerHTML = `<div class="m67-inv-icon" style="background:${it.color || '#333'}">${it.icon || ''}</div>
-                        <div class="m67-inv-name">${it.name || ''}</div>
-                        <button class="m67-inv-use" data-id="${it.id}" data-key="${it.key || ''}">Use</button>`;
-        invRoot.appendChild(el);
+      allTime = Number(st.currency||0);
+      if (allTimeEl) allTimeEl.textContent = String(allTime);
+      inventory = Array.isArray(st.inventory) ? st.inventory : [];
+      effects = st.effects || {};
+      renderInventory();
+      updateEffectsSummary(effects);
+    } catch(_){ }
+  }
+
+  async function buyItem(key){
+    if (inventory.length >= 4){
+      updateShopCapacityUI();
+      return;
+    }
+    const meta = catalog.find(c=> c.key===key);
+    const name = meta?.name || 'Item';
+    const cost = Number(meta?.cost || 0);
+    if (allTime < cost){
+      if (shopNoteEl) shopNoteEl.textContent = 'Not enough solves.';
+      return;
+    }
+    let ok;
+    if (key === 'divine_shield'){
+      ok = window.confirm(`Add ${name} to inventory? (Costs ${cost} solves when used)`);
+    } else {
+      ok = window.confirm(`Buy ${name} for ${cost} solves?`);
+    }
+    if (!ok) return;
+
+    try {
+      const r = await fetch('/api/make6or7/buy', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({key})
+      });
+      const d = await r.json().catch(()=>({ok:false}));
+      if (d.ok){
+        play('snd_shop_coins');
+        loadState();
+      } else {
+        const err = d.error || '';
+        if (shopNoteEl) shopNoteEl.textContent = (err==='INVENTORY_FULL')? 'Inventory full.' : (err==='INSUFFICIENT_FUNDS')? 'Not enough solves.' : 'Buy failed.';
       }
-      // Effects tips
-      effectsRoot.innerHTML = '';
-      function tip(text){ const t=document.createElement('div'); t.className='m67-tip'; t.textContent=text; effectsRoot.appendChild(t); }
-      const fx = st.effects || {};
-      if (fx.invisible > 0) tip(`Invisible: ${fmtTime(fx.invisible)}`);
-      if (fx.boost > 0) tip(`Boost: ${fmtTime(fx.boost)}`);
-      if (fx.mud > 0) tip(`Mud: ${fmtTime(fx.mud)}`);
-      if (fx.shield > 0) tip(`Shield: ${fmtTime(fx.shield)}`);
+    } catch(_){ }
+  }
+
+  async function useItem(it){
+    hideTip();
+    try {
+      let target_id = null;
+      if (it.key === 'mud'){
+        target_id = await pickMudTarget();
+        if (!target_id) return;
+      }
+      const r = await fetch('/api/make6or7/use', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({item_id: it.id, target_id})
+      });
+      const d = await r.json().catch(()=>({ok:false}));
+      if (d.ok){
+        if (it.key === 'mud') play('snd_item_mud');
+        else if (it.key === 'boost') play('snd_item_boost');
+        else if (it.key === 'sneaky_dust') play('snd_item_dust');
+        else if (it.key === 'divine_shield') play('snd_item_shield');
+        loadState();
+      }
     } catch(_){ }
   }
 
@@ -721,6 +1043,7 @@
         // Optimistic FX: add mudded look
         li.classList.add('mudded');
         throwMudTo(li);
+        try { sparkAt(li, 4); } catch(_){ }
         cleanup();
         resolve(id);
       }
@@ -735,54 +1058,6 @@
     });
   }
 
-  shopRoot.addEventListener('click', async (e)=>{
-    const btn = e.target && e.target.closest && e.target.closest('.m67-shop-buy');
-    if (!btn) return;
-    const key = btn.getAttribute('data-key');
-    if (!key) return;
-    try{
-      const r = await fetch('/api/make6or7/buy', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
-      if (!r.ok) return;
-      const data = await r.json();
-      if (data && data.ok){
-        if (typeof data.currency === 'number' && allTimeEl) allTimeEl.textContent = String(data.currency);
-        play('snd_shop_coins');
-        loadState();
-      }
-    }catch(_){ }
-  });
-
-  invRoot.addEventListener('click', async (e)=>{
-    const btn = e.target && e.target.closest && e.target.closest('.m67-inv-use');
-    if (!btn) return;
-    const item_id = btn.getAttribute('data-id');
-    const item_key = btn.getAttribute('data-key');
-    if (!item_id) return;
-    try{
-      let target_id = null;
-      if (item_key === 'mud'){
-        target_id = await pickMudTarget();
-        if (!target_id) return; // cancelled
-      }
-
-      const r = await fetch('/api/make6or7/use', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({item_id, target_id})
-      });
-      if (!r.ok) return;
-      const data = await r.json();
-      if (data && data.ok){
-        if (item_key === 'mud') play('snd_item_mud');
-        else if (item_key === 'boost') play('snd_item_boost');
-        else if (item_key === 'sneaky_dust') play('snd_item_dust');
-        else if (item_key === 'divine_shield') play('snd_item_shield');
-        loadState();
-      }
-    }catch(_){ }
-  });
-
-  // Shop/Inventory modal toggles
   // Modal helpers with body-lock parity
   function openInventory(){
     if (!invModalRoot) return;
@@ -794,7 +1069,10 @@
   function toggleInventory(){ if (!invModalRoot) return; if (invModalRoot.hidden) openInventory(); else closeInventory(); }
   if (invBtn){ invBtn.addEventListener('click', toggleInventory); }
   if (invModalRoot){
-    invModalRoot.addEventListener('click', (e)=>{ if (e.target && e.target.getAttribute('data-close')) closeInventory(); });
+    invModalRoot.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-close')==='1') closeInventory();
+    });
   }
 
   function openShop(){
@@ -808,7 +1086,10 @@
   function toggleShop(){ if (!shopModalRoot) return; if (shopModalRoot.hidden) openShop(); else closeShop(); }
   if (shopBtn){ shopBtn.addEventListener('click', toggleShop); }
   if (shopModalRoot){
-    shopModalRoot.addEventListener('click', (e)=>{ if (e.target && e.target.getAttribute('data-close')) closeShop(); });
+    shopModalRoot.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t && t.getAttribute && t.getAttribute('data-close')==='1') closeShop();
+    });
   }
 
   // Global ESC to close any open overlay/modal
@@ -994,6 +1275,8 @@
           allTime = Number(data.all_time_total || 0);
           if (allTimeEl) allTimeEl.textContent = String(allTime);
           applyEmpowerment();
+          burstCharge();
+          if (allTimeBoxEl) sparkAt(allTimeBoxEl, 5);
         }
       }
       // update leaderboard in background
@@ -1063,6 +1346,23 @@
   ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>{
     hintEl.addEventListener(ev, ()=>{ if (hintTimer){ clearTimeout(hintTimer); hintTimer=null; }});
   });
+
+  function tickState(){
+    if (!isAuthed) return;
+    if (effects && (effects.invisible>0 || effects.boost>0 || effects.mud>0 || effects.shield>0)){
+      // decrement locally for display smoothness
+      effects.invisible = Math.max(0, (effects.invisible||0)-1);
+      effects.boost = Math.max(0, (effects.boost||0)-1);
+      effects.mud = Math.max(0, (effects.mud||0)-1);
+      effects.shield = Math.max(0, (effects.shield||0)-1);
+      updateEffectsSummary(effects);
+    }
+  }
+
+  // --- Init shop/inventory polling ---
+  setInterval(()=>{ tickState(); }, 1000);
+  setInterval(()=>{ loadState(); }, 8000);
+  setInterval(()=>{ loadLeaderboard(); }, 15000);
 
   // Initialize
   loadLeaderboard();

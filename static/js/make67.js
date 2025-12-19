@@ -220,6 +220,7 @@
   let hintUsed = false;
   // Track last known rank and all-time to detect rank-ups
   let lastKnownRankKey = null;
+  let lastKnownRankTitle = null;
   let lastKnownAllTime = null;
 
   // --- Empowerment & Theme Logic ---
@@ -543,6 +544,71 @@
     });
   }
 
+  const rankUpOverlayEl = document.getElementById('rankUpOverlay');
+  const rankUpNamesEl = document.getElementById('rankUpNames');
+  const rankUpFlavorEl = document.getElementById('rankUpFlavor');
+
+  const FLAVOR_TEXTS = [
+    "BRAIN EXPANDING...",
+    "KNOWLEDGE ASCENDING...",
+    "MAXIMUM COGNITION...",
+    "NEURONS FIRING...",
+    "ABSOLUTE UNIT...",
+    "CRITICAL THINKING++",
+    "GIGABRAIN MOMENT...",
+    "UNSTOPPABLE FORCE...",
+    "PEAK PERFORMANCE..."
+  ];
+
+  function triggerRankHype(oldTitle, newTitle) {
+    if (!rankUpOverlayEl) return;
+    
+    // Set titles
+    if (rankUpNamesEl) {
+      rankUpNamesEl.textContent = `${(oldTitle || 'NOOB').toUpperCase()} → ${(newTitle || 'ROOKIE').toUpperCase()}`;
+    }
+    
+    // Set random flavor text
+    if (rankUpFlavorEl) {
+      rankUpFlavorEl.textContent = randomChoice(FLAVOR_TEXTS);
+    }
+    
+    // Show overlay
+    rankUpOverlayEl.style.display = 'flex';
+    
+    // Generate particles
+    const emojis = ['💯', '🔥', '🧠', '🦍', '🆙', '🚨', '💎', '📈', '🤪', '🤩'];
+    const particleCount = 30;
+    const container = rankUpOverlayEl;
+    
+    // Clear any old emojis just in case
+    container.querySelectorAll('.rank-up-emoji').forEach(el => el.remove());
+    
+    for (let i = 0; i < particleCount; i++) {
+      const emoji = document.createElement('div');
+      emoji.className = 'rank-up-emoji';
+      emoji.textContent = randomChoice(emojis);
+      
+      // Random position
+      emoji.style.left = Math.random() * 100 + 'vw';
+      emoji.style.top = (80 + Math.random() * 20) + 'vh';
+      
+      // Random size
+      emoji.style.fontSize = (2 + Math.random() * 3) + 'rem';
+      
+      // Random delay
+      emoji.style.animationDelay = (Math.random() * 0.5) + 's';
+      
+      container.appendChild(emoji);
+    }
+    
+    // Auto-cleanup after 3.5s
+    setTimeout(() => {
+      rankUpOverlayEl.style.display = 'none';
+      container.querySelectorAll('.rank-up-emoji').forEach(el => el.remove());
+    }, 3500);
+  }
+
   async function loadLeaderboard(){
     try {
       const res = await fetch('/api/make67/leaderboard');
@@ -554,14 +620,18 @@
           isAuthed = true;
           const newAllTime = Number(data.me.total || 0);
           const newRankKey = String(data.me.rank_key || '');
+          const newRankTitle = String(data.me.rank_title || '');
           // Detect rank up: rank key changed and all-time increased
           if (lastKnownRankKey !== null && newRankKey && newRankKey !== lastKnownRankKey &&
               (typeof lastKnownAllTime === 'number' ? newAllTime > lastKnownAllTime : true)){
             // Play rank-up sound
             try { playSfx('snd_level_up'); } catch(_){ }
+            // Trigger hype overlay
+            triggerRankHype(lastKnownRankTitle, newRankTitle);
           }
           // Update trackers
           lastKnownRankKey = newRankKey || lastKnownRankKey;
+          lastKnownRankTitle = newRankTitle || lastKnownRankTitle;
           lastKnownAllTime = (typeof newAllTime === 'number') ? newAllTime : lastKnownAllTime;
           allTime = newAllTime;
           if (allTimeEl) allTimeEl.textContent = String(allTime);
