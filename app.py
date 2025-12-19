@@ -1770,6 +1770,7 @@ def api_make6or7_state():
                 'invisible': _remaining_from_dt(getattr(u, 'make67_invisible_until', None), now_dt),
                 'boost': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
                 'mud': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
+                'shield': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
             },
             'state_version': _m67_get_state_version(uid),
         }
@@ -1826,7 +1827,9 @@ def api_make6or7_buy():
         key = (data.get('key') or '').strip()
         if key not in _M67_CATALOG:
             return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
-        cost = int(_M67_CATALOG[key]['cost'])
+        # Divine Shield is special: cost is deducted on USE, not on buy
+        base_cost = int(_M67_CATALOG[key]['cost'])
+        cost = 0 if key == 'divine_shield' else base_cost
         # Check inventory capacity
         inv = _m67_get_inventory(u.id)
         if len(inv) >= 4:
@@ -1971,13 +1974,34 @@ def api_make6or7_use():
         now_dt = datetime.now(timezone.utc)
         # Activate effects (shared rules with Make67)
         if key == 'sneaky_dust':
+            # Non-stackable: if already invisible, reject and return item
+            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'invisible'}), 400
             dur = timedelta(minutes=30)
-            cur_until = getattr(u, 'make67_invisible_until', None) or now_dt
-            u.make67_invisible_until = max(cur_until, now_dt) + dur
+            u.make67_invisible_until = now_dt + dur
         elif key == 'boost':
+            # Non-stackable: if already boosted, reject and return item
+            if getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'boost'}), 400
             dur = timedelta(minutes=2)
-            cur_until = getattr(u, 'make67_boost_until', None) or now_dt
-            u.make67_boost_until = max(cur_until, now_dt) + dur
+            u.make67_boost_until = now_dt + dur
+        elif key == 'divine_shield':
+            # Non-stackable: if already shielded, reject and return item
+            if getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'shield'}), 400
+            # Deduct cost on use (2 solves)
+            cur = int(u.make6or7_all_time_solves or 0)
+            if cur < 2:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS', 'message': 'Need 2 solves to activate Divine Shield.'}), 400
+            u.make6or7_all_time_solves = cur - 2
+            dur = timedelta(minutes=5)
+            u.make67_shield_until = now_dt + dur
+            # Remove any active mud
+            u.make67_mud_until = now_dt
         elif key == 'mud':
             target_id = (data.get('target_id') or '').strip()
             if not target_id:
@@ -1988,24 +2012,34 @@ def api_make6or7_use():
                 _m67_add_item(u.id, key)
                 return jsonify({'ok': False, 'error': 'TARGET_NOT_FOUND'}), 404
             # Respect Divine Shield across modes as a global protection
-            if getattr(target, 'make67_shield_until', None):
-                now_dt = datetime.now(timezone.utc)
-                if target.make67_shield_until > now_dt:
-                    _m67_add_item(u.id, key)
-                    return jsonify({'ok': False, 'error': 'THWARTED_SHIELD', 'message': 'Thwarted: target is protected by Divine Shield.'}), 400
+            if getattr(target, 'make67_shield_until', None) and target.make67_shield_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'THWARTED_SHIELD', 'message': 'Thwarted: target is protected by Divine Shield.'}), 400
             dur = timedelta(minutes=2)
+            # Re-fetch target just in case, though session.get is usually fine
             cur_until = getattr(target, 'make67_mud_until', None) or now_dt
             target.make67_mud_until = max(cur_until, now_dt) + dur
+            # Mud cancels boost
             target.make67_boost_until = now_dt
         else:
             return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
         db.session.commit()
+        new_ver = _m67_bump_state_version(u.id)
         inv = _m67_get_inventory(u.id)
         state = {
             'currency': int(u.make6or7_all_time_solves or 0),
             'inventory': inv,
-            'state_version': _m67_bump_state_version(u.id),
+            'effects': {
+                'invisible': _remaining_from_dt(getattr(u, 'make67_invisible_until', None), now_dt),
+                'boost': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
+                'mud': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
+                'shield': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
+            },
+            'state_version': new_ver,
         }
+        # Update state cache for this new version to minimize immediate follow-up polls
+        with _m67_state_cache_lock:
+            _m67_state_cache[(u.id, new_ver)] = state
         return jsonify({'ok': True, 'state': state})
     except Exception as e:
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
@@ -2827,8 +2861,12 @@ def api_make6or7_leaderboard():
                 'rank_title': rk['title'],
                 'rank_icon': rk['icon'],
                 'is_cheater': False,
+                'is_boosted': bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt),
+                'boost_ends_in': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
                 'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
                 'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
+                'is_shielded': bool(getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt),
+                'shield_ends_in': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
             })
 
         banned_users = (
@@ -2877,6 +2915,8 @@ def api_make6or7_leaderboard():
                     'boost_ends_in': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
                     'is_mudded': bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt),
                     'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
+                    'is_shielded': bool(getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt),
+                    'shield_ends_in': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
                 }
         return jsonify({'ok': True, 'top': top, 'banned': banned, 'me': me})
     except Exception as e:
