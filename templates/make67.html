@@ -18,11 +18,7 @@
 </head>
 <body data-user-id="{{ current_user.id or '' }}">
   <div class="page make67-page">
-    <!-- Soft snowfall overlay -->
-    <canvas id="snowCanvas" class="snow-canvas" aria-hidden="true"></canvas>
     <header class="header">
-      <!-- Festive garland across the header -->
-      <div class="xmas-garland garland-header" aria-hidden="true"></div>
       <div style="display:flex; align-items:center; gap:8px;">
         <a href="{{ url_for('index') }}" class="back-link" title="Back to Mood Meter">← Mood Meter</a>
         <a href="{{ url_for('make6or7_page') }}" class="make67-btn" title="Play Make 6 or 7">Make 6 or 7</a>
@@ -49,7 +45,7 @@
           {% endif %}
         </div>
       </div>
-      <h1 class="title xmas-title"><span class="xmas-emoji" aria-hidden="true">🎅</span> Make67 <span class="xmas-emoji" aria-hidden="true">🎄</span></h1>
+      <h1 class="title">Make67</h1>
       <div class="subtitle" style="opacity:.85; margin-top:6px;">Use + − × ÷ to combine all 4 cards and make 67</div>
     </header>
 
@@ -79,8 +75,6 @@
 
       <section class="panel-right">
         <div class="game-board-wrapper">
-          <!-- Festive garland over the game board -->
-          <div class="xmas-garland garland-board" aria-hidden="true"></div>
           <button id="hintBtn" class="shoulder-btn left" title="Hint (H)">?</button>
           <button id="resetBtn" class="shoulder-btn right" title="Reset (R)">↺</button>
 
@@ -118,14 +112,6 @@
 
       </section>
     </main>
-
-    <!-- Snowball pile (anchored at bottom) -->
-    <div id="snowballPile" class="snowball-pile" aria-label="Snowballs" title="Grab a snowball">
-      <img src="{{ url_for('static', filename='snowballs.png') }}" alt="" class="snowball-pile-img" aria-hidden="true" />
-      <div class="snowball s1" aria-hidden="true"></div>
-      <div class="snowball s2" aria-hidden="true"></div>
-      <div class="snowball s3" aria-hidden="true"></div>
-    </div>
 
     <!-- Success overlay -->
     <div class="m67-overlay-root" hidden>
