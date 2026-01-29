@@ -1131,6 +1131,106 @@ body.m67-mud-mode { cursor: none; }
 /* ALIEN – neon mint */
 .make67-page .m67-lb-item.rank-alien .name { color: #00ffc3; text-shadow: 0 0 14px rgba(0,255,195,0.70); }
 .make67-page .m67-lb-item.rank-alien { border-color: rgba(0,255,195,0.52); }
+
+/* MAINCHAR (1400) – hot pink */
+.make67-page .m67-lb-item.rank-mainchar .name { color: #ff6ec7; text-shadow: 0 0 14px rgba(255,110,199,0.70); }
+.make67-page .m67-lb-item.rank-mainchar { border-color: rgba(255,110,199,0.52); }
+
+/* GIGACHAD (1500) – vivid purple */
+.make67-page .m67-lb-item.rank-gigachad .name { color: #8b5cf6; text-shadow: 0 0 14px rgba(139,92,246,0.72); }
+.make67-page .m67-lb-item.rank-gigachad { border-color: rgba(139,92,246,0.55); }
+
+/* NPC (1600) – teal */
+.make67-page .m67-lb-item.rank-npc .name { color: #14b8a6; text-shadow: 0 0 14px rgba(20,184,166,0.70); }
+.make67-page .m67-lb-item.rank-npc { border-color: rgba(20,184,166,0.52); }
+
+/* THISISFINE (1700) – burning orange */
+.make67-page .m67-lb-item.rank-thisisfine .name { color: #f97316; text-shadow: 0 0 14px rgba(249,115,22,0.72); }
+.make67-page .m67-lb-item.rank-thisisfine { border-color: rgba(249,115,22,0.55); }
+
+/* SIGMA (1800) – cool slate */
+.make67-page .m67-lb-item.rank-sigma .name { color: #94a3b8; text-shadow: 0 0 12px rgba(148,163,184,0.65); }
+.make67-page .m67-lb-item.rank-sigma { border-color: rgba(148,163,184,0.48); }
+
+/* TOUCHGRASS (1900) – fresh green */
+.make67-page .m67-lb-item.rank-touchgrass .name { color: #4ade80; text-shadow: 0 0 14px rgba(74,222,128,0.72); }
+.make67-page .m67-lb-item.rank-touchgrass { border-color: rgba(74,222,128,0.55); }
+
+/* BRAINROT (2000) – neon pink */
+.make67-page .m67-lb-item.rank-brainrot .name { color: #f472b6; text-shadow: 0 0 16px rgba(244,114,182,0.75); }
+.make67-page .m67-lb-item.rank-brainrot { border-color: rgba(244,114,182,0.58); }
+
+/* BASED (2100) – brick orange */
+.make67-page .m67-lb-item.rank-based .name { color: #ea580c; text-shadow: 0 0 14px rgba(234,88,12,0.72); }
+.make67-page .m67-lb-item.rank-based { border-color: rgba(234,88,12,0.55); }
+
+/* OHNO (2200) – warning yellow */
+.make67-page .m67-lb-item.rank-ohno .name { color: #facc15; text-shadow: 0 0 16px rgba(250,204,21,0.78); }
+.make67-page .m67-lb-item.rank-ohno { border-color: rgba(250,204,21,0.60); }
+
+/* FORBIDDEN (2300) – danger red */
+.make67-page .m67-lb-item.rank-forbidden .name { color: #f87171; text-shadow: 0 0 16px rgba(248,113,113,0.75); }
+.make67-page .m67-lb-item.rank-forbidden { border-color: rgba(248,113,113,0.58); }
+
+/* BUILTDIFFERENT (2400) – electric cyan */
+.make67-page .m67-lb-item.rank-builtdifferent .name { color: #22d3ee; text-shadow: 0 0 16px rgba(34,211,238,0.78); }
+.make67-page .m67-lb-item.rank-builtdifferent { border-color: rgba(34,211,238,0.60); }
+
+/* BRAINROTSUPREME (2500) – fuchsia */
+.make67-page .m67-lb-item.rank-brainrotsupreme .name { color: #e879f9; text-shadow: 0 0 18px rgba(232,121,249,0.80); }
+.make67-page .m67-lb-item.rank-brainrotsupreme { border-color: rgba(232,121,249,0.62); }
+
+/* UNIT (2600) – stone gray with presence */
+.make67-page .m67-lb-item.rank-unit .name { color: #a8a29e; text-shadow: 0 0 14px rgba(168,162,158,0.70); }
+.make67-page .m67-lb-item.rank-unit { border-color: rgba(168,162,158,0.52); }
+
+/* UNFAIR (2700) – sky blue */
+.make67-page .m67-lb-item.rank-unfair .name { color: #38bdf8; text-shadow: 0 0 18px rgba(56,189,248,0.82); }
+.make67-page .m67-lb-item.rank-unfair { border-color: rgba(56,189,248,0.65); }
+
+/* JUICED (2800) – lime green */
+.make67-page .m67-lb-item.rank-juiced .name { color: #a3e635; text-shadow: 0 0 18px rgba(163,230,53,0.80); }
+.make67-page .m67-lb-item.rank-juiced { border-color: rgba(163,230,53,0.62); }
+
+/* HEKNOWS (2900) – mystic purple */
+.make67-page .m67-lb-item.rank-heknows .name { color: #c084fc; text-shadow: 0 0 18px rgba(192,132,252,0.82); }
+.make67-page .m67-lb-item.rank-heknows { border-color: rgba(192,132,252,0.65); }
+
+/* UNINSTALL (3000) – blazing orange */
+.make67-page .m67-lb-item.rank-uninstall .name { color: #fb923c; text-shadow: 0 0 20px rgba(251,146,60,0.85); }
+.make67-page .m67-lb-item.rank-uninstall { border-color: rgba(251,146,60,0.68); }
+
+/* TOOSMART (3100) – aqua */
+.make67-page .m67-lb-item.rank-toosmart .name { color: #2dd4bf; text-shadow: 0 0 20px rgba(45,212,191,0.85); }
+.make67-page .m67-lb-item.rank-toosmart { border-color: rgba(45,212,191,0.68); }
+
+/* BUSINESS (3200) – royal violet */
+.make67-page .m67-lb-item.rank-business .name { color: #a78bfa; text-shadow: 0 0 20px rgba(167,139,250,0.85); }
+.make67-page .m67-lb-item.rank-business { border-color: rgba(167,139,250,0.68); }
+
+/* GOAT (3300) – golden amber */
+.make67-page .m67-lb-item.rank-goat .name { color: #fbbf24; text-shadow: 0 0 22px rgba(251,191,36,0.88); }
+.make67-page .m67-lb-item.rank-goat { border-color: rgba(251,191,36,0.72); }
+
+/* NOTHUMAN (3400) – alien emerald */
+.make67-page .m67-lb-item.rank-nothuman .name { color: #34d399; text-shadow: 0 0 22px rgba(52,211,153,0.88); }
+.make67-page .m67-lb-item.rank-nothuman { border-color: rgba(52,211,153,0.72); }
+
+/* FINALBOSS (3500) – animated rainbow glow */
+.make67-page .m67-lb-item.rank-finalboss .name {
+  color: #fff;
+  text-shadow: 0 0 10px #ff0080, 0 0 20px #ff0080, 0 0 30px #8000ff, 0 0 40px #8000ff;
+  animation: finalboss-glow 2s ease-in-out infinite alternate;
+}
+.make67-page .m67-lb-item.rank-finalboss {
+  border-color: rgba(255,0,128,0.75);
+  background: linear-gradient(135deg, rgba(255,0,128,0.1) 0%, rgba(128,0,255,0.1) 100%);
+}
+@keyframes finalboss-glow {
+  0% { text-shadow: 0 0 10px #ff0080, 0 0 20px #ff0080, 0 0 30px #8000ff; }
+  100% { text-shadow: 0 0 15px #8000ff, 0 0 25px #8000ff, 0 0 35px #ff0080; }
+}
+
 .make67-page .m67-lb-item.top1 .total { color: #fff7c2; text-shadow: 0 0 8px rgba(255,215,0,0.35); }
 
 /* CHEATER – explicit red styling: name in red, CHEATER label bold red */
@@ -1940,6 +2040,7 @@ body.holding-snowball { cursor: none; }
 /* ============================================================
    USER-SELECTABLE COLOR THEMES (Unlockable at 1500+ points)
    Bloomy, light-sabery, glowy effects
+   These OVERRIDE rank-dependent themes when active
    ============================================================ */
 
 /* Base glow animation for themes */
@@ -1953,7 +2054,7 @@ body.holding-snowball { cursor: none; }
   50% { background-position: 100% 50%; }
 }
 
-/* Shared theme base styles */
+/* Shared theme base styles - override rank themes */
 .make67-page[data-color-theme] {
   transition: background 0.5s ease, box-shadow 0.5s ease;
 }
@@ -1967,44 +2068,83 @@ body.holding-snowball { cursor: none; }
   transition: all 0.25s ease;
 }
 
+/* Override rank-based ::before and ::after effects on cards-grid */
+.make67-page[data-color-theme] .cards-grid::before {
+  background: linear-gradient(90deg, transparent 0%, var(--theme-primary, #9fe3b5) 50%, transparent 100%) !important;
+  opacity: 0.15 !important;
+}
+
+.make67-page[data-color-theme] .cards-grid::after {
+  background: radial-gradient(ellipse 100% 60% at 50% -10%, var(--theme-primary, #9fe3b5), transparent 70%) !important;
+}
+
+/* Override card/button ::after glow effects */
+.make67-page[data-color-theme] .card::after,
+.make67-page[data-color-theme] .op-btn::after {
+  background: radial-gradient(ellipse 90% 80% at 50% 120%, var(--theme-primary, #9fe3b5), transparent 60%) !important;
+}
+
+/* Override card/button ::before sweep effects */
+.make67-page[data-color-theme] .card::before,
+.make67-page[data-color-theme] .op-btn::before {
+  background: linear-gradient(120deg, transparent 30%, var(--theme-primary, #9fe3b5) 50%, transparent 70%) !important;
+}
+
+/* Override score-box charge effects */
+.make67-page[data-color-theme] .score-box.charged::before {
+  background: radial-gradient(ellipse 100% 80% at 50% 100%, var(--theme-primary, #9fe3b5), transparent 60%) !important;
+}
+
+.make67-page[data-color-theme] .score-box.charge-burst::after {
+  background: radial-gradient(circle at 50% 50%, var(--theme-primary, #9fe3b5), transparent 70%) !important;
+}
+
+/* Override spark colors */
+.make67-page[data-color-theme] .score-box .spark {
+  background: var(--theme-primary, #9fe3b5) !important;
+  box-shadow: 0 0 6px var(--theme-primary, #9fe3b5) !important;
+}
+
 /* 1500 - Neon Lime (Cyber/Matrix) */
 .make67-page[data-color-theme="neon-lime"] {
   --theme-primary: #39ff14;
   --theme-secondary: #00ff66;
   --theme-glow: rgba(57, 255, 20, 0.5);
-  background: radial-gradient(ellipse 140% 100% at 50% -20%, #0d2818 0%, #0a1a10 40%, #050d08 100%);
+  --accent: #39ff14 !important;
+  --accent-2: #00ff66 !important;
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #0d2818 0%, #0a1a10 40%, #050d08 100%) !important;
 }
 
 .make67-page[data-color-theme="neon-lime"] .cards-grid {
-  background: linear-gradient(180deg, rgba(57,255,20,0.08) 0%, rgba(0,30,10,0.95) 100%);
-  box-shadow: 0 0 60px rgba(57,255,20,0.25), inset 0 0 30px rgba(57,255,20,0.05);
-  border: 1px solid rgba(57,255,20,0.3);
+  background: linear-gradient(180deg, rgba(57,255,20,0.08) 0%, rgba(0,30,10,0.95) 100%) !important;
+  box-shadow: 0 0 60px rgba(57,255,20,0.25), inset 0 0 30px rgba(57,255,20,0.05) !important;
+  border: 1px solid rgba(57,255,20,0.3) !important;
 }
 
 .make67-page[data-color-theme="neon-lime"] .card {
-  background: linear-gradient(180deg, #1a2f1a 0%, #0d1a0d 100%);
-  border-color: rgba(57,255,20,0.4);
-  box-shadow: 0 0 20px rgba(57,255,20,0.2), 0 8px 20px rgba(0,0,0,0.4);
+  background: linear-gradient(180deg, #1a2f1a 0%, #0d1a0d 100%) !important;
+  border-color: rgba(57,255,20,0.4) !important;
+  box-shadow: 0 0 20px rgba(57,255,20,0.2), 0 8px 20px rgba(0,0,0,0.4) !important;
   text-shadow: 0 0 15px var(--theme-glow);
-  color: #d4ffd4;
+  color: #d4ffd4 !important;
 }
 
 .make67-page[data-color-theme="neon-lime"] .card:hover,
 .make67-page[data-color-theme="neon-lime"] .card.selected {
-  box-shadow: 0 0 35px rgba(57,255,20,0.5), 0 0 60px rgba(57,255,20,0.3), 0 12px 30px rgba(0,0,0,0.5);
-  border-color: rgba(57,255,20,0.8);
+  box-shadow: 0 0 35px rgba(57,255,20,0.5), 0 0 60px rgba(57,255,20,0.3), 0 12px 30px rgba(0,0,0,0.5) !important;
+  border-color: rgba(57,255,20,0.8) !important;
 }
 
 .make67-page[data-color-theme="neon-lime"] .op-btn {
-  background: linear-gradient(180deg, rgba(57,255,20,0.15) 0%, rgba(0,30,10,0.9) 100%);
-  border-color: rgba(57,255,20,0.35);
-  color: #c8ffc8;
-  box-shadow: 0 0 15px rgba(57,255,20,0.15);
+  background: linear-gradient(180deg, rgba(57,255,20,0.15) 0%, rgba(0,30,10,0.9) 100%) !important;
+  border-color: rgba(57,255,20,0.35) !important;
+  color: #c8ffc8 !important;
+  box-shadow: 0 0 15px rgba(57,255,20,0.15) !important;
 }
 
 .make67-page[data-color-theme="neon-lime"] .op-btn.active {
-  box-shadow: 0 0 25px rgba(57,255,20,0.6), 0 0 50px rgba(57,255,20,0.3), inset 0 0 15px rgba(57,255,20,0.2);
-  border-color: #39ff14;
+  box-shadow: 0 0 25px rgba(57,255,20,0.6), 0 0 50px rgba(57,255,20,0.3), inset 0 0 15px rgba(57,255,20,0.2) !important;
+  border-color: #39ff14 !important;
 }
 
 /* 2000 - Electric Blue (Ice/Lightning) */
@@ -2012,39 +2152,41 @@ body.holding-snowball { cursor: none; }
   --theme-primary: #00d4ff;
   --theme-secondary: #0099ff;
   --theme-glow: rgba(0, 212, 255, 0.5);
-  background: radial-gradient(ellipse 140% 100% at 50% -20%, #0a2030 0%, #061520 40%, #030a10 100%);
+  --accent: #00d4ff !important;
+  --accent-2: #0099ff !important;
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #0a2030 0%, #061520 40%, #030a10 100%) !important;
 }
 
 .make67-page[data-color-theme="electric-blue"] .cards-grid {
-  background: linear-gradient(180deg, rgba(0,212,255,0.08) 0%, rgba(0,20,40,0.95) 100%);
-  box-shadow: 0 0 70px rgba(0,212,255,0.3), inset 0 0 35px rgba(0,212,255,0.06);
-  border: 1px solid rgba(0,212,255,0.35);
+  background: linear-gradient(180deg, rgba(0,212,255,0.08) 0%, rgba(0,20,40,0.95) 100%) !important;
+  box-shadow: 0 0 70px rgba(0,212,255,0.3), inset 0 0 35px rgba(0,212,255,0.06) !important;
+  border: 1px solid rgba(0,212,255,0.35) !important;
 }
 
 .make67-page[data-color-theme="electric-blue"] .card {
-  background: linear-gradient(180deg, #152535 0%, #0a1520 100%);
-  border-color: rgba(0,212,255,0.45);
-  box-shadow: 0 0 25px rgba(0,212,255,0.25), 0 8px 22px rgba(0,0,0,0.45);
+  background: linear-gradient(180deg, #152535 0%, #0a1520 100%) !important;
+  border-color: rgba(0,212,255,0.45) !important;
+  box-shadow: 0 0 25px rgba(0,212,255,0.25), 0 8px 22px rgba(0,0,0,0.45) !important;
   text-shadow: 0 0 18px var(--theme-glow);
-  color: #d4f4ff;
+  color: #d4f4ff !important;
 }
 
 .make67-page[data-color-theme="electric-blue"] .card:hover,
 .make67-page[data-color-theme="electric-blue"] .card.selected {
-  box-shadow: 0 0 40px rgba(0,212,255,0.6), 0 0 70px rgba(0,212,255,0.35), 0 12px 32px rgba(0,0,0,0.55);
-  border-color: rgba(0,212,255,0.9);
+  box-shadow: 0 0 40px rgba(0,212,255,0.6), 0 0 70px rgba(0,212,255,0.35), 0 12px 32px rgba(0,0,0,0.55) !important;
+  border-color: rgba(0,212,255,0.9) !important;
 }
 
 .make67-page[data-color-theme="electric-blue"] .op-btn {
-  background: linear-gradient(180deg, rgba(0,212,255,0.18) 0%, rgba(0,20,40,0.9) 100%);
-  border-color: rgba(0,212,255,0.4);
-  color: #c8f0ff;
-  box-shadow: 0 0 18px rgba(0,212,255,0.18);
+  background: linear-gradient(180deg, rgba(0,212,255,0.18) 0%, rgba(0,20,40,0.9) 100%) !important;
+  border-color: rgba(0,212,255,0.4) !important;
+  color: #c8f0ff !important;
+  box-shadow: 0 0 18px rgba(0,212,255,0.18) !important;
 }
 
 .make67-page[data-color-theme="electric-blue"] .op-btn.active {
-  box-shadow: 0 0 30px rgba(0,212,255,0.65), 0 0 55px rgba(0,212,255,0.35), inset 0 0 18px rgba(0,212,255,0.25);
-  border-color: #00d4ff;
+  box-shadow: 0 0 30px rgba(0,212,255,0.65), 0 0 55px rgba(0,212,255,0.35), inset 0 0 18px rgba(0,212,255,0.25) !important;
+  border-color: #00d4ff !important;
 }
 
 /* 2500 - Hot Pink (Synthwave/Vaporwave) */
@@ -2052,39 +2194,41 @@ body.holding-snowball { cursor: none; }
   --theme-primary: #ff00aa;
   --theme-secondary: #ff44cc;
   --theme-glow: rgba(255, 0, 170, 0.5);
-  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a0a20 0%, #1a0615 40%, #0d030a 100%);
+  --accent: #ff00aa !important;
+  --accent-2: #ff44cc !important;
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a0a20 0%, #1a0615 40%, #0d030a 100%) !important;
 }
 
 .make67-page[data-color-theme="hot-pink"] .cards-grid {
-  background: linear-gradient(180deg, rgba(255,0,170,0.1) 0%, rgba(30,5,25,0.95) 100%);
-  box-shadow: 0 0 80px rgba(255,0,170,0.35), inset 0 0 40px rgba(255,0,170,0.08);
-  border: 1px solid rgba(255,0,170,0.4);
+  background: linear-gradient(180deg, rgba(255,0,170,0.1) 0%, rgba(30,5,25,0.95) 100%) !important;
+  box-shadow: 0 0 80px rgba(255,0,170,0.35), inset 0 0 40px rgba(255,0,170,0.08) !important;
+  border: 1px solid rgba(255,0,170,0.4) !important;
 }
 
 .make67-page[data-color-theme="hot-pink"] .card {
-  background: linear-gradient(180deg, #2f1528 0%, #1a0a15 100%);
-  border-color: rgba(255,0,170,0.5);
-  box-shadow: 0 0 28px rgba(255,0,170,0.3), 0 8px 24px rgba(0,0,0,0.45);
+  background: linear-gradient(180deg, #2f1528 0%, #1a0a15 100%) !important;
+  border-color: rgba(255,0,170,0.5) !important;
+  box-shadow: 0 0 28px rgba(255,0,170,0.3), 0 8px 24px rgba(0,0,0,0.45) !important;
   text-shadow: 0 0 20px var(--theme-glow);
-  color: #ffd4f0;
+  color: #ffd4f0 !important;
 }
 
 .make67-page[data-color-theme="hot-pink"] .card:hover,
 .make67-page[data-color-theme="hot-pink"] .card.selected {
-  box-shadow: 0 0 45px rgba(255,0,170,0.65), 0 0 80px rgba(255,0,170,0.4), 0 12px 34px rgba(0,0,0,0.55);
-  border-color: rgba(255,0,170,0.95);
+  box-shadow: 0 0 45px rgba(255,0,170,0.65), 0 0 80px rgba(255,0,170,0.4), 0 12px 34px rgba(0,0,0,0.55) !important;
+  border-color: rgba(255,0,170,0.95) !important;
 }
 
 .make67-page[data-color-theme="hot-pink"] .op-btn {
-  background: linear-gradient(180deg, rgba(255,0,170,0.2) 0%, rgba(30,5,25,0.9) 100%);
-  border-color: rgba(255,0,170,0.45);
-  color: #ffc8e8;
-  box-shadow: 0 0 20px rgba(255,0,170,0.2);
+  background: linear-gradient(180deg, rgba(255,0,170,0.2) 0%, rgba(30,5,25,0.9) 100%) !important;
+  border-color: rgba(255,0,170,0.45) !important;
+  color: #ffc8e8 !important;
+  box-shadow: 0 0 20px rgba(255,0,170,0.2) !important;
 }
 
 .make67-page[data-color-theme="hot-pink"] .op-btn.active {
-  box-shadow: 0 0 35px rgba(255,0,170,0.7), 0 0 60px rgba(255,0,170,0.4), inset 0 0 20px rgba(255,0,170,0.28);
-  border-color: #ff00aa;
+  box-shadow: 0 0 35px rgba(255,0,170,0.7), 0 0 60px rgba(255,0,170,0.4), inset 0 0 20px rgba(255,0,170,0.28) !important;
+  border-color: #ff00aa !important;
 }
 
 /* 3000 - Gold Rush (Royal/Luxury) */
@@ -2092,39 +2236,41 @@ body.holding-snowball { cursor: none; }
   --theme-primary: #ffd700;
   --theme-secondary: #ffaa00;
   --theme-glow: rgba(255, 215, 0, 0.55);
-  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a2208 0%, #1a1505 40%, #0d0a03 100%);
+  --accent: #ffd700 !important;
+  --accent-2: #ffaa00 !important;
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a2208 0%, #1a1505 40%, #0d0a03 100%) !important;
 }
 
 .make67-page[data-color-theme="gold-rush"] .cards-grid {
-  background: linear-gradient(180deg, rgba(255,215,0,0.12) 0%, rgba(30,25,8,0.96) 100%);
-  box-shadow: 0 0 90px rgba(255,215,0,0.4), inset 0 0 45px rgba(255,215,0,0.1);
-  border: 1px solid rgba(255,215,0,0.45);
+  background: linear-gradient(180deg, rgba(255,215,0,0.12) 0%, rgba(30,25,8,0.96) 100%) !important;
+  box-shadow: 0 0 90px rgba(255,215,0,0.4), inset 0 0 45px rgba(255,215,0,0.1) !important;
+  border: 1px solid rgba(255,215,0,0.45) !important;
 }
 
 .make67-page[data-color-theme="gold-rush"] .card {
-  background: linear-gradient(180deg, #302810 0%, #1a1508 100%);
-  border-color: rgba(255,215,0,0.55);
-  box-shadow: 0 0 32px rgba(255,215,0,0.35), 0 8px 26px rgba(0,0,0,0.48);
+  background: linear-gradient(180deg, #302810 0%, #1a1508 100%) !important;
+  border-color: rgba(255,215,0,0.55) !important;
+  box-shadow: 0 0 32px rgba(255,215,0,0.35), 0 8px 26px rgba(0,0,0,0.48) !important;
   text-shadow: 0 0 22px var(--theme-glow);
-  color: #fff8d4;
+  color: #fff8d4 !important;
 }
 
 .make67-page[data-color-theme="gold-rush"] .card:hover,
 .make67-page[data-color-theme="gold-rush"] .card.selected {
-  box-shadow: 0 0 50px rgba(255,215,0,0.7), 0 0 90px rgba(255,215,0,0.45), 0 12px 36px rgba(0,0,0,0.58);
-  border-color: rgba(255,215,0,1);
+  box-shadow: 0 0 50px rgba(255,215,0,0.7), 0 0 90px rgba(255,215,0,0.45), 0 12px 36px rgba(0,0,0,0.58) !important;
+  border-color: rgba(255,215,0,1) !important;
 }
 
 .make67-page[data-color-theme="gold-rush"] .op-btn {
-  background: linear-gradient(180deg, rgba(255,215,0,0.22) 0%, rgba(30,25,8,0.92) 100%);
-  border-color: rgba(255,215,0,0.5);
-  color: #fff0c8;
-  box-shadow: 0 0 22px rgba(255,215,0,0.22);
+  background: linear-gradient(180deg, rgba(255,215,0,0.22) 0%, rgba(30,25,8,0.92) 100%) !important;
+  border-color: rgba(255,215,0,0.5) !important;
+  color: #fff0c8 !important;
+  box-shadow: 0 0 22px rgba(255,215,0,0.22) !important;
 }
 
 .make67-page[data-color-theme="gold-rush"] .op-btn.active {
-  box-shadow: 0 0 40px rgba(255,215,0,0.75), 0 0 70px rgba(255,215,0,0.45), inset 0 0 22px rgba(255,215,0,0.32);
-  border-color: #ffd700;
+  box-shadow: 0 0 40px rgba(255,215,0,0.75), 0 0 70px rgba(255,215,0,0.45), inset 0 0 22px rgba(255,215,0,0.32) !important;
+  border-color: #ffd700 !important;
 }
 
 /* 3500 - Crimson Fire (Power/Inferno) */
@@ -2132,40 +2278,42 @@ body.holding-snowball { cursor: none; }
   --theme-primary: #ff3300;
   --theme-secondary: #ff6600;
   --theme-glow: rgba(255, 51, 0, 0.55);
-  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a0808 0%, #1a0505 40%, #0d0303 100%);
+  --accent: #ff3300 !important;
+  --accent-2: #ff6600 !important;
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a0808 0%, #1a0505 40%, #0d0303 100%) !important;
 }
 
 .make67-page[data-color-theme="crimson-fire"] .cards-grid {
-  background: linear-gradient(180deg, rgba(255,51,0,0.14) 0%, rgba(30,8,8,0.96) 100%);
-  box-shadow: 0 0 100px rgba(255,51,0,0.45), inset 0 0 50px rgba(255,51,0,0.12);
-  border: 1px solid rgba(255,51,0,0.5);
+  background: linear-gradient(180deg, rgba(255,51,0,0.14) 0%, rgba(30,8,8,0.96) 100%) !important;
+  box-shadow: 0 0 100px rgba(255,51,0,0.45), inset 0 0 50px rgba(255,51,0,0.12) !important;
+  border: 1px solid rgba(255,51,0,0.5) !important;
   animation: theme-glow-pulse 3s ease-in-out infinite;
 }
 
 .make67-page[data-color-theme="crimson-fire"] .card {
-  background: linear-gradient(180deg, #351510 0%, #1a0a08 100%);
-  border-color: rgba(255,51,0,0.6);
-  box-shadow: 0 0 36px rgba(255,51,0,0.4), 0 8px 28px rgba(0,0,0,0.5);
+  background: linear-gradient(180deg, #351510 0%, #1a0a08 100%) !important;
+  border-color: rgba(255,51,0,0.6) !important;
+  box-shadow: 0 0 36px rgba(255,51,0,0.4), 0 8px 28px rgba(0,0,0,0.5) !important;
   text-shadow: 0 0 24px var(--theme-glow);
-  color: #ffd8d4;
+  color: #ffd8d4 !important;
 }
 
 .make67-page[data-color-theme="crimson-fire"] .card:hover,
 .make67-page[data-color-theme="crimson-fire"] .card.selected {
-  box-shadow: 0 0 55px rgba(255,51,0,0.75), 0 0 100px rgba(255,51,0,0.5), 0 12px 38px rgba(0,0,0,0.6);
-  border-color: rgba(255,51,0,1);
+  box-shadow: 0 0 55px rgba(255,51,0,0.75), 0 0 100px rgba(255,51,0,0.5), 0 12px 38px rgba(0,0,0,0.6) !important;
+  border-color: rgba(255,51,0,1) !important;
 }
 
 .make67-page[data-color-theme="crimson-fire"] .op-btn {
-  background: linear-gradient(180deg, rgba(255,51,0,0.25) 0%, rgba(30,8,8,0.92) 100%);
-  border-color: rgba(255,51,0,0.55);
-  color: #ffc8c0;
-  box-shadow: 0 0 25px rgba(255,51,0,0.25);
+  background: linear-gradient(180deg, rgba(255,51,0,0.25) 0%, rgba(30,8,8,0.92) 100%) !important;
+  border-color: rgba(255,51,0,0.55) !important;
+  color: #ffc8c0 !important;
+  box-shadow: 0 0 25px rgba(255,51,0,0.25) !important;
 }
 
 .make67-page[data-color-theme="crimson-fire"] .op-btn.active {
-  box-shadow: 0 0 45px rgba(255,51,0,0.8), 0 0 80px rgba(255,51,0,0.5), inset 0 0 25px rgba(255,51,0,0.35);
-  border-color: #ff3300;
+  box-shadow: 0 0 45px rgba(255,51,0,0.8), 0 0 80px rgba(255,51,0,0.5), inset 0 0 25px rgba(255,51,0,0.35) !important;
+  border-color: #ff3300 !important;
 }
 
 /* 4000 - Prismatic (Rainbow/Ultimate/God Mode) */
@@ -2173,21 +2321,34 @@ body.holding-snowball { cursor: none; }
   --theme-primary: #fff;
   --theme-secondary: #fff;
   --theme-glow: rgba(255,255,255,0.6);
+  --accent: #fff !important;
+  --accent-2: #fff !important;
   background: linear-gradient(270deg,
     #1a0520 0%, #0a1525 16%, #051a15 33%,
-    #1a1a05 50%, #1a0a05 66%, #150520 83%, #1a0520 100%);
+    #1a1a05 50%, #1a0a05 66%, #150520 83%, #1a0520 100%) !important;
   background-size: 400% 100%;
   animation: theme-bg-drift 12s ease infinite;
 }
 
+/* Prismatic overrides for ::before and ::after with rainbow cycling */
+.make67-page[data-color-theme="prismatic"] .cards-grid::before {
+  animation: prismatic-sweep 4s ease-in-out infinite !important;
+}
+
+@keyframes prismatic-sweep {
+  0%, 100% { background: linear-gradient(90deg, transparent 0%, rgba(255,100,200,0.4) 50%, transparent 100%); }
+  33% { background: linear-gradient(90deg, transparent 0%, rgba(100,255,200,0.4) 50%, transparent 100%); }
+  66% { background: linear-gradient(90deg, transparent 0%, rgba(100,200,255,0.4) 50%, transparent 100%); }
+}
+
 .make67-page[data-color-theme="prismatic"] .cards-grid {
-  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(15,15,20,0.96) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(15,15,20,0.96) 100%) !important;
   box-shadow:
     0 0 40px rgba(255,0,128,0.3),
     0 0 60px rgba(0,200,255,0.25),
     0 0 80px rgba(255,200,0,0.2),
-    inset 0 0 40px rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.35);
+    inset 0 0 40px rgba(255,255,255,0.06) !important;
+  border: 1px solid rgba(255,255,255,0.35) !important;
   animation: prismatic-glow 4s ease-in-out infinite;
 }
 
@@ -2204,14 +2365,14 @@ body.holding-snowball { cursor: none; }
 }
 
 .make67-page[data-color-theme="prismatic"] .card {
-  background: linear-gradient(180deg, #222228 0%, #12121a 100%);
-  border-color: rgba(255,255,255,0.5);
+  background: linear-gradient(180deg, #222228 0%, #12121a 100%) !important;
+  border-color: rgba(255,255,255,0.5) !important;
   box-shadow:
     0 0 20px rgba(255,100,200,0.3),
     0 0 35px rgba(100,200,255,0.25),
-    0 8px 30px rgba(0,0,0,0.5);
+    0 8px 30px rgba(0,0,0,0.5) !important;
   text-shadow: 0 0 15px rgba(255,255,255,0.7);
-  color: #fff;
+  color: #fff !important;
   animation: prismatic-card 5s ease-in-out infinite;
 }
 
@@ -2227,41 +2388,62 @@ body.holding-snowball { cursor: none; }
     0 0 40px rgba(255,100,200,0.6),
     0 0 60px rgba(100,200,255,0.5),
     0 0 80px rgba(255,220,100,0.4),
-    0 12px 40px rgba(0,0,0,0.6);
-  border-color: rgba(255,255,255,0.9);
+    0 12px 40px rgba(0,0,0,0.6) !important;
+  border-color: rgba(255,255,255,0.9) !important;
 }
 
 .make67-page[data-color-theme="prismatic"] .op-btn {
-  background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(15,15,20,0.92) 100%);
-  border-color: rgba(255,255,255,0.4);
-  color: #fff;
-  box-shadow: 0 0 18px rgba(200,150,255,0.2);
+  background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(15,15,20,0.92) 100%) !important;
+  border-color: rgba(255,255,255,0.4) !important;
+  color: #fff !important;
+  box-shadow: 0 0 18px rgba(200,150,255,0.2) !important;
 }
 
 .make67-page[data-color-theme="prismatic"] .op-btn.active {
   box-shadow:
     0 0 30px rgba(255,100,200,0.65),
     0 0 50px rgba(100,200,255,0.5),
-    inset 0 0 20px rgba(255,255,255,0.15);
-  border-color: #fff;
+    inset 0 0 20px rgba(255,255,255,0.15) !important;
+  border-color: #fff !important;
+}
+
+/* Prismatic spark animation */
+.make67-page[data-color-theme="prismatic"] .score-box .spark {
+  animation: prismatic-spark 0.6s ease-out forwards, spark-color 1s ease-in-out infinite !important;
+}
+
+@keyframes spark-color {
+  0%, 100% { background: #ff80c0; box-shadow: 0 0 6px #ff80c0; }
+  33% { background: #80ffc0; box-shadow: 0 0 6px #80ffc0; }
+  66% { background: #80c0ff; box-shadow: 0 0 6px #80c0ff; }
 }
 
 /* Panel and leaderboard tinting for themes */
 .make67-page[data-color-theme] .panel-left,
 .make67-page[data-color-theme] .leaderboard-container,
 .make67-page[data-color-theme] .glass-panel {
-  border-color: var(--theme-primary, rgba(255,255,255,0.14));
+  border-color: color-mix(in srgb, var(--theme-primary, #9fe3b5) 30%, transparent) !important;
+}
+
+.make67-page[data-color-theme] .stat-item {
+  border-color: color-mix(in srgb, var(--theme-primary, #9fe3b5) 25%, transparent) !important;
+}
+
+.make67-page[data-color-theme] .stat-item.gold {
+  color: var(--theme-primary, #ffd700) !important;
 }
 
 .make67-page[data-color-theme] .lb-list .m67-lb-item {
-  border-color: rgba(var(--theme-primary), 0.2);
+  border-color: color-mix(in srgb, var(--theme-primary, #9fe3b5) 20%, transparent) !important;
 }
 
 /* Reduced motion: disable animations but keep colors */
 @media (prefers-reduced-motion: reduce) {
   .make67-page[data-color-theme] .cards-grid,
+  .make67-page[data-color-theme] .cards-grid::before,
   .make67-page[data-color-theme="prismatic"] .card,
   .make67-page[data-color-theme="prismatic"],
+  .make67-page[data-color-theme="prismatic"] .score-box .spark,
   .make67-page[data-color-theme="crimson-fire"] .cards-grid {
     animation: none !important;
   }

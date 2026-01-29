@@ -1383,27 +1383,36 @@
       setTimeout(closeThemeMenu, 50);
     });
     el.appendChild(defBtn);
-    // Unlocked themes
+    // Only show unlocked themes
+    let nextUnlock = null;
     COLOR_THEME_OPTIONS.forEach(o => {
       const unlocked = t >= o.threshold;
+      if (!unlocked && !nextUnlock) {
+        nextUnlock = o; // track first locked theme for "next unlock" hint
+        return;
+      }
+      if (!unlocked) return; // skip locked themes
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.setAttribute('role','option');
       btn.setAttribute('aria-selected', String(pref === o.id));
-      btn.disabled = !unlocked;
-      btn.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:8px 10px;margin:2px 0;background:' + (pref === o.id ? 'rgba(159,227,181,.12)' : 'transparent') + ';border:1px solid ' + (pref === o.id ? 'var(--selected-outline,#3aa876)' : 'transparent') + ';color:' + (unlocked ? '#e6ebf5' : '#666') + ';border-radius:8px;cursor:' + (unlocked ? 'pointer' : 'not-allowed') + ';font-size:14px;opacity:' + (unlocked ? '1' : '0.5') + ';';
-      const labelText = unlocked ? o.label : o.label + ' (' + o.threshold + ' pts)';
-      btn.innerHTML = '<span>' + o.icon + ' ' + labelText + '</span><span style="opacity:.9;color:#9fe3b5;">' + (pref === o.id ? '✓' : '') + '</span>';
-      if (unlocked){
-        btn.addEventListener('click', ()=>{
-          setPreferredColorTheme(o.id);
-          applyColorTheme(o.id);
-          renderThemeMenu();
-          setTimeout(closeThemeMenu, 50);
-        });
-      }
+      btn.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:8px 10px;margin:2px 0;background:' + (pref === o.id ? 'rgba(159,227,181,.12)' : 'transparent') + ';border:1px solid ' + (pref === o.id ? 'var(--selected-outline,#3aa876)' : 'transparent') + ';color:#e6ebf5;border-radius:8px;cursor:pointer;font-size:14px;';
+      btn.innerHTML = '<span>' + o.icon + ' ' + o.label + '</span><span style="opacity:.9;color:#9fe3b5;">' + (pref === o.id ? '✓' : '') + '</span>';
+      btn.addEventListener('click', ()=>{
+        setPreferredColorTheme(o.id);
+        applyColorTheme(o.id);
+        renderThemeMenu();
+        setTimeout(closeThemeMenu, 50);
+      });
       el.appendChild(btn);
     });
+    // Show next unlock hint if there are more themes to unlock
+    if (nextUnlock) {
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:11px;color:#7a8290;padding:8px 10px 4px;border-top:1px solid rgba(255,255,255,0.08);margin-top:4px;';
+      hint.textContent = 'Next: ' + nextUnlock.icon + ' ' + nextUnlock.label + ' at ' + nextUnlock.threshold + ' pts';
+      el.appendChild(hint);
+    }
   }
   function positionThemeMenu(){
     const el = ensureThemeMenu();
