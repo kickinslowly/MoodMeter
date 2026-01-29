@@ -168,6 +168,20 @@
   const myUid = (document.body && document.body.dataset && document.body.dataset.userId) ? String(document.body.dataset.userId) : '';
   const soundBtn = document.getElementById('m67SoundBtn');
   let soundMenuEl = null; // created lazily
+  // Color theme selector UI
+  const themeBtn = document.getElementById('m67ThemeBtn');
+  let themeMenuEl = null; // created lazily
+
+  // --- Color Theme Options (unlock every 500 pts starting at 1500) ---
+  const COLOR_THEME_OPTIONS = [
+    { id: 'neon-lime', label: 'Neon Lime', threshold: 1500, icon: '🟢' },
+    { id: 'electric-blue', label: 'Electric Blue', threshold: 2000, icon: '🔵' },
+    { id: 'hot-pink', label: 'Hot Pink', threshold: 2500, icon: '💗' },
+    { id: 'gold-rush', label: 'Gold Rush', threshold: 3000, icon: '🟡' },
+    { id: 'crimson-fire', label: 'Crimson Fire', threshold: 3500, icon: '🔴' },
+    { id: 'prismatic', label: 'Prismatic', threshold: 4000, icon: '🌈' }
+  ];
+
   let bannedCache = [];
 
   let baseCards = [];
@@ -236,22 +250,50 @@
     { id: 'snd_enemy', label: 'Enemy', threshold: 1400 },
     { id: 'snd_huh', label: 'Huh', threshold: 1600 },
     { id: 'snd_minecraft', label: 'Minecraft', threshold: 1800 },
-    { id: 'snd_yes', label: 'Yes', threshold: 2000 }
+    { id: 'snd_yes', label: 'Yes', threshold: 2000 },
+    { id: 'snd_ahhaha', label: 'Ahhaha', threshold: 2200 },
+    { id: 'snd_amongus', label: 'Among Us', threshold: 2400 },
+    { id: 'snd_bad', label: 'Bad', threshold: 2600 },
+    { id: 'snd_duck', label: 'Duck', threshold: 2800 },
+    { id: 'snd_hello', label: 'Hello', threshold: 3000 },
+    { id: 'snd_punch', label: 'Punch', threshold: 3200 },
+    { id: 'snd_rizzbot', label: 'Rizzbot', threshold: 3400 },
+    { id: 'snd_watdadogdoin', label: 'Wat Da Dog Doin', threshold: 3600 },
+    { id: 'snd_youwhat', label: 'You What', threshold: 3800 }
+  ];
+
+  // Level up sound IDs for random selection
+  const LEVELUP_SOUNDS = [
+    'snd_levelup_brainrot',
+    'snd_levelup_coffin',
+    'snd_levelup_funnysong',
+    'snd_levelup_ruletheworld',
+    'snd_levelup_thai',
+    'snd_levelup_xenogenesis'
   ];
 
   function currentSoundThreshold(){
     const t = predictedTotalForSound();
-    return (t > 2000) ? 2000
-      : (t > 1800) ? 1800
-      : (t > 1600) ? 1600
-      : (t > 1400) ? 1400
-      : (t > 1200) ? 1200
-      : (t > 1000) ? 1000
-      : (t > 800) ? 800
-      : (t > 600) ? 600
-      : (t > 400) ? 400
-      : (t > 200) ? 200
-      : 0;
+    if (t > 3800) return 3800;
+    if (t > 3600) return 3600;
+    if (t > 3400) return 3400;
+    if (t > 3200) return 3200;
+    if (t > 3000) return 3000;
+    if (t > 2800) return 2800;
+    if (t > 2600) return 2600;
+    if (t > 2400) return 2400;
+    if (t > 2200) return 2200;
+    if (t > 2000) return 2000;
+    if (t > 1800) return 1800;
+    if (t > 1600) return 1600;
+    if (t > 1400) return 1400;
+    if (t > 1200) return 1200;
+    if (t > 1000) return 1000;
+    if (t > 800) return 800;
+    if (t > 600) return 600;
+    if (t > 400) return 400;
+    if (t > 200) return 200;
+    return 0;
   }
 
   function _prefSoundKey(){ return 'm6or7_pref_sound:' + (myUid || 'anon'); }
@@ -274,27 +316,26 @@
 
   function pickSolveSoundElement(){
     const t = predictedTotalForSound();
-    const id = (t > 2000)
-      ? 'snd_yes'
-      : (t > 1800)
-        ? 'snd_minecraft'
-        : (t > 1600)
-          ? 'snd_huh'
-          : (t > 1400)
-            ? 'snd_enemy'
-            : (t > 1200)
-              ? 'snd_cry'
-              : (t > 1000)
-                ? 'snd_reload'
-                : (t > 800)
-                  ? 'snd_ah'
-                  : (t > 600)
-                    ? 'snd_hehe'
-                    : (t > 400)
-                      ? 'snd_lol'
-                      : (t > 200)
-                        ? 'snd_meme'
-                        : 'snd_brainrot';
+    let id = 'snd_brainrot';
+    if (t > 3800) id = 'snd_youwhat';
+    else if (t > 3600) id = 'snd_watdadogdoin';
+    else if (t > 3400) id = 'snd_rizzbot';
+    else if (t > 3200) id = 'snd_punch';
+    else if (t > 3000) id = 'snd_hello';
+    else if (t > 2800) id = 'snd_duck';
+    else if (t > 2600) id = 'snd_bad';
+    else if (t > 2400) id = 'snd_amongus';
+    else if (t > 2200) id = 'snd_ahhaha';
+    else if (t > 2000) id = 'snd_yes';
+    else if (t > 1800) id = 'snd_minecraft';
+    else if (t > 1600) id = 'snd_huh';
+    else if (t > 1400) id = 'snd_enemy';
+    else if (t > 1200) id = 'snd_cry';
+    else if (t > 1000) id = 'snd_reload';
+    else if (t > 800) id = 'snd_ah';
+    else if (t > 600) id = 'snd_hehe';
+    else if (t > 400) id = 'snd_lol';
+    else if (t > 200) id = 'snd_meme';
     return document.getElementById(id);
   }
 
@@ -370,13 +411,19 @@
       let ids = [
         'snd_brainrot','snd_meme','snd_lol','snd_hehe','snd_ah','snd_reload',
         'snd_cry','snd_enemy', 'snd_huh','snd_minecraft','snd_yes',
+        // Extended milestone sounds
+        'snd_ahhaha','snd_amongus','snd_bad','snd_duck','snd_hello',
+        'snd_punch','snd_rizzbot','snd_watdadogdoin','snd_youwhat',
+        // Other SFX
         'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust','snd_item_shield',
-        'snd_level_up'
+        // Level up sounds
+        'snd_levelup_brainrot','snd_levelup_coffin','snd_levelup_funnysong',
+        'snd_levelup_ruletheworld','snd_levelup_thai','snd_levelup_xenogenesis'
       ];
       // Optimization: on mobile, only unlock a few critical sounds to avoid triggering massive downloads
       // since preload is set to "none".
       if (window.innerWidth < 820) {
-        ids = ['snd_brainrot', 'snd_level_up', 'snd_shop_open'];
+        ids = ['snd_brainrot', 'snd_levelup_brainrot', 'snd_levelup_coffin', 'snd_shop_open'];
       }
       ids.forEach(id=>{
         const el = document.getElementById(id);
@@ -638,7 +685,7 @@
         const newRankTitle = String(me.rank_title || '');
         if (lastKnownRankKey !== null && newRankKey && newRankKey !== lastKnownRankKey &&
             (typeof lastKnownAllTime === 'number' ? newAllTime > lastKnownAllTime : true)){
-          play('snd_level_up');
+          play(randomChoice(LEVELUP_SOUNDS));
           triggerRankHype(lastKnownRankTitle, newRankTitle);
         }
         lastKnownRankKey = newRankKey || lastKnownRankKey;
@@ -650,6 +697,10 @@
         if (allTimeBoxEl) allTimeBoxEl.style.display = '';
         if (sessionBoxEl) sessionBoxEl.style.display = '';
         applyEmpowerment();
+        // Update color theme button visibility and reapply saved theme
+        updateThemeBtnVisibility();
+        const savedTheme = getPreferredColorTheme();
+        if (savedTheme) applyColorTheme(savedTheme);
         // Update effects note
         updateEffectsSummary({
           invisible: Number(me.invisible_ends_in||0),
@@ -1104,6 +1155,7 @@
       if (shopModalRoot && !shopModalRoot.hidden) closeShop();
       if (bannedRoot && !bannedRoot.hidden) { bannedRoot.hidden = true; updateBodyLock(); }
       if (chatOverlay && !chatOverlay.hidden) { chatOverlay.hidden = true; updateBodyLock(); }
+      if (themeMenuEl && !themeMenuEl.hidden) closeThemeMenu();
     }
   });
 
@@ -1258,6 +1310,151 @@
   window.addEventListener('resize', ()=>{ if (soundMenuEl && !soundMenuEl.hidden) positionSoundMenu(); });
   window.addEventListener('scroll', ()=>{ if (soundMenuEl && !soundMenuEl.hidden) positionSoundMenu(); }, {passive:true});
 
+  // --- Color Theme Menu UI ---
+  function _prefThemeKey(){ return 'm6or7_pref_theme:' + (myUid || 'anon'); }
+  function getPreferredColorTheme(){
+    try { return window.localStorage.getItem(_prefThemeKey()) || ''; } catch(_){ return ''; }
+  }
+  function setPreferredColorTheme(id){
+    try { window.localStorage.setItem(_prefThemeKey(), String(id||'')); } catch(_){ }
+  }
+  function getHighestUnlockedThemeThreshold(){
+    const t = (typeof allTime === 'number') ? allTime : 0;
+    let highest = 0;
+    for (const opt of COLOR_THEME_OPTIONS){
+      if (t >= opt.threshold && opt.threshold > highest) highest = opt.threshold;
+    }
+    return highest;
+  }
+  function isThemeUnlocked(id){
+    const opt = COLOR_THEME_OPTIONS.find(o => o.id === id);
+    if (!opt) return false;
+    const t = (typeof allTime === 'number') ? allTime : 0;
+    return t >= opt.threshold;
+  }
+  function applyColorTheme(id){
+    if (!pageRoot) return;
+    if (id && isThemeUnlocked(id)){
+      pageRoot.setAttribute('data-color-theme', id);
+    } else {
+      pageRoot.removeAttribute('data-color-theme');
+    }
+  }
+  function updateThemeBtnVisibility(){
+    if (!themeBtn) return;
+    const t = (typeof allTime === 'number') ? allTime : 0;
+    if (t >= 1500){
+      themeBtn.style.display = '';
+    } else {
+      themeBtn.style.display = 'none';
+    }
+  }
+  function ensureThemeMenu(){
+    if (themeMenuEl) return themeMenuEl;
+    const el = document.createElement('div');
+    el.id = 'm67ThemeMenu';
+    el.setAttribute('role', 'listbox');
+    el.hidden = true;
+    el.style.cssText = 'position:absolute;min-width:200px;max-width:260px;background:rgba(34,36,43,.96);border:1px solid #3a3f4b;border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,.45);padding:6px;backdrop-filter:blur(6px);z-index:1000;';
+    document.body.appendChild(el);
+    themeMenuEl = el;
+    return el;
+  }
+  function renderThemeMenu(){
+    const el = ensureThemeMenu();
+    const t = (typeof allTime === 'number') ? allTime : 0;
+    const pref = getPreferredColorTheme();
+    el.innerHTML = '';
+    const header = document.createElement('div');
+    header.textContent = 'Color Theme';
+    header.style.cssText = 'font-size:12px;color:#9aa4b2;opacity:.9;padding:6px 8px 8px;';
+    el.appendChild(header);
+    // Default/none option
+    const defBtn = document.createElement('button');
+    defBtn.type = 'button';
+    defBtn.setAttribute('role','option');
+    defBtn.setAttribute('aria-selected', String(!pref));
+    defBtn.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:8px 10px;margin:2px 0;background:' + (!pref ? 'rgba(159,227,181,.12)' : 'transparent') + ';border:1px solid ' + (!pref ? 'var(--selected-outline,#3aa876)' : 'transparent') + ';color:#e6ebf5;border-radius:8px;cursor:pointer;font-size:14px;';
+    defBtn.innerHTML = '<span>⚫ Default</span><span style="opacity:.9;color:#9fe3b5;">' + (!pref ? '✓' : '') + '</span>';
+    defBtn.addEventListener('click', ()=>{
+      setPreferredColorTheme('');
+      applyColorTheme('');
+      renderThemeMenu();
+      setTimeout(closeThemeMenu, 50);
+    });
+    el.appendChild(defBtn);
+    // Unlocked themes
+    COLOR_THEME_OPTIONS.forEach(o => {
+      const unlocked = t >= o.threshold;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('role','option');
+      btn.setAttribute('aria-selected', String(pref === o.id));
+      btn.disabled = !unlocked;
+      btn.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:8px 10px;margin:2px 0;background:' + (pref === o.id ? 'rgba(159,227,181,.12)' : 'transparent') + ';border:1px solid ' + (pref === o.id ? 'var(--selected-outline,#3aa876)' : 'transparent') + ';color:' + (unlocked ? '#e6ebf5' : '#666') + ';border-radius:8px;cursor:' + (unlocked ? 'pointer' : 'not-allowed') + ';font-size:14px;opacity:' + (unlocked ? '1' : '0.5') + ';';
+      const labelText = unlocked ? o.label : o.label + ' (' + o.threshold + ' pts)';
+      btn.innerHTML = '<span>' + o.icon + ' ' + labelText + '</span><span style="opacity:.9;color:#9fe3b5;">' + (pref === o.id ? '✓' : '') + '</span>';
+      if (unlocked){
+        btn.addEventListener('click', ()=>{
+          setPreferredColorTheme(o.id);
+          applyColorTheme(o.id);
+          renderThemeMenu();
+          setTimeout(closeThemeMenu, 50);
+        });
+      }
+      el.appendChild(btn);
+    });
+  }
+  function positionThemeMenu(){
+    const el = ensureThemeMenu();
+    if (!themeBtn) return;
+    const r = themeBtn.getBoundingClientRect();
+    const top = r.bottom + 6 + window.scrollY;
+    const left = Math.min(Math.max(12, r.left + window.scrollX - 60), window.scrollX + (window.innerWidth - 240));
+    el.style.top = top + 'px';
+    el.style.left = left + 'px';
+  }
+  function openThemeMenu(){
+    if (!themeBtn) return;
+    const el = ensureThemeMenu();
+    renderThemeMenu();
+    positionThemeMenu();
+    el.hidden = false;
+    themeBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closeThemeMenu(){
+    if (!themeMenuEl) return;
+    themeMenuEl.hidden = true;
+    if (themeBtn) themeBtn.setAttribute('aria-expanded', 'false');
+  }
+  function toggleThemeMenu(){
+    if (!themeMenuEl || themeMenuEl.hidden) openThemeMenu(); else closeThemeMenu();
+  }
+  if (themeBtn){
+    themeBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      toggleThemeMenu();
+    });
+  }
+  document.addEventListener('pointerdown', (e)=>{
+    if (!themeMenuEl || themeMenuEl.hidden) return;
+    const t = e.target;
+    if (t === themeMenuEl || themeMenuEl.contains(t)) return;
+    if (t === themeBtn) return;
+    closeThemeMenu();
+  });
+  window.addEventListener('resize', ()=>{ if (themeMenuEl && !themeMenuEl.hidden) positionThemeMenu(); });
+  window.addEventListener('scroll', ()=>{ if (themeMenuEl && !themeMenuEl.hidden) positionThemeMenu(); }, {passive:true});
+
+  // Apply saved theme on load and update button visibility
+  function initColorTheme(){
+    updateThemeBtnVisibility();
+    const saved = getPreferredColorTheme();
+    if (saved && isThemeUnlocked(saved)){
+      applyColorTheme(saved);
+    }
+  }
+
   // Fit split layout under header height
   function measureHeader(){
     const header = document.querySelector('.make67-page .header');
@@ -1373,6 +1570,7 @@
   loadLeaderboard();
   newPuzzle();
   applyEmpowerment();
+  initColorTheme();
   loadShop();
   setTimeout(()=>{ loadState(); }, 1200);
 })();

@@ -1932,7 +1932,337 @@ body.holding-snowball { cursor: none; }
   .snowball-pile {
     display: none !important;
   }
-  
+
   /* Simplify some backgrounds if needed, or keep as is if they are just CSS patterns.
      The garlands are CSS patterns, so hiding them is enough to save some paint operations. */
+}
+
+/* ============================================================
+   USER-SELECTABLE COLOR THEMES (Unlockable at 1500+ points)
+   Bloomy, light-sabery, glowy effects
+   ============================================================ */
+
+/* Base glow animation for themes */
+@keyframes theme-glow-pulse {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  50% { filter: brightness(1.08) saturate(1.1); }
+}
+
+@keyframes theme-bg-drift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Shared theme base styles */
+.make67-page[data-color-theme] {
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+.make67-page[data-color-theme] .cards-grid {
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+
+.make67-page[data-color-theme] .card,
+.make67-page[data-color-theme] .op-btn {
+  transition: all 0.25s ease;
+}
+
+/* 1500 - Neon Lime (Cyber/Matrix) */
+.make67-page[data-color-theme="neon-lime"] {
+  --theme-primary: #39ff14;
+  --theme-secondary: #00ff66;
+  --theme-glow: rgba(57, 255, 20, 0.5);
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #0d2818 0%, #0a1a10 40%, #050d08 100%);
+}
+
+.make67-page[data-color-theme="neon-lime"] .cards-grid {
+  background: linear-gradient(180deg, rgba(57,255,20,0.08) 0%, rgba(0,30,10,0.95) 100%);
+  box-shadow: 0 0 60px rgba(57,255,20,0.25), inset 0 0 30px rgba(57,255,20,0.05);
+  border: 1px solid rgba(57,255,20,0.3);
+}
+
+.make67-page[data-color-theme="neon-lime"] .card {
+  background: linear-gradient(180deg, #1a2f1a 0%, #0d1a0d 100%);
+  border-color: rgba(57,255,20,0.4);
+  box-shadow: 0 0 20px rgba(57,255,20,0.2), 0 8px 20px rgba(0,0,0,0.4);
+  text-shadow: 0 0 15px var(--theme-glow);
+  color: #d4ffd4;
+}
+
+.make67-page[data-color-theme="neon-lime"] .card:hover,
+.make67-page[data-color-theme="neon-lime"] .card.selected {
+  box-shadow: 0 0 35px rgba(57,255,20,0.5), 0 0 60px rgba(57,255,20,0.3), 0 12px 30px rgba(0,0,0,0.5);
+  border-color: rgba(57,255,20,0.8);
+}
+
+.make67-page[data-color-theme="neon-lime"] .op-btn {
+  background: linear-gradient(180deg, rgba(57,255,20,0.15) 0%, rgba(0,30,10,0.9) 100%);
+  border-color: rgba(57,255,20,0.35);
+  color: #c8ffc8;
+  box-shadow: 0 0 15px rgba(57,255,20,0.15);
+}
+
+.make67-page[data-color-theme="neon-lime"] .op-btn.active {
+  box-shadow: 0 0 25px rgba(57,255,20,0.6), 0 0 50px rgba(57,255,20,0.3), inset 0 0 15px rgba(57,255,20,0.2);
+  border-color: #39ff14;
+}
+
+/* 2000 - Electric Blue (Ice/Lightning) */
+.make67-page[data-color-theme="electric-blue"] {
+  --theme-primary: #00d4ff;
+  --theme-secondary: #0099ff;
+  --theme-glow: rgba(0, 212, 255, 0.5);
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #0a2030 0%, #061520 40%, #030a10 100%);
+}
+
+.make67-page[data-color-theme="electric-blue"] .cards-grid {
+  background: linear-gradient(180deg, rgba(0,212,255,0.08) 0%, rgba(0,20,40,0.95) 100%);
+  box-shadow: 0 0 70px rgba(0,212,255,0.3), inset 0 0 35px rgba(0,212,255,0.06);
+  border: 1px solid rgba(0,212,255,0.35);
+}
+
+.make67-page[data-color-theme="electric-blue"] .card {
+  background: linear-gradient(180deg, #152535 0%, #0a1520 100%);
+  border-color: rgba(0,212,255,0.45);
+  box-shadow: 0 0 25px rgba(0,212,255,0.25), 0 8px 22px rgba(0,0,0,0.45);
+  text-shadow: 0 0 18px var(--theme-glow);
+  color: #d4f4ff;
+}
+
+.make67-page[data-color-theme="electric-blue"] .card:hover,
+.make67-page[data-color-theme="electric-blue"] .card.selected {
+  box-shadow: 0 0 40px rgba(0,212,255,0.6), 0 0 70px rgba(0,212,255,0.35), 0 12px 32px rgba(0,0,0,0.55);
+  border-color: rgba(0,212,255,0.9);
+}
+
+.make67-page[data-color-theme="electric-blue"] .op-btn {
+  background: linear-gradient(180deg, rgba(0,212,255,0.18) 0%, rgba(0,20,40,0.9) 100%);
+  border-color: rgba(0,212,255,0.4);
+  color: #c8f0ff;
+  box-shadow: 0 0 18px rgba(0,212,255,0.18);
+}
+
+.make67-page[data-color-theme="electric-blue"] .op-btn.active {
+  box-shadow: 0 0 30px rgba(0,212,255,0.65), 0 0 55px rgba(0,212,255,0.35), inset 0 0 18px rgba(0,212,255,0.25);
+  border-color: #00d4ff;
+}
+
+/* 2500 - Hot Pink (Synthwave/Vaporwave) */
+.make67-page[data-color-theme="hot-pink"] {
+  --theme-primary: #ff00aa;
+  --theme-secondary: #ff44cc;
+  --theme-glow: rgba(255, 0, 170, 0.5);
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a0a20 0%, #1a0615 40%, #0d030a 100%);
+}
+
+.make67-page[data-color-theme="hot-pink"] .cards-grid {
+  background: linear-gradient(180deg, rgba(255,0,170,0.1) 0%, rgba(30,5,25,0.95) 100%);
+  box-shadow: 0 0 80px rgba(255,0,170,0.35), inset 0 0 40px rgba(255,0,170,0.08);
+  border: 1px solid rgba(255,0,170,0.4);
+}
+
+.make67-page[data-color-theme="hot-pink"] .card {
+  background: linear-gradient(180deg, #2f1528 0%, #1a0a15 100%);
+  border-color: rgba(255,0,170,0.5);
+  box-shadow: 0 0 28px rgba(255,0,170,0.3), 0 8px 24px rgba(0,0,0,0.45);
+  text-shadow: 0 0 20px var(--theme-glow);
+  color: #ffd4f0;
+}
+
+.make67-page[data-color-theme="hot-pink"] .card:hover,
+.make67-page[data-color-theme="hot-pink"] .card.selected {
+  box-shadow: 0 0 45px rgba(255,0,170,0.65), 0 0 80px rgba(255,0,170,0.4), 0 12px 34px rgba(0,0,0,0.55);
+  border-color: rgba(255,0,170,0.95);
+}
+
+.make67-page[data-color-theme="hot-pink"] .op-btn {
+  background: linear-gradient(180deg, rgba(255,0,170,0.2) 0%, rgba(30,5,25,0.9) 100%);
+  border-color: rgba(255,0,170,0.45);
+  color: #ffc8e8;
+  box-shadow: 0 0 20px rgba(255,0,170,0.2);
+}
+
+.make67-page[data-color-theme="hot-pink"] .op-btn.active {
+  box-shadow: 0 0 35px rgba(255,0,170,0.7), 0 0 60px rgba(255,0,170,0.4), inset 0 0 20px rgba(255,0,170,0.28);
+  border-color: #ff00aa;
+}
+
+/* 3000 - Gold Rush (Royal/Luxury) */
+.make67-page[data-color-theme="gold-rush"] {
+  --theme-primary: #ffd700;
+  --theme-secondary: #ffaa00;
+  --theme-glow: rgba(255, 215, 0, 0.55);
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a2208 0%, #1a1505 40%, #0d0a03 100%);
+}
+
+.make67-page[data-color-theme="gold-rush"] .cards-grid {
+  background: linear-gradient(180deg, rgba(255,215,0,0.12) 0%, rgba(30,25,8,0.96) 100%);
+  box-shadow: 0 0 90px rgba(255,215,0,0.4), inset 0 0 45px rgba(255,215,0,0.1);
+  border: 1px solid rgba(255,215,0,0.45);
+}
+
+.make67-page[data-color-theme="gold-rush"] .card {
+  background: linear-gradient(180deg, #302810 0%, #1a1508 100%);
+  border-color: rgba(255,215,0,0.55);
+  box-shadow: 0 0 32px rgba(255,215,0,0.35), 0 8px 26px rgba(0,0,0,0.48);
+  text-shadow: 0 0 22px var(--theme-glow);
+  color: #fff8d4;
+}
+
+.make67-page[data-color-theme="gold-rush"] .card:hover,
+.make67-page[data-color-theme="gold-rush"] .card.selected {
+  box-shadow: 0 0 50px rgba(255,215,0,0.7), 0 0 90px rgba(255,215,0,0.45), 0 12px 36px rgba(0,0,0,0.58);
+  border-color: rgba(255,215,0,1);
+}
+
+.make67-page[data-color-theme="gold-rush"] .op-btn {
+  background: linear-gradient(180deg, rgba(255,215,0,0.22) 0%, rgba(30,25,8,0.92) 100%);
+  border-color: rgba(255,215,0,0.5);
+  color: #fff0c8;
+  box-shadow: 0 0 22px rgba(255,215,0,0.22);
+}
+
+.make67-page[data-color-theme="gold-rush"] .op-btn.active {
+  box-shadow: 0 0 40px rgba(255,215,0,0.75), 0 0 70px rgba(255,215,0,0.45), inset 0 0 22px rgba(255,215,0,0.32);
+  border-color: #ffd700;
+}
+
+/* 3500 - Crimson Fire (Power/Inferno) */
+.make67-page[data-color-theme="crimson-fire"] {
+  --theme-primary: #ff3300;
+  --theme-secondary: #ff6600;
+  --theme-glow: rgba(255, 51, 0, 0.55);
+  background: radial-gradient(ellipse 140% 100% at 50% -20%, #2a0808 0%, #1a0505 40%, #0d0303 100%);
+}
+
+.make67-page[data-color-theme="crimson-fire"] .cards-grid {
+  background: linear-gradient(180deg, rgba(255,51,0,0.14) 0%, rgba(30,8,8,0.96) 100%);
+  box-shadow: 0 0 100px rgba(255,51,0,0.45), inset 0 0 50px rgba(255,51,0,0.12);
+  border: 1px solid rgba(255,51,0,0.5);
+  animation: theme-glow-pulse 3s ease-in-out infinite;
+}
+
+.make67-page[data-color-theme="crimson-fire"] .card {
+  background: linear-gradient(180deg, #351510 0%, #1a0a08 100%);
+  border-color: rgba(255,51,0,0.6);
+  box-shadow: 0 0 36px rgba(255,51,0,0.4), 0 8px 28px rgba(0,0,0,0.5);
+  text-shadow: 0 0 24px var(--theme-glow);
+  color: #ffd8d4;
+}
+
+.make67-page[data-color-theme="crimson-fire"] .card:hover,
+.make67-page[data-color-theme="crimson-fire"] .card.selected {
+  box-shadow: 0 0 55px rgba(255,51,0,0.75), 0 0 100px rgba(255,51,0,0.5), 0 12px 38px rgba(0,0,0,0.6);
+  border-color: rgba(255,51,0,1);
+}
+
+.make67-page[data-color-theme="crimson-fire"] .op-btn {
+  background: linear-gradient(180deg, rgba(255,51,0,0.25) 0%, rgba(30,8,8,0.92) 100%);
+  border-color: rgba(255,51,0,0.55);
+  color: #ffc8c0;
+  box-shadow: 0 0 25px rgba(255,51,0,0.25);
+}
+
+.make67-page[data-color-theme="crimson-fire"] .op-btn.active {
+  box-shadow: 0 0 45px rgba(255,51,0,0.8), 0 0 80px rgba(255,51,0,0.5), inset 0 0 25px rgba(255,51,0,0.35);
+  border-color: #ff3300;
+}
+
+/* 4000 - Prismatic (Rainbow/Ultimate/God Mode) */
+.make67-page[data-color-theme="prismatic"] {
+  --theme-primary: #fff;
+  --theme-secondary: #fff;
+  --theme-glow: rgba(255,255,255,0.6);
+  background: linear-gradient(270deg,
+    #1a0520 0%, #0a1525 16%, #051a15 33%,
+    #1a1a05 50%, #1a0a05 66%, #150520 83%, #1a0520 100%);
+  background-size: 400% 100%;
+  animation: theme-bg-drift 12s ease infinite;
+}
+
+.make67-page[data-color-theme="prismatic"] .cards-grid {
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(15,15,20,0.96) 100%);
+  box-shadow:
+    0 0 40px rgba(255,0,128,0.3),
+    0 0 60px rgba(0,200,255,0.25),
+    0 0 80px rgba(255,200,0,0.2),
+    inset 0 0 40px rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.35);
+  animation: prismatic-glow 4s ease-in-out infinite;
+}
+
+@keyframes prismatic-glow {
+  0%, 100% {
+    box-shadow: 0 0 50px rgba(255,0,128,0.4), 0 0 70px rgba(0,200,255,0.3), 0 0 90px rgba(255,200,0,0.25), inset 0 0 40px rgba(255,255,255,0.06);
+  }
+  33% {
+    box-shadow: 0 0 50px rgba(0,255,128,0.4), 0 0 70px rgba(255,0,200,0.3), 0 0 90px rgba(0,200,255,0.25), inset 0 0 40px rgba(255,255,255,0.06);
+  }
+  66% {
+    box-shadow: 0 0 50px rgba(255,200,0,0.4), 0 0 70px rgba(0,255,128,0.3), 0 0 90px rgba(255,0,200,0.25), inset 0 0 40px rgba(255,255,255,0.06);
+  }
+}
+
+.make67-page[data-color-theme="prismatic"] .card {
+  background: linear-gradient(180deg, #222228 0%, #12121a 100%);
+  border-color: rgba(255,255,255,0.5);
+  box-shadow:
+    0 0 20px rgba(255,100,200,0.3),
+    0 0 35px rgba(100,200,255,0.25),
+    0 8px 30px rgba(0,0,0,0.5);
+  text-shadow: 0 0 15px rgba(255,255,255,0.7);
+  color: #fff;
+  animation: prismatic-card 5s ease-in-out infinite;
+}
+
+@keyframes prismatic-card {
+  0%, 100% { border-color: rgba(255,100,200,0.6); }
+  33% { border-color: rgba(100,255,200,0.6); }
+  66% { border-color: rgba(100,200,255,0.6); }
+}
+
+.make67-page[data-color-theme="prismatic"] .card:hover,
+.make67-page[data-color-theme="prismatic"] .card.selected {
+  box-shadow:
+    0 0 40px rgba(255,100,200,0.6),
+    0 0 60px rgba(100,200,255,0.5),
+    0 0 80px rgba(255,220,100,0.4),
+    0 12px 40px rgba(0,0,0,0.6);
+  border-color: rgba(255,255,255,0.9);
+}
+
+.make67-page[data-color-theme="prismatic"] .op-btn {
+  background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(15,15,20,0.92) 100%);
+  border-color: rgba(255,255,255,0.4);
+  color: #fff;
+  box-shadow: 0 0 18px rgba(200,150,255,0.2);
+}
+
+.make67-page[data-color-theme="prismatic"] .op-btn.active {
+  box-shadow:
+    0 0 30px rgba(255,100,200,0.65),
+    0 0 50px rgba(100,200,255,0.5),
+    inset 0 0 20px rgba(255,255,255,0.15);
+  border-color: #fff;
+}
+
+/* Panel and leaderboard tinting for themes */
+.make67-page[data-color-theme] .panel-left,
+.make67-page[data-color-theme] .leaderboard-container,
+.make67-page[data-color-theme] .glass-panel {
+  border-color: var(--theme-primary, rgba(255,255,255,0.14));
+}
+
+.make67-page[data-color-theme] .lb-list .m67-lb-item {
+  border-color: rgba(var(--theme-primary), 0.2);
+}
+
+/* Reduced motion: disable animations but keep colors */
+@media (prefers-reduced-motion: reduce) {
+  .make67-page[data-color-theme] .cards-grid,
+  .make67-page[data-color-theme="prismatic"] .card,
+  .make67-page[data-color-theme="prismatic"],
+  .make67-page[data-color-theme="crimson-fire"] .cards-grid {
+    animation: none !important;
+  }
 }
