@@ -40,8 +40,10 @@
     canvas.width = window.innerWidth * dpr;
     canvas.height = window.innerHeight * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    _cardsDirty = true;
   }
   window.addEventListener('resize', resize);
+  window.addEventListener('scroll', function () { _cardsDirty = true; }, { passive: true });
   resize();
 
   // ─── Player State ───────────────────────────────────────────
@@ -91,14 +93,25 @@
 
   function jpJump() { return justPressed.has(' ') || justPressed.has('w') || justPressed.has('arrowup'); }
 
-  // ─── Card Rects ─────────────────────────────────────────────
-  function getCards() {
-    return Array.from(document.querySelectorAll('.home-card')).map(function (el) {
+  // ─── Card Rects (cached – updated only on resize/scroll) ────
+  var _cardEls = null;
+  var _cachedCards = null;
+  var _cardsDirty = true;
+
+  function _rebuildCardCache() {
+    if (!_cardEls) _cardEls = document.querySelectorAll('.home-card');
+    _cachedCards = Array.from(_cardEls).map(function (el) {
       var r = el.getBoundingClientRect();
       return { left: r.left, right: r.right, top: r.top, bottom: r.bottom,
                width: r.width, height: r.height,
                cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
     });
+    _cardsDirty = false;
+  }
+
+  function getCards() {
+    if (_cardsDirty || !_cachedCards) _rebuildCardCache();
+    return _cachedCards;
   }
 
   // ─── Ground ─────────────────────────────────────────────────

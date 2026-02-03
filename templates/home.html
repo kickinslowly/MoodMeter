@@ -1,21 +1,6 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TuffGamez</title>
-  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8W6XCSVZZ0"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-8W6XCSVZZ0');
-  </script>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}TuffGamez{% endblock %}
+{% block content %}
   <div class="home-page">
     <header class="home-header">
       <h1 class="home-title">TuffGamez</h1>
@@ -90,6 +75,7 @@
       <p>Built for fun</p>
     </footer>
   </div>
+{% endblock %}
+{% block scripts %}
   <script src="{{ url_for('static', filename='js/stickman.js') }}"></script>
-</body>
-</html>
+{% endblock %}

@@ -488,8 +488,13 @@
     }
   }
 
+  let _prevLBHash = '';
   function renderLeaderboard(list){
     if (!lbList) return;
+    // Skip full rebuild if data hasn't changed
+    const hash = JSON.stringify((list||[]).map(u=>u.id+'|'+u.total+'|'+(u.is_mudded?1:0)+'|'+(u.is_boosted?1:0)+'|'+(u.is_shielded?1:0)+'|'+u.rank_key));
+    if (hash === _prevLBHash) return;
+    _prevLBHash = hash;
     lbList.innerHTML = '';
     if (!Array.isArray(list) || list.length === 0){
       const li = document.createElement('li');
@@ -1174,7 +1179,11 @@
         puffPool.push(s);
       }
 
+      const MAX_SHARDS = 120, MAX_PUFFS = 80, MAX_RINGS = 15;
+
       function spawnBurst(x, y, opts){
+        // Cap active particles to prevent frame drops during rapid solves
+        if (shards.length >= MAX_SHARDS) return;
         const big = !!(opts && opts.big);
         const quality = big ? 1.0 : 0.8;
         const baseCount = prefersReducedMotion ? (big ? 50 : 24) : (big ? 160 : 90);
@@ -1911,9 +1920,27 @@
     }
   }
 
-  // --- Init shop/inventory polling ---
-  setInterval(()=>{ tickState(); }, 1000);
-  setInterval(()=>{ loadState(); }, 8000);
+  // --- Init shop/inventory polling (pauses when tab is hidden) ---
+  let _tickId = null, _loadId = null;
+  function _startPolling(){
+    if (!_tickId) _tickId = setInterval(()=>{ tickState(); }, 1000);
+    if (!_loadId) _loadId = setInterval(()=>{ loadState(); }, 8000);
+  }
+  function _stopPolling(){
+    if (_tickId){ clearInterval(_tickId); _tickId = null; }
+    if (_loadId){ clearInterval(_loadId); _loadId = null; }
+  }
+  _startPolling();
+
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden){
+      _stopPolling();
+    } else {
+      loadState();
+      loadLeaderboard();
+      _startPolling();
+    }
+  });
 
   function playSuccess(){
     overlayRoot.hidden = false;
@@ -2241,6 +2268,16 @@
 
   // initial fetch to populate a bit
   pollLoop();
+
+  // Pause/resume chat polling on tab visibility
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden){
+      polling = false;
+    } else if (!polling){
+      polling = true;
+      pollLoop();
+    }
+  });
 
   // Send via POST
   formEl.addEventListener('submit', async (e) => {

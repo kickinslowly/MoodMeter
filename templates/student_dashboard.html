@@ -1,11 +1,6 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Student Dashboard</title>
-  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+{% extends "base.html" %}
+{% block title %}Student Dashboard{% endblock %}
+{% block head %}
   <style>
     .dash-container { max-width: 1100px; margin: 0 auto; padding: 16px; }
     .dash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
@@ -41,17 +36,8 @@
     /* Hide footer on dashboard pages */
     .footer { display: none !important; }
   </style>
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8W6XCSVZZ0"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-
-    gtag('config', 'G-8W6XCSVZZ0');
-  </script>
-</head>
-<body>
+{% endblock %}
+{% block content %}
   <div class="dash-container">
     <div class="dash-header">
       <h1>Student Dashboard</h1>
@@ -290,236 +276,21 @@ Pleasantness
       </div>
     </div>
   </div>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/heatmap-colors.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/cell-modal.js') }}"></script>
   <script>
     (function() {
-      // Ensure axis arrowheads point outward on both ends
-      try { document.querySelectorAll('marker#arrowhead-x, marker#arrowhead-y').forEach(m => m.setAttribute('orient','auto-start-reverse')); } catch {}
-      const size = Number('{{ size|tojson }}');
-      function lerp(a, b, t) { return a + (b - a) * t; }
-      function clamp01(x) { return Math.max(0, Math.min(1, x)); }
-      function mix(c0, c1, t){
-        return [
-          Math.round(lerp(c0[0], c1[0], t)),
-          Math.round(lerp(c0[1], c1[1], t)),
-          Math.round(lerp(c0[2], c1[2], t))
-        ];
-      }
-      function rgb(c){ return `rgb(${c[0]}, ${c[1]}, ${c[2]})`; }
-      const C_TL = [224, 56, 56];
-      const C_TR = [246, 223, 95];
-      const C_BL = [70, 112, 214];
-      const C_BR = [74, 201, 129];
-      // Quadrant-based color with sharp midline boundaries, gradient within quadrants
-      function quadrantColor(tX, tY) {
-        const left = tX <= 0.5;
-        const top = tY <= 0.5;
-        const qX = left ? (tX / 0.5) : ((tX - 0.5) / 0.5);
-        const qY = top ? (tY / 0.5) : ((tY - 0.5) / 0.5);
-        if (top && left) {
-          const anchor0 = C_TL;
-          const anchor1 = [235, 120, 80];
-          const horiz = [220, 70, 70];
-          const mixH = [
-            Math.round(lerp(anchor0[0], horiz[0], qX)),
-            Math.round(lerp(anchor0[1], horiz[1], qX)),
-            Math.round(lerp(anchor0[2], horiz[2], qX)),
-          ];
-          return [
-            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
-            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
-            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
-          ];
-        }
-        if (top && !left) {
-          const anchor0 = C_TR;
-          const anchor1 = [255, 200, 80];
-          const horiz = [248, 230, 120];
-          const mixH = [
-            Math.round(lerp(anchor0[0], horiz[0], qX)),
-            Math.round(lerp(anchor0[1], horiz[1], qX)),
-            Math.round(lerp(anchor0[2], horiz[2], qX)),
-          ];
-          return [
-            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
-            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
-            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
-          ];
-        }
-        if (!top && left) {
-          const anchor0 = C_BL;
-          const anchor1 = [110, 150, 230];
-          const horiz = [80, 130, 220];
-          const mixH = [
-            Math.round(lerp(anchor0[0], horiz[0], qX)),
-            Math.round(lerp(anchor0[1], horiz[1], qX)),
-            Math.round(lerp(anchor0[2], horiz[2], qX)),
-          ];
-          return [
-            Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
-            Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
-            Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
-          ];
-        }
-        // bottom-right
-        const anchor0 = C_BR;
-        const anchor1 = [120, 220, 150];
-        const horiz = [90, 210, 140];
-        const mixH = [
-          Math.round(lerp(anchor0[0], horiz[0], qX)),
-          Math.round(lerp(anchor0[1], horiz[1], qX)),
-          Math.round(lerp(anchor0[2], horiz[2], qX)),
-        ];
-        return [
-          Math.round(lerp(mixH[0], anchor1[0], 0.25 * Math.max(qX, qY))),
-          Math.round(lerp(mixH[1], anchor1[1], 0.25 * Math.max(qX, qY))),
-          Math.round(lerp(mixH[2], anchor1[2], 0.25 * Math.max(qX, qY))),
-        ];
-      }
-      const NEUTRAL = [34, 36, 43];
-      function applyHeatColors(root) {
-        const cells = root.querySelectorAll('.cell[data-x][data-y]');
-        for (const cell of cells) {
-          const x = parseInt(cell.dataset.x, 10) || 0;
-          const y = parseInt(cell.dataset.y, 10) || 0;
-          const t = Math.max(0, Math.min(1, parseFloat(cell.dataset.intensity || '0')));
-          const tX = size > 1 ? x / (size - 1) : 0;
-          const tY = size > 1 ? y / (size - 1) : 0;
-          const base = quadrantColor(tX, tY);
-          const strength = 0.25 + 0.75 * t; // ensure faint color even at low intensity
-          const mixed = mix(NEUTRAL, base, strength);
-          const bg = `linear-gradient(140deg, ${rgb(mixed)}, rgba(0,0,0,0.15))`;
-          cell.style.background = bg;
-          cell.style.filter = `saturate(${0.7 + 0.8 * t}) brightness(${0.9 + 0.2 * t})`;
-        }
-      }
-      function addAvgGlow(root) {
-        const txStr = root.dataset.avgTx;
-        const tyStr = root.dataset.avgTy;
-        if (!txStr || !tyStr) return;
-        const tx = parseFloat(txStr);
-        const ty = parseFloat(tyStr);
-        if (!isFinite(tx) || !isFinite(ty)) return;
-        const [r,g,b] = quadrantColor(tx, ty);
-        const x = Math.round(tx * 10000) / 100; // keep 2 decimals
-        const y = Math.round(ty * 10000) / 100;
-        const overlay = document.createElement('div');
-        overlay.className = 'avg-glow';
-        overlay.style.background = `radial-gradient(circle at ${x}% ${y}%, rgba(${r},${g},${b},0.22) 0%, rgba(${r},${g},${b},0.12) 22%, rgba(${r},${g},${b},0.06) 38%, transparent 62%)`;
-        root.appendChild(overlay);
-      }
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-          for (const grid of document.querySelectorAll('.grid')) { applyHeatColors(grid); addAvgGlow(grid); }
-        });
-      } else {
-        for (const grid of document.querySelectorAll('.grid')) { applyHeatColors(grid); addAvgGlow(grid); }
-      }
-    })();
-  </script>
-  <script>
-    (function(){
-      function ensureModalRoot(){
-        let root = document.getElementById('neon-modal-root');
-        if (!root){
-          root = document.createElement('div');
-          root.id = 'neon-modal-root';
-          root.className = 'neon-modal-root';
-          document.body.appendChild(root);
-        }
-        return root;
-      }
-      function closeModal(wrap){ if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap); }
-      function openDetailsModal(cell, data){
-        const root = ensureModalRoot();
-        const wrap = document.createElement('div');
-        wrap.className = 'neon-modal';
-        wrap.setAttribute('role','dialog');
-        wrap.setAttribute('aria-modal','true');
-        const backdrop = document.createElement('div');
-        backdrop.className = 'neon-modal__backdrop';
-        const panel = document.createElement('div');
-        panel.className = 'neon-modal__panel';
-        panel.style.maxWidth = '820px';
-        panel.style.width = '92vw';
-        panel.style.maxHeight = '82vh';
-        panel.style.overflow = 'hidden';
-        panel.innerHTML = `
-          <div class="neon-modal__glow" aria-hidden="true"></div>
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
-            <div>
-              <div class="neon-modal__title">${(data.cell.label || 'Selected cell')} — ${data.cell.count} entr${data.cell.count===1?'y':'ies'}</div>
-              <div class="neon-modal__message" style="opacity:.85;">Pleasantness ${data.cell.x+1}, Energy ${data.cell.y+1}</div>
-            </div>
-            <button type="button" aria-label="Close" class="btn" id="hm-close-btn">Close</button>
-          </div>
-          <div style="border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:10px; background:#121418; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);">
-            ${data.entries.length ? '<ul id="hm-list" style="list-style:none; margin:0; padding:0; display:grid; gap:8px; max-height:60vh; overflow:auto;"></ul>' : '<div style="padding:16px; text-align:center; color:#cfe7ff;">No entries</div>'}
-          </div>
-        `;
-        wrap.appendChild(backdrop);
-        wrap.appendChild(panel);
-        root.appendChild(wrap);
-        function onEsc(e){ if (e.key === 'Escape'){ e.preventDefault(); cleanup(); } }
-        function cleanup(){ document.removeEventListener('keydown', onEsc); closeModal(wrap); }
-        backdrop.addEventListener('click', cleanup);
-        const closeBtn = panel.querySelector('#hm-close-btn');
-        if (closeBtn) closeBtn.addEventListener('click', cleanup);
-        document.addEventListener('keydown', onEsc);
-        const list = panel.querySelector('#hm-list');
-        if (list){
-          const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-          for (const e of data.entries){
-            const li = document.createElement('li');
-            li.style.padding = '10px 12px';
-            li.style.border = '1px solid rgba(255,255,255,0.06)';
-            li.style.borderRadius = '10px';
-            li.style.background = '#0f1217';
-            const d = e.chosen_at ? new Date(e.chosen_at) : null;
-            const when = d ? fmt.format(d) : (e.created_at ? fmt.format(new Date(e.created_at)) : 'Unknown time');
-            const mood = e.label ? `<span style="opacity:.9"> — ${e.label}</span>` : '';
-            li.innerHTML = `<div><strong>${when}</strong>${mood}</div>`;
-            list.appendChild(li);
-          }
-        }
-      }
-      function attachCellHandlers(){
-        const grids = document.querySelectorAll('.grid');
-        for (const grid of grids){
-          grid.addEventListener('click', async (ev) => {
-            const cell = ev.target.closest('.cell');
-            if (!cell || !grid.contains(cell)) return;
-            const count = parseInt(cell.dataset.count || '0', 10);
-            if (!count) return;
-            const x = parseInt(cell.dataset.x, 10); const y = parseInt(cell.dataset.y, 10);
-            const qs = new URLSearchParams();
-            qs.set('x', String(x)); qs.set('y', String(y));
-            const df = grid.dataset.dateFrom; const dt = grid.dataset.dateTo; const tf = grid.dataset.timeFrom; const tt = grid.dataset.timeTo;
-            if (df) qs.set('date_from', df); if (dt) qs.set('date_to', dt); if (tf) qs.set('time_from', tf); if (tt) qs.set('time_to', tt);
-            try {
-              const res = await fetch(`/moodmeter/api/cell-entries?${qs.toString()}`);
-              const data = await res.json();
-              if (!data.ok) { console.warn('Failed to load entries', data); return; }
-              openDetailsModal(cell, data);
-            } catch (e) { console.error(e); }
-          });
-        }
-      }
-      if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', attachCellHandlers); } else { attachCellHandlers(); }
-    })();
-  </script>
-  <script>
-    // Ensure no footer element exists on this dashboard page
-    (function(){
-      const removeFooter = () => {
-        const f = document.querySelector('footer.footer');
+      try { document.querySelectorAll('marker#arrowhead-x, marker#arrowhead-y').forEach(function(m){ m.setAttribute('orient','auto-start-reverse'); }); } catch(e){}
+      var size = Number('{{ size|tojson }}');
+      function ready(fn){ if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn); else fn(); }
+      ready(function(){
+        window.initHeatmap(size);
+        window.initCellModal();
+        var f = document.querySelector('footer.footer');
         if (f) f.remove();
-      };
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', removeFooter);
-      } else {
-        removeFooter();
-      }
+      });
     })();
   </script>
-</body>
-</html>
+{% endblock %}

@@ -663,19 +663,23 @@
     setTimeout(()=> el.classList.remove('celebrate-spark'), 1000);
   }
 
+  let _prevLBHash = '';
   async function loadLeaderboard(){
     try {
       const res = await fetch('/api/make6or7/leaderboard');
       if (!res.ok){ lbList.innerHTML=''; lbList.appendChild(makeLiEmpty('Failed to load')); return; }
       const data = await res.json();
       bannedCache = data && Array.isArray(data.banned) ? data.banned : [];
-      lbList.innerHTML = '';
-      if (!data || !data.ok){ lbList.appendChild(makeLiEmpty('No data')); return; }
+      if (!data || !data.ok){ lbList.innerHTML=''; lbList.appendChild(makeLiEmpty('No data')); return; }
       const items = data.top || [];
-      if (!items.length){ lbList.appendChild(makeLiEmpty('No entries yet')); return; }
-      for (let i=0; i<items.length; i++){
-        const u = items[i];
-        lbList.appendChild(makeLiUser(u, false, i));
+      // Skip full DOM rebuild if leaderboard data hasn't changed
+      const hash = JSON.stringify(items.map(u=>u.id+'|'+u.total+'|'+(u.is_mudded?1:0)+'|'+(u.is_boosted?1:0)+'|'+(u.is_shielded?1:0)+'|'+u.rank_key));
+      const lbChanged = hash !== _prevLBHash;
+      _prevLBHash = hash;
+      if (lbChanged) {
+        lbList.innerHTML = '';
+        if (!items.length){ lbList.appendChild(makeLiEmpty('No entries yet')); }
+        else { for (let i=0; i<items.length; i++) lbList.appendChild(makeLiUser(items[i], false, i)); }
       }
       // update my state visuals
       const me = data.me || null;
@@ -1570,10 +1574,29 @@
     }
   }
 
-  // --- Init shop/inventory polling ---
-  setInterval(()=>{ tickState(); }, 1000);
-  setInterval(()=>{ loadState(); }, 8000);
-  setInterval(()=>{ loadLeaderboard(); }, 15000);
+  // --- Init shop/inventory polling (pauses when tab is hidden) ---
+  let _tickId = null, _loadId = null, _lbId = null;
+  function _startPolling(){
+    if (!_tickId) _tickId = setInterval(()=>{ tickState(); }, 1000);
+    if (!_loadId) _loadId = setInterval(()=>{ loadState(); }, 8000);
+    if (!_lbId)   _lbId   = setInterval(()=>{ loadLeaderboard(); }, 15000);
+  }
+  function _stopPolling(){
+    if (_tickId){ clearInterval(_tickId); _tickId = null; }
+    if (_loadId){ clearInterval(_loadId); _loadId = null; }
+    if (_lbId)  { clearInterval(_lbId);   _lbId = null; }
+  }
+  _startPolling();
+
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden){
+      _stopPolling();
+    } else {
+      loadState();
+      loadLeaderboard();
+      _startPolling();
+    }
+  });
 
   // Initialize
   loadLeaderboard();
@@ -1627,6 +1650,16 @@
     }
   }
   pollLoop();
+
+  // Pause/resume chat polling on tab visibility
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden){
+      polling = false;
+    } else if (!polling){
+      polling = true;
+      pollLoop();
+    }
+  });
 
   formEl.addEventListener('submit', async (e)=>{
     e.preventDefault();
