@@ -175,7 +175,7 @@
     const sid = (typeof window.getActiveSessionId === 'function') ? window.getActiveSessionId() : null;
 
     try {
-      const res = await fetch('/click', {
+      const res = await fetch('/moodmeter/click', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x, y, label, ts, tzOffset, tzName, session_id: sid })
@@ -205,7 +205,7 @@
 
   async function fetchLastEntryAndUpdate() {
     try {
-      const res = await fetch('/api/last-entry', { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+      const res = await fetch('/moodmeter/api/last-entry', { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
       if (!res.ok) return;
       const j = await res.json();
       if (!j.ok) return;
@@ -689,7 +689,7 @@ function showNeonWarning(message, options) {
   }
 
   async function createSession(){
-    const res = await fetch('/api/session/create', { method: 'POST' });
+    const res = await fetch('/moodmeter/api/session/create', { method: 'POST' });
     const j = await res.json().catch(()=>null);
     if (res.ok && j && j.ok){
       setActiveSession(j.session_id, j.pin);
@@ -699,7 +699,7 @@ function showNeonWarning(message, options) {
     throw new Error((j && j.error) || 'CREATE_FAILED');
   }
   async function joinSession(pin){
-    const res = await fetch('/api/session/join', {
+    const res = await fetch('/moodmeter/api/session/join', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin: String(pin).trim() })
@@ -867,7 +867,7 @@ function showNeonWarning(message, options) {
       const cur = getActiveSession();
       if (!cur || !cur.id){ stopSessionPolling(); return; }
       try {
-        const res = await fetch(`/api/session/${encodeURIComponent(cur.id)}/stats`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+        const res = await fetch(`/moodmeter/api/session/${encodeURIComponent(cur.id)}/stats`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
         const j = await res.json().catch(()=>null);
         if (res.ok && j && j.ok){
           applySessionHeat(j.heatmap, j.max_count || 0);

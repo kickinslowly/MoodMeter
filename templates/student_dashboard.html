@@ -56,7 +56,7 @@
     <div class="dash-header">
       <h1>Student Dashboard</h1>
       <div class="header-actions">
-        <a class="link-btn" href="{{ url_for('index') }}">Mood Meter</a>
+        <a class="link-btn" href="{{ url_for('home') }}">Home</a>
         <form method="post" action="{{ url_for('logout_view') }}">
           <button type="submit" class="btn">Logout</button>
         </form>
@@ -496,7 +496,7 @@ Pleasantness
             const df = grid.dataset.dateFrom; const dt = grid.dataset.dateTo; const tf = grid.dataset.timeFrom; const tt = grid.dataset.timeTo;
             if (df) qs.set('date_from', df); if (dt) qs.set('date_to', dt); if (tf) qs.set('time_from', tf); if (tt) qs.set('time_to', tt);
             try {
-              const res = await fetch(`/api/cell-entries?${qs.toString()}`);
+              const res = await fetch(`/moodmeter/api/cell-entries?${qs.toString()}`);
               const data = await res.json();
               if (!data.ok) { console.warn('Failed to load entries', data); return; }
               openDetailsModal(cell, data);

@@ -53,8 +53,8 @@
       <h1>{% if is_super %}Super Admin Dashboard{% else %}Teacher Dashboard{% endif %}</h1>
       <div style="display:flex; gap:8px; align-items:center;">
         {% if is_super %}<span style="background:#7a2f34;color:#fff;padding:6px 10px;border-radius:8px;border:1px solid #8a3a3f;">Super Admin</span>{% endif %}
-        <a class="btn" href="{{ url_for('index') }}">Mood Meter</a>
-        <a class="btn" href="{{ url_for('dashboard', self=1) }}">Self Report</a>
+        <a class="btn" href="{{ url_for('home') }}">Home</a>
+        <a class="btn" href="{{ url_for('moodmeter_dashboard', self=1) }}">Self Report</a>
         <form method="post" action="{{ url_for('logout_view') }}"><button class="btn" type="submit">Logout</button></form>
       </div>
     </div>
@@ -87,7 +87,7 @@
       <!-- Group Data Panel -->
       <section id="panel-group" class="tab-panel" role="tabpanel" aria-labelledby="tab-group" tabindex="0" data-tab="group">
         <div class="card">
-          <form class="filter-form" method="get" action="{{ url_for('dashboard') }}">
+          <form class="filter-form" method="get" action="{{ url_for('moodmeter_dashboard') }}">
             <div class="filters">
               <div>
                 <label for="group_id_tab">Group</label>
@@ -123,7 +123,7 @@
               </div>
               <div style="grid-column: span 4; display:flex; gap:8px;">
                 <button class="btn" type="submit">Apply filters</button>
-                <a class="btn" href="{{ url_for('dashboard') }}">Reset</a>
+                <a class="btn" href="{{ url_for('moodmeter_dashboard') }}">Reset</a>
               </div>
             </div>
           </form>
@@ -224,7 +224,7 @@
               <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
                 <div>
                   <label for="manage_group">Target group</label>
-                  <select id="manage_group" name="group_id" onchange="document.getElementById('addMemberForm2').action='/groups/' + this.value + '/members'">
+                  <select id="manage_group" name="group_id" onchange="document.getElementById('addMemberForm2').action='/moodmeter/groups/' + this.value + '/members'">
                     {% for g in groups %}
                       <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
                     {% endfor %}
@@ -351,7 +351,7 @@
             <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
               <div>
                 <label for="assign_group">Target group</label>
-                <select id="assign_group" name="group_id" onchange="document.getElementById('assignTeacherForm').action='/groups/' + this.value + '/set-teacher'">
+                <select id="assign_group" name="group_id" onchange="document.getElementById('assignTeacherForm').action='/moodmeter/groups/' + this.value + '/set-teacher'">
                   {% for g in groups %}
                     <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
                   {% endfor %}
@@ -482,7 +482,7 @@
               <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
                 <div>
                   <label for="manage_group">Target group</label>
-                  <select id="manage_group" name="group_id" onchange="document.getElementById('addMemberForm2').action='/groups/' + this.value + '/members'">
+                  <select id="manage_group" name="group_id" onchange="document.getElementById('addMemberForm2').action='/moodmeter/groups/' + this.value + '/members'">
                     {% for g in groups %}
                       <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
                     {% endfor %}
@@ -514,7 +514,7 @@
               <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
                 <div>
                   <label for="assign_group">Target group</label>
-                  <select id="assign_group" name="group_id" onchange="document.getElementById('assignTeacherForm').action='/groups/' + this.value + '/set-teacher'">
+                  <select id="assign_group" name="group_id" onchange="document.getElementById('assignTeacherForm').action='/moodmeter/groups/' + this.value + '/set-teacher'">
                     {% for g in groups %}
                       <option value="{{ g.id }}" {% if current_group_id and g.id == current_group_id %}selected{% endif %}>{{ g.name }}</option>
                     {% endfor %}
@@ -634,7 +634,7 @@
       <section id="panel-individual" class="tab-panel" role="tabpanel" aria-labelledby="tab-individual" tabindex="0" data-tab="individual">
         <div class="card">
           <h3>Individual Data</h3>
-          <form id="studentSelectForm" method="get" action="{{ url_for('dashboard') }}" style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
+          <form id="studentSelectForm" method="get" action="{{ url_for('moodmeter_dashboard') }}" style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
             <input type="hidden" name="group_id" value="{{ current_group_id or '' }}" />
             <input type="hidden" name="date_from" value="{{ filters.date_from or '' }}" />
             <input type="hidden" name="date_to" value="{{ filters.date_to or '' }}" />
@@ -654,7 +654,7 @@
             </select>
             <div style="display:flex; gap:8px;">
               <button class="btn" type="submit">View</button>
-              <a class="btn" href="{{ url_for('dashboard') }}#individual">Clear</a>
+              <a class="btn" href="{{ url_for('moodmeter_dashboard') }}#individual">Clear</a>
             </div>
           </form>
 
@@ -769,7 +769,7 @@
             const gid = this.value;
             // keep on the current tab after reload
             const cur = getCurrentTab();
-            window.location.href = '/dashboard?group_id=' + encodeURIComponent(gid) + '#' + cur;
+            window.location.href = '/moodmeter/dashboard?group_id=' + encodeURIComponent(gid) + '#' + cur;
           });
         }
 
@@ -801,7 +801,7 @@
             const email = (document.getElementById('student_email2')||{}).value || '';
             if (!gid || !email){ return; }
             try {
-              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/members`, {
+              const resp = await fetch(`/moodmeter/groups/${encodeURIComponent(gid)}/members`, {
                 method: 'POST',
                 headers: {
                   'Accept': 'application/json',
@@ -814,7 +814,7 @@
               if (resp.ok && json.ok){
                 // force reload to show updated member list (cache-busted)
                 const cur = getCurrentTab();
-                window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
+                window.location.assign('/moodmeter/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
               } else {
                 alert('Failed to add member' + (json.detail ? (': ' + json.detail) : ''));
               }
@@ -833,7 +833,7 @@
             const email = (document.getElementById('teacher_email2')||{}).value || '';
             if (!gid || !email){ return; }
             try {
-              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/set-teacher`, {
+              const resp = await fetch(`/moodmeter/groups/${encodeURIComponent(gid)}/set-teacher`, {
                 method: 'POST',
                 headers: {
                   'Accept': 'application/json',
@@ -845,7 +845,7 @@
               const json = await resp.json().catch(()=>({}));
               if (resp.ok && json.ok){
                 const cur = getCurrentTab();
-                window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
+                window.location.assign('/moodmeter/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
               } else {
                 alert('Failed to assign teacher' + (json.detail ? (': ' + json.detail) : ''));
               }
@@ -897,7 +897,7 @@
           if (!gid || !sid) return;
           if (!confirm('Remove this user from the group?')) return;
           try {
-            const resp = await fetch(`/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(sid)}/remove`, { 
+            const resp = await fetch(`/moodmeter/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(sid)}/remove`, { 
               method: 'POST',
               headers: {
                 'Accept': 'application/json',
@@ -907,7 +907,7 @@
             const json = await resp.json().catch(()=>({}));
             if (resp.ok && json.ok){
               const cur = getCurrentTab();
-              window.location.assign('/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
+              window.location.assign('/moodmeter/dashboard?group_id=' + encodeURIComponent(gid) + '&r=' + Date.now() + '#' + cur);
             } else {
               alert('Failed to remove member' + (json.detail ? (': ' + json.detail) : ''));
             }
@@ -924,7 +924,7 @@
             if (!gid) return;
             if (!confirm('Delete this group and remove all its memberships?')) return;
             try {
-              const resp = await fetch(`/groups/${encodeURIComponent(gid)}/delete`, { 
+              const resp = await fetch(`/moodmeter/groups/${encodeURIComponent(gid)}/delete`, { 
                 method: 'POST',
                 headers: {
                   'Accept': 'application/json',
@@ -934,7 +934,7 @@
               const json = await resp.json().catch(()=>({}));
               if (resp.ok && json.ok){
                 const cur = getCurrentTab();
-                window.location.assign('/dashboard?r=' + Date.now() + '#' + cur);
+                window.location.assign('/moodmeter/dashboard?r=' + Date.now() + '#' + cur);
               } else {
                 alert('Failed to delete group' + (json.detail ? (': ' + json.detail) : ''));
               }
@@ -967,7 +967,7 @@
 
     <div class="columns">
       <div class="card">
-        <form class="filter-form" method="get" action="{{ url_for('dashboard') }}">
+        <form class="filter-form" method="get" action="{{ url_for('moodmeter_dashboard') }}">
           <div class="filters">
             <div>
               <label for="group_id">Group</label>
@@ -1003,7 +1003,7 @@
             </div>
             <div style="grid-column: span 4; display:flex; gap:8px;">
               <button class="btn" type="submit">Apply filters</button>
-              <a class="btn" href="{{ url_for('dashboard') }}">Reset</a>
+              <a class="btn" href="{{ url_for('moodmeter_dashboard') }}">Reset</a>
             </div>
           </div>
         </form>
@@ -1098,13 +1098,13 @@
         <div class="card" style="margin-top:12px;">
           <details>
             <summary>View individual student</summary>
-            <form method="get" action="{{ url_for('dashboard') }}" style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
+            <form method="get" action="{{ url_for('moodmeter_dashboard') }}" style="display:grid; grid-template-columns: 1fr; gap:8px; margin-top:8px;">
               <input type="hidden" name="group_id" value="{{ current_group_id or '' }}" />
               <label>Email to view (must exist):</label>
               <input type="text" name="student_email" placeholder="student@email" />
               <div style="display:flex; gap:8px;">
                 <button class="btn" type="submit">Load</button>
-                <a class="btn" href="{{ url_for('dashboard', group_id=current_group_id) }}">Clear</a>
+                <a class="btn" href="{{ url_for('moodmeter_dashboard', group_id=current_group_id) }}">Clear</a>
               </div>
             </form>
             {% if request.args.get('student_email') %}
@@ -1378,7 +1378,7 @@
             const gid = grid.dataset.groupId; if (gid) qs.set('group_id', gid);
             const sid = grid.dataset.studentId; if (sid) qs.set('student_id', sid);
             try {
-              const res = await fetch(`/api/cell-entries?${qs.toString()}`);
+              const res = await fetch(`/moodmeter/api/cell-entries?${qs.toString()}`);
               const data = await res.json();
               if (!data.ok) { console.warn('Failed to load entries', data); return; }
               openDetailsModal(cell, data);

@@ -18,20 +18,24 @@
 <body data-user-id="{{ current_user.id or '' }}">
   <div class="page make67-page">
     <header class="header">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <a href="{{ url_for('index') }}" class="back-link" title="Back to Mood Meter">← Mood Meter</a>
-        <a href="{{ url_for('make67_page') }}" class="make67-btn" title="Play Make67">Make67</a>
+      <!-- Mobile hamburger menu button -->
+      <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Open menu" aria-expanded="false">
+        <span class="hamburger-icon"></span>
+      </button>
+
+      <!-- Desktop navigation links -->
+      <div class="desktop-nav">
+        <a href="{{ url_for('home') }}" class="make67-btn" title="Back to Home">Home</a>
       </div>
+
       <div class="header-right">
-        <!-- Game Dock moved to header, placed left of auth info -->
+        <!-- Game Dock - desktop only, mobile uses drawer -->
         <div class="game-dock header-dock" role="group" aria-label="Game Dock">
           <button id="m67InvBtn" class="dock-btn" title="Inventory">🎒</button>
           <button id="m67ShopBtn" class="dock-btn" title="Shop">🛒</button>
           <button id="btn-toggle-chat" class="dock-btn" title="Chat">💬</button>
           <button id="btn-mobile-rank" class="dock-btn mobile-only" title="Rank">🏆</button>
-          <!-- Solve sound selector -->
           <button id="m67SoundBtn" class="dock-btn" title="Select Solve Sound" aria-haspopup="listbox" aria-expanded="false">🔊</button>
-          <!-- Color theme selector (unlocks at 1500+) -->
           <button id="m67ThemeBtn" class="dock-btn" title="Color Theme" aria-haspopup="listbox" aria-expanded="false" style="display:none;">🎨</button>
         </div>
         <div class="auth-actions">
@@ -46,9 +50,50 @@
           {% endif %}
         </div>
       </div>
+
       <h1 class="title">Make 6 or 7</h1>
-      <div class="subtitle" style="opacity:.85; margin-top:6px;">Use only + − to combine all 4 cards and make 6 or 7</div>
+      <div class="subtitle">Use only + − to combine all 4 cards and make 6 or 7</div>
     </header>
+
+    <!-- Mobile Navigation Drawer -->
+    <div id="mobileNavDrawer" class="mobile-nav-drawer" hidden>
+      <div class="mobile-nav-backdrop" data-close-nav="1"></div>
+      <nav class="mobile-nav-panel" role="navigation" aria-label="Mobile navigation">
+        <div class="mobile-nav-header">
+          <span class="mobile-nav-title">Menu</span>
+          <button class="mobile-nav-close" aria-label="Close menu" data-close-nav="1">✕</button>
+        </div>
+
+        <div class="mobile-nav-section">
+          <div class="mobile-nav-section-title">Navigation</div>
+          <a href="{{ url_for('home') }}" class="mobile-nav-link">Home</a>
+        </div>
+
+        <div class="mobile-nav-section">
+          <div class="mobile-nav-section-title">Game</div>
+          <button class="mobile-nav-link" data-action="inventory">🎒 Inventory</button>
+          <button class="mobile-nav-link" data-action="shop">🛒 Shop</button>
+          <button class="mobile-nav-link" data-action="chat">💬 Chat</button>
+          <button class="mobile-nav-link" data-action="leaderboard">🏆 Leaderboard</button>
+          <button class="mobile-nav-link" data-action="sound">🔊 Solve Sound</button>
+          <button class="mobile-nav-link" data-action="theme" id="mobileThemeLink" style="display:none;">🎨 Color Theme</button>
+        </div>
+
+        <div class="mobile-nav-section mobile-nav-auth">
+          {% if current_user.is_authenticated %}
+            <div class="mobile-nav-user">
+              <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="" onerror="this.style.display='none'">
+              <span>{{ current_user.name or current_user.email }}</span>
+            </div>
+            <form method="post" action="{{ url_for('logout_view') }}">
+              <button type="submit" class="mobile-nav-link mobile-nav-logout">Sign Out</button>
+            </form>
+          {% else %}
+            <a href="{{ url_for('login_view') }}" class="mobile-nav-link mobile-nav-signin">Sign in with Google</a>
+          {% endif %}
+        </div>
+      </nav>
+    </div>
 
     <main class="split-layout">
       <aside class="panel-left">

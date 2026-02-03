@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TuffGamez</title>
+  <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8W6XCSVZZ0"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-8W6XCSVZZ0');
+  </script>
+</head>
+<body>
+  <div class="home-page">
+    <header class="home-header">
+      <h1 class="home-title">TuffGamez</h1>
+      <p class="home-subtitle">Pick your adventure</p>
+      <div class="home-auth">
+        {% if current_user.is_authenticated %}
+          <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
+          <span class="home-user-name">{{ current_user.name or current_user.email }}</span>
+          <form method="post" action="{{ url_for('logout_view') }}" style="display:inline-block;">
+            <button type="submit" class="home-logout-btn">Logout</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('login_view') }}" class="home-login-btn">Sign in with Google</a>
+        {% endif %}
+      </div>
+    </header>
+
+    <main class="home-cards">
+      <a href="{{ url_for('make67_page') }}" class="home-card home-card--make67">
+        <div class="home-card__icon">67</div>
+        <div class="home-card__content">
+          <h2 class="home-card__title">Make 67</h2>
+          <p class="home-card__desc">Use + - x / to combine 4 cards and make 67</p>
+        </div>
+        <div class="home-card__arrow">&#10132;</div>
+      </a>
+
+      <a href="{{ url_for('make6or7_page') }}" class="home-card home-card--make6or7">
+        <div class="home-card__icon">6|7</div>
+        <div class="home-card__content">
+          <h2 class="home-card__title">Make 6 or 7</h2>
+          <p class="home-card__desc">Use only + and - to make 6 or 7 from 4 cards</p>
+        </div>
+        <div class="home-card__arrow">&#10132;</div>
+      </a>
+
+      <a href="{{ url_for('moodmeter_page') }}" class="home-card home-card--mood">
+        <div class="home-card__icon">
+          <svg viewBox="0 0 48 48" width="48" height="48" fill="none">
+            <rect x="2" y="2" width="20" height="20" rx="4" fill="#e03838" opacity=".85"/>
+            <rect x="26" y="2" width="20" height="20" rx="4" fill="#f6df5f" opacity=".85"/>
+            <rect x="2" y="26" width="20" height="20" rx="4" fill="#4670d6" opacity=".85"/>
+            <rect x="26" y="26" width="20" height="20" rx="4" fill="#4ac981" opacity=".85"/>
+          </svg>
+        </div>
+        <div class="home-card__content">
+          <h2 class="home-card__title">Mood Meter</h2>
+          <p class="home-card__desc">Check in with how you're feeling right now</p>
+        </div>
+        <div class="home-card__arrow">&#10132;</div>
+      </a>
+
+      {% if current_user.is_authenticated %}
+      <a href="{{ url_for('moodmeter_dashboard') }}" class="home-card home-card--dashboard">
+        <div class="home-card__icon">
+          <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="24" width="8" height="18" rx="2"/>
+            <rect x="20" y="14" width="8" height="28" rx="2"/>
+            <rect x="34" y="6" width="8" height="36" rx="2"/>
+          </svg>
+        </div>
+        <div class="home-card__content">
+          <h2 class="home-card__title">Dashboard</h2>
+          <p class="home-card__desc">View your mood stats and history</p>
+        </div>
+        <div class="home-card__arrow">&#10132;</div>
+      </a>
+      {% endif %}
+    </main>
+
+    <footer class="home-footer">
+      <p>Built for fun</p>
+    </footer>
+  </div>
+</body>
+</html>

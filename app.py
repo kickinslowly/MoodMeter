@@ -398,7 +398,12 @@ def format_last_entry(dt: datetime) -> str:
 
 
 @app.route('/')
-def index():
+def home():
+    return render_template('home.html')
+
+
+@app.route('/moodmeter')
+def moodmeter_page():
     grid = get_label_grid()
     size = 10 if grid else 0
     # Determine last entry for the logged-in user (if any)
@@ -425,7 +430,7 @@ def make6or7_page():
     return render_template('make6or7.html', make67_chat_eligible=_is_make6or7_chat_eligible())
 
 
-@app.route('/api/last-entry', methods=['GET'])
+@app.route('/moodmeter/api/last-entry', methods=['GET'])
 def api_last_entry():
     """Return the latest mood entry info for the current authenticated user.
     Always queries the database for the most recent record (by created_at desc).
@@ -448,7 +453,7 @@ def api_last_entry():
         return jsonify({"ok": False, "error": "SERVER_ERROR", "detail": str(e)}), 500
 
 
-@app.route('/click', methods=['POST'])
+@app.route('/moodmeter/click', methods=['POST'])
 def record_click():
     data = request.get_json(force=True, silent=True) or {}
     # Expected payload: {x: int, y: int, label: str, ts: int(ms or s), tzOffset: int(minutes, optional), tzName: str(optional)}
@@ -603,8 +608,8 @@ def auth_google_callback():
     login_user(user, remember=True)
     # Super user goes straight to dashboard
     if user.role == 'super':
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('index'))
+        return redirect(url_for('moodmeter_dashboard'))
+    return redirect(url_for('home'))
 
 
 @app.route('/logout', methods=['POST', 'GET'])
@@ -612,7 +617,7 @@ def logout_view():
     if getattr(current_user, 'is_authenticated', False):
         logout_user()
     # Redirect back to home page after logout so the UI reflects logged-out state
-    return redirect(url_for('index'))
+    return redirect(url_for('home'))
 
 
 # --------- Dashboard helpers ---------
@@ -838,8 +843,8 @@ def _compute_stats(submissions: Iterable[MoodSubmission]):
     }
 
 
-@app.route('/dashboard')
-def dashboard():
+@app.route('/moodmeter/dashboard')
+def moodmeter_dashboard():
     if not getattr(current_user, 'is_authenticated', False):
         return redirect(url_for('login_view'))
     grid = get_label_grid()
@@ -1016,14 +1021,14 @@ def set_role():
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
 
 
-@app.route('/groups', methods=['GET', 'POST'])
+@app.route('/moodmeter/groups', methods=['GET', 'POST'])
 def groups_view():
     if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('moodmeter_dashboard'))
     if request.method == 'POST':
         name = (request.form.get('name') or '').strip()
         if not name:
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('moodmeter_dashboard'))
         g = Group(name=name, teacher_id=current_user.get_id())
         db.session.add(g)
         try:
@@ -1031,7 +1036,7 @@ def groups_view():
         except Exception:
             db.session.rollback()
         anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
-        return redirect(url_for('dashboard', group_id=g.id) + anchor)
+        return redirect(url_for('moodmeter_dashboard', group_id=g.id) + anchor)
     # GET list
     if current_user.role == 'super':
         groups = Group.query.order_by(Group.name.asc()).all()
@@ -1040,7 +1045,7 @@ def groups_view():
     return render_template('teacher_groups.html', groups=groups)
 
 
-@app.route('/groups/<int:group_id>/members', methods=['POST'])
+@app.route('/moodmeter/groups/<int:group_id>/members', methods=['POST'])
 def add_member(group_id: int):
     if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
@@ -1076,13 +1081,13 @@ def add_member(group_id: int):
         if wants_json:
             return jsonify({'ok': True})
         anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
-        return redirect(url_for('dashboard', group_id=group.id) + anchor)
+        return redirect(url_for('moodmeter_dashboard', group_id=group.id) + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
-@app.route('/teachers', methods=['POST'])
+@app.route('/moodmeter/teachers', methods=['POST'])
 def create_teacher():
     """Super admin can add a new teacher (or upgrade an existing user to teacher).
     Accepts form fields: email (required), name (optional).
@@ -1119,13 +1124,13 @@ def create_teacher():
             return jsonify(payload)
         # After creating/upgrading a teacher, return to the Manage Teachers tab for super users
         anchor = '#manage-teachers' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
-        return redirect(url_for('dashboard') + anchor)
+        return redirect(url_for('moodmeter_dashboard') + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
-@app.route('/groups/<int:group_id>/set-teacher', methods=['POST'])
+@app.route('/moodmeter/groups/<int:group_id>/set-teacher', methods=['POST'])
 def set_group_teacher(group_id: int):
     """Super admin: assign a teacher to a group by email.
     If the email does not exist, create a new user with role=teacher.
@@ -1169,13 +1174,13 @@ def set_group_teacher(group_id: int):
             return jsonify(payload)
         # After assigning a group teacher, return to Manage Teachers for super, Manage for teacher
         anchor = '#manage-teachers' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
-        return redirect(url_for('dashboard', group_id=group.id) + anchor)
+        return redirect(url_for('moodmeter_dashboard', group_id=group.id) + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
-@app.route('/groups/<int:group_id>/members/<string:student_id>/remove', methods=['POST'])
+@app.route('/moodmeter/groups/<int:group_id>/members/<string:student_id>/remove', methods=['POST'])
 def remove_member(group_id: int, student_id: str):
     if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
@@ -1198,13 +1203,13 @@ def remove_member(group_id: int, student_id: str):
             return jsonify({'ok': True})
         # After removing a member, return to Manage Students for super, Manage for teacher
         anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
-        return redirect(url_for('dashboard', group_id=group.id) + anchor)
+        return redirect(url_for('moodmeter_dashboard', group_id=group.id) + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
-@app.route('/groups/<int:group_id>/delete', methods=['POST'])
+@app.route('/moodmeter/groups/<int:group_id>/delete', methods=['POST'])
 def delete_group(group_id: int):
     if not getattr(current_user, 'is_authenticated', False) or current_user.role not in ('teacher', 'super'):
         return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
@@ -1224,14 +1229,14 @@ def delete_group(group_id: int):
             return jsonify({'ok': True})
         # After deleting a group, return to Manage Students for super, Manage for teacher
         anchor = '#manage-students' if getattr(current_user, 'role', 'student') == 'super' else '#manage'
-        return redirect(url_for('dashboard') + anchor)
+        return redirect(url_for('moodmeter_dashboard') + anchor)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
 # --- API: heatmap cell entries ---
-@app.route('/api/cell-entries', methods=['GET'])
+@app.route('/moodmeter/api/cell-entries', methods=['GET'])
 def api_cell_entries():
     """Return list of mood submissions (dates/times) for a specific heatmap cell.
     Query params:
@@ -1311,7 +1316,7 @@ def api_cell_entries():
 
 
 # --- Session APIs ---
-@app.route('/api/session/create', methods=['POST'])
+@app.route('/moodmeter/api/session/create', methods=['POST'])
 def api_session_create():
     try:
         if not getattr(current_user, 'is_authenticated', False):
@@ -1336,7 +1341,7 @@ def api_session_create():
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
 
 
-@app.route('/api/session/join', methods=['POST'])
+@app.route('/moodmeter/api/session/join', methods=['POST'])
 def api_session_join():
     if not getattr(current_user, 'is_authenticated', False):
         return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
@@ -1350,7 +1355,7 @@ def api_session_join():
     return jsonify({'ok': True, 'session_id': s.id})
 
 
-@app.route('/api/session/<int:session_id>/stats', methods=['GET'])
+@app.route('/moodmeter/api/session/<int:session_id>/stats', methods=['GET'])
 def api_session_stats(session_id: int):
     s = db.session.get(Session, session_id)
     if not s or not s.active:

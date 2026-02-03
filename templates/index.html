@@ -21,20 +21,20 @@
     <header class="header">
       {% if current_user.is_authenticated %}
       <div class="session-actions">
-        <a href="{{ url_for('make67_page') }}" class="make67-btn" title="Play Make67">Make67</a>
+        <a href="{{ url_for('home') }}" class="make67-btn" title="Back to Home">Home</a>
         <button id="sessionBtn" class="session-btn" title="Create or join a session">Session</button>
         <span id="sessionStatus" class="session-status" aria-live="polite"></span>
       </div>
       {% else %}
       <div class="session-actions">
-        <a href="{{ url_for('make67_page') }}" class="make67-btn" title="Play Make67">Make67</a>
+        <a href="{{ url_for('home') }}" class="make67-btn" title="Back to Home">Home</a>
       </div>
       {% endif %}
       <div class="auth-actions">
         {% if current_user.is_authenticated %}
           <img class="avatar" src="{{ current_user.avatar_url or '' }}" alt="Avatar" onerror="this.style.display='none'">
           <span class="user-name">{{ current_user.name or current_user.email }}</span>
-          <a href="{{ url_for('dashboard') }}" class="google-login-btn" title="Go to Dashboard">Dashboard</a>
+          <a href="{{ url_for('moodmeter_dashboard') }}" class="google-login-btn" title="Go to Dashboard">Dashboard</a>
           {% if current_user.role == 'teacher' %}
           <span style="margin-left:8px; font-size:12px; opacity:.8;">Role: {{ current_user.role }}</span>
           <form method="post" action="{{ url_for('set_role') }}" style="display:inline-flex; gap:6px; align-items:center; margin-left:8px;">
