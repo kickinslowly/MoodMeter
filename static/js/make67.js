@@ -2312,9 +2312,12 @@
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // Short polling state
+  // Short polling state with exponential backoff
   let lastId = 0;
   let polling = true;
+  let pollDelay = 2000;  // base delay ms
+  const minPollDelay = 2000;
+  const maxPollDelay = 30000;
 
   async function pollLoop(){
     while (polling){
@@ -2327,11 +2330,22 @@
               appendMessage(m);
               if (typeof m.id === 'number' && m.id > lastId) lastId = m.id;
             }
+            // Reset delay on successful fetch with new messages
+            if (items.length > 0) {
+              pollDelay = minPollDelay;
+            }
           }
+        } else {
+          // Backoff on non-OK response
+          pollDelay = Math.min(maxPollDelay, pollDelay * 1.5);
         }
-      } catch (_){ /* ignore transient errors */ }
-      // wait ~2 seconds
-      await new Promise(r=>setTimeout(r, 2000));
+      } catch (_){
+        // Backoff on network/fetch errors
+        pollDelay = Math.min(maxPollDelay, pollDelay * 1.5);
+      }
+      // Use longer delay when tab is hidden
+      const effectiveDelay = document.hidden ? Math.max(10000, pollDelay) : pollDelay;
+      await new Promise(r=>setTimeout(r, effectiveDelay));
     }
   }
 
