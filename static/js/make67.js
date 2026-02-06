@@ -193,7 +193,10 @@
     { id: 'hot-pink', label: 'Hot Pink', threshold: 2500, icon: '💗' },
     { id: 'gold-rush', label: 'Gold Rush', threshold: 3000, icon: '🟡' },
     { id: 'crimson-fire', label: 'Crimson Fire', threshold: 3500, icon: '🔴' },
-    { id: 'prismatic', label: 'Prismatic', threshold: 4000, icon: '🌈' }
+    { id: 'prismatic', label: 'Prismatic', threshold: 4000, icon: '🌈' },
+    { id: 'ohio-corn', label: 'Ohio Corn', threshold: 4500, icon: '🌽' },
+    { id: 'void-aura', label: 'Void Aura', threshold: 5000, icon: '🕳️' },
+    { id: 'god-mode', label: 'God Mode', threshold: 5500, icon: '👁️' }
   ];
   // FX: Pixi overlay (lazy)
   const prefersReducedMotion = (function(){
@@ -259,7 +262,10 @@
   function applyEmpowerment(){
     if (!pageRoot) return;
     const totalLike = currentTotalLike();
-    const emp = clamp01(totalLike / 1000);
+    // Scale empowerment: 0-1000 = 0-0.5, 1000-5500 = 0.5-1.0 (ultra players get max FX)
+    const emp = totalLike <= 1000
+      ? clamp01(totalLike / 2000)  // 0-1000 maps to 0-0.5
+      : clamp01(0.5 + (totalLike - 1000) / 9000);  // 1000-5500 maps to 0.5-1.0
     currentEmp = emp;
     // Remove existing rank-based theme classes
     pageRoot.classList.remove('theme-elite','theme-mystic','theme-darkking','theme-hero','theme-tycoon');
@@ -605,65 +611,128 @@
   const rankUpNamesEl = document.getElementById('rankUpNames');
   const rankUpFlavorEl = document.getElementById('rankUpFlavor');
 
-  const FLAVOR_TEXTS = [
+  // Tier-based flavor texts for rank-ups (more hype at higher tiers)
+  const FLAVOR_TEXTS_BASIC = [
     "BRAIN EXPANDING...",
     "KNOWLEDGE ASCENDING...",
-    "MAXIMUM COGNITION...",
     "NEURONS FIRING...",
-    "ABSOLUTE UNIT...",
+    "GETTING STRONGER..."
+  ];
+  const FLAVOR_TEXTS_MID = [
+    "MAXIMUM COGNITION...",
     "CRITICAL THINKING++",
     "GIGABRAIN MOMENT...",
     "UNSTOPPABLE FORCE...",
-    "PEAK PERFORMANCE..."
+    "PEAK PERFORMANCE...",
+    "NO ONE CAN STOP YOU..."
   ];
+  const FLAVOR_TEXTS_HIGH = [
+    "ABSOLUTE UNIT MODE...",
+    "THEY FEAR YOU NOW...",
+    "LEGENDARY STATUS...",
+    "BUILT DIFFERENT FR...",
+    "ASCENSION COMPLETE...",
+    "YOU'RE HIM..."
+  ];
+  const FLAVOR_TEXTS_ULTRA = [
+    "TOUCHING GRASS? NEVER HEARD OF IT...",
+    "RIZZ LEVELS OFF THE CHARTS...",
+    "ACTUAL MENACE TO SOCIETY...",
+    "OHIO CAN'T CONTAIN YOU...",
+    "THEY WRITE SONGS ABOUT YOU...",
+    "BRAINROT TRANSCENDED...",
+    "MEWING SO HARD RN...",
+    "SKIBIDI TOILET WHO?..."
+  ];
+  const FLAVOR_TEXTS_GOD = [
+    "LITERALLY UNPLAYABLE...",
+    "DEVS PLZ NERF...",
+    "ERROR: TOO POWERFUL...",
+    "SYSTEM OVERLOAD...",
+    "YOU BROKE THE GAME...",
+    "EXISTENCE IS YOUR PLAYGROUND...",
+    "FINAL FORM ACHIEVED..."
+  ];
+
+  function getFlavorTextsForRank(newAllTime) {
+    const t = newAllTime || 0;
+    if (t >= 5000) return FLAVOR_TEXTS_GOD;
+    if (t >= 4000) return FLAVOR_TEXTS_ULTRA;
+    if (t >= 2500) return FLAVOR_TEXTS_HIGH;
+    if (t >= 1000) return FLAVOR_TEXTS_MID;
+    return FLAVOR_TEXTS_BASIC;
+  }
 
   function triggerRankHype(oldTitle, newTitle) {
     if (!rankUpOverlayEl) return;
-    
+
+    // Get current all-time for scaling effects
+    const currentTotal = (typeof allTime === 'number') ? allTime : 0;
+
     // Set titles
     if (rankUpNamesEl) {
       rankUpNamesEl.textContent = `${(oldTitle || 'NOOB').toUpperCase()} → ${(newTitle || 'ROOKIE').toUpperCase()}`;
     }
-    
-    // Set random flavor text
+
+    // Set tier-appropriate flavor text
     if (rankUpFlavorEl) {
-      rankUpFlavorEl.textContent = randomChoice(FLAVOR_TEXTS);
+      const flavorPool = getFlavorTextsForRank(currentTotal);
+      rankUpFlavorEl.textContent = randomChoice(flavorPool);
     }
-    
+
     // Show overlay
     rankUpOverlayEl.style.display = 'flex';
-    
-    // Generate particles
-    const emojis = ['💯', '🔥', '🧠', '🦍', '🆙', '🚨', '💎', '📈', '🤪', '🤩'];
-    const particleCount = 30;
+
+    // Generate particles - more particles at higher ranks
+    const baseEmojis = ['💯', '🔥', '🧠', '🦍', '🆙', '🚨', '💎', '📈', '🤪', '🤩'];
+    const ultraEmojis = ['👑', '⭐', '🌟', '✨', '🏆', '🎯', '💀', '🗿', '🐐', '😳'];
+    const godEmojis = ['🌈', '🕳️', '👁️', '🌀', '⚡', '🔮', '💫', '🎆', '🪐', '🌌'];
+
+    let emojis = baseEmojis;
+    let particleCount = 30;
+
+    if (currentTotal >= 5000) {
+      emojis = [...godEmojis, ...ultraEmojis];
+      particleCount = 60;
+    } else if (currentTotal >= 4000) {
+      emojis = [...ultraEmojis, ...baseEmojis];
+      particleCount = 50;
+    } else if (currentTotal >= 2500) {
+      emojis = [...baseEmojis, ...ultraEmojis.slice(0,5)];
+      particleCount = 40;
+    }
+
     const container = rankUpOverlayEl;
-    
+
     // Clear any old emojis just in case
     container.querySelectorAll('.rank-up-emoji').forEach(el => el.remove());
-    
+
     for (let i = 0; i < particleCount; i++) {
       const emoji = document.createElement('div');
       emoji.className = 'rank-up-emoji';
       emoji.textContent = randomChoice(emojis);
-      
+
       // Random position
       emoji.style.left = Math.random() * 100 + 'vw';
       emoji.style.top = (80 + Math.random() * 20) + 'vh';
-      
-      // Random size
-      emoji.style.fontSize = (2 + Math.random() * 3) + 'rem';
-      
+
+      // Random size (bigger at higher ranks)
+      const baseSize = currentTotal >= 4000 ? 3 : 2;
+      const sizeVariance = currentTotal >= 4000 ? 4 : 3;
+      emoji.style.fontSize = (baseSize + Math.random() * sizeVariance) + 'rem';
+
       // Random delay
       emoji.style.animationDelay = (Math.random() * 0.5) + 's';
-      
+
       container.appendChild(emoji);
     }
-    
-    // Auto-cleanup after 3.5s
+
+    // Auto-cleanup after 3.5s (4.5s for ultra ranks)
+    const cleanupDelay = currentTotal >= 4000 ? 4500 : 3500;
     setTimeout(() => {
       rankUpOverlayEl.style.display = 'none';
       container.querySelectorAll('.rank-up-emoji').forEach(el => el.remove());
-    }, 3500);
+    }, cleanupDelay);
   }
 
   async function loadLeaderboard(){

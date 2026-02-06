@@ -1231,6 +1231,245 @@ body.m67-mud-mode { cursor: none; }
   100% { text-shadow: 0 0 15px #8000ff, 0 0 25px #8000ff, 0 0 35px #ff0080; }
 }
 
+/* YAPPER (3600) – loud orange-red */
+.make67-page .m67-lb-item.rank-yapper .name { color: #ff6347; text-shadow: 0 0 24px rgba(255,99,71,0.90); }
+.make67-page .m67-lb-item.rank-yapper { border-color: rgba(255,99,71,0.75); }
+
+/* DELULU (3700) – dreamy pastel rainbow */
+.make67-page .m67-lb-item.rank-delulu .name {
+  color: #fff;
+  background: linear-gradient(90deg, #ff9a9e, #fad0c4, #a1c4fd, #c2e9fb, #d4fc79);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: delulu-shift 3s ease-in-out infinite;
+  text-shadow: none;
+}
+.make67-page .m67-lb-item.rank-delulu { border-color: rgba(255,154,158,0.70); background: linear-gradient(135deg, rgba(255,154,158,0.08), rgba(161,196,253,0.08)); }
+@keyframes delulu-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* GYATT (3800) – blush pink pulsing */
+.make67-page .m67-lb-item.rank-gyatt .name { color: #ff69b4; text-shadow: 0 0 26px rgba(255,105,180,0.92); animation: gyatt-pulse 1.5s ease-in-out infinite; }
+.make67-page .m67-lb-item.rank-gyatt { border-color: rgba(255,105,180,0.78); }
+@keyframes gyatt-pulse {
+  0%, 100% { text-shadow: 0 0 26px rgba(255,105,180,0.92); }
+  50% { text-shadow: 0 0 35px rgba(255,105,180,1), 0 0 50px rgba(255,105,180,0.6); }
+}
+
+/* SKIBIDI (3900) – chaotic toilet cyan */
+.make67-page .m67-lb-item.rank-skibidi .name { color: #00ced1; text-shadow: 0 0 28px rgba(0,206,209,0.95); animation: skibidi-shake 0.5s ease-in-out infinite; }
+.make67-page .m67-lb-item.rank-skibidi { border-color: rgba(0,206,209,0.80); }
+@keyframes skibidi-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px) rotate(-1deg); }
+  75% { transform: translateX(2px) rotate(1deg); }
+}
+
+/* RIZZWIZARD (4000) – smooth purple magic */
+.make67-page .m67-lb-item.rank-rizzwizard .name {
+  color: #9370db;
+  text-shadow: 0 0 30px rgba(147,112,219,0.95), 0 0 50px rgba(147,112,219,0.5);
+  animation: rizz-glow 2s ease-in-out infinite alternate;
+}
+.make67-page .m67-lb-item.rank-rizzwizard { border-color: rgba(147,112,219,0.82); background: linear-gradient(135deg, rgba(147,112,219,0.12), transparent); }
+@keyframes rizz-glow {
+  0% { text-shadow: 0 0 30px rgba(147,112,219,0.95), 0 0 50px rgba(147,112,219,0.5); }
+  100% { text-shadow: 0 0 40px rgba(186,85,211,1), 0 0 60px rgba(186,85,211,0.7); }
+}
+
+/* NOCAPDEITY (4100) – truthful blue */
+.make67-page .m67-lb-item.rank-nocapdeity .name { color: #4169e1; text-shadow: 0 0 32px rgba(65,105,225,0.95); }
+.make67-page .m67-lb-item.rank-nocapdeity { border-color: rgba(65,105,225,0.85); }
+
+/* SLAYINCARNATE (4200) – fierce magenta */
+.make67-page .m67-lb-item.rank-slayincarnate .name { color: #ff1493; text-shadow: 0 0 34px rgba(255,20,147,0.98); animation: slay-shimmer 1.8s ease-in-out infinite; }
+.make67-page .m67-lb-item.rank-slayincarnate { border-color: rgba(255,20,147,0.88); }
+@keyframes slay-shimmer {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15) saturate(1.2); }
+}
+
+/* BUSSIN (4300) – tasty warm gradient */
+.make67-page .m67-lb-item.rank-bussin .name {
+  color: #fff;
+  background: linear-gradient(90deg, #ff6b35, #f7931e, #ffcc00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: none;
+  filter: drop-shadow(0 0 8px rgba(247,147,30,0.6));
+}
+.make67-page .m67-lb-item.rank-bussin { border-color: rgba(247,147,30,0.88); background: linear-gradient(135deg, rgba(255,107,53,0.10), rgba(255,204,0,0.08)); }
+
+/* RENTFREE (4400) – haunting ghost white */
+.make67-page .m67-lb-item.rank-rentfree .name { color: #e8e8e8; text-shadow: 0 0 36px rgba(232,232,232,0.98), 0 0 60px rgba(200,200,255,0.5); animation: rentfree-flicker 3s ease-in-out infinite; }
+.make67-page .m67-lb-item.rank-rentfree { border-color: rgba(232,232,232,0.70); background: linear-gradient(135deg, rgba(200,200,255,0.08), transparent); }
+@keyframes rentfree-flicker {
+  0%, 90%, 100% { opacity: 1; }
+  92%, 94% { opacity: 0.7; }
+}
+
+/* OHIOFINALBOSS (4500) – corn yellow with menace */
+.make67-page .m67-lb-item.rank-ohiofinalboss .name {
+  color: #fff;
+  text-shadow: 0 0 20px #ffd700, 0 0 40px #ff4500, 0 0 60px #ff0000;
+  animation: ohio-menace 2s ease-in-out infinite alternate;
+}
+.make67-page .m67-lb-item.rank-ohiofinalboss { border-color: rgba(255,215,0,0.90); background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,69,0,0.10)); }
+@keyframes ohio-menace {
+  0% { text-shadow: 0 0 20px #ffd700, 0 0 40px #ff4500, 0 0 60px #ff0000; }
+  100% { text-shadow: 0 0 30px #ff0000, 0 0 50px #ff4500, 0 0 70px #ffd700; }
+}
+
+/* RATIO (4600) – dominating red-blue split */
+.make67-page .m67-lb-item.rank-ratio .name {
+  color: #fff;
+  background: linear-gradient(90deg, #ff4757, #3742fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 10px rgba(55,66,250,0.7));
+}
+.make67-page .m67-lb-item.rank-ratio { border-color: rgba(55,66,250,0.88); }
+
+/* NPCSLAYER (4700) – gaming green matrix */
+.make67-page .m67-lb-item.rank-npcslayer .name { color: #00ff00; text-shadow: 0 0 40px rgba(0,255,0,1), 0 0 80px rgba(0,255,0,0.6); font-family: 'Courier New', monospace; animation: npc-flicker 0.1s step-end infinite; }
+.make67-page .m67-lb-item.rank-npcslayer { border-color: rgba(0,255,0,0.90); background: rgba(0,20,0,0.3); }
+@keyframes npc-flicker {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.95; }
+}
+
+/* UNHINGED (4800) – crazy multicolor chaos */
+.make67-page .m67-lb-item.rank-unhinged .name {
+  color: #fff;
+  animation: unhinged-rainbow 1s linear infinite;
+}
+.make67-page .m67-lb-item.rank-unhinged { border-color: rgba(255,255,255,0.70); animation: unhinged-border 1s linear infinite; }
+@keyframes unhinged-rainbow {
+  0% { text-shadow: 0 0 30px #ff0000; color: #ff0000; }
+  16% { text-shadow: 0 0 30px #ff8800; color: #ff8800; }
+  33% { text-shadow: 0 0 30px #ffff00; color: #ffff00; }
+  50% { text-shadow: 0 0 30px #00ff00; color: #00ff00; }
+  66% { text-shadow: 0 0 30px #0088ff; color: #0088ff; }
+  83% { text-shadow: 0 0 30px #8800ff; color: #8800ff; }
+  100% { text-shadow: 0 0 30px #ff0000; color: #ff0000; }
+}
+@keyframes unhinged-border {
+  0% { border-color: rgba(255,0,0,0.8); }
+  16% { border-color: rgba(255,136,0,0.8); }
+  33% { border-color: rgba(255,255,0,0.8); }
+  50% { border-color: rgba(0,255,0,0.8); }
+  66% { border-color: rgba(0,136,255,0.8); }
+  83% { border-color: rgba(136,0,255,0.8); }
+  100% { border-color: rgba(255,0,0,0.8); }
+}
+
+/* CHRONGOAT (4900) – legendary gold-teal combo */
+.make67-page .m67-lb-item.rank-chrongoat .name {
+  color: #fff;
+  background: linear-gradient(90deg, #ffd700, #00d4aa, #ffd700);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: chrongoat-shift 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 12px rgba(255,215,0,0.8));
+}
+.make67-page .m67-lb-item.rank-chrongoat { border-color: rgba(0,212,170,0.92); background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(0,212,170,0.10)); }
+@keyframes chrongoat-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* GLAZING (5000) – sweet donut pink-brown */
+.make67-page .m67-lb-item.rank-glazing .name {
+  color: #fff;
+  background: linear-gradient(90deg, #ff69b4, #d2691e, #ff69b4);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: glazing-drip 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(255,105,180,0.9));
+}
+.make67-page .m67-lb-item.rank-glazing { border-color: rgba(255,105,180,0.95); background: linear-gradient(135deg, rgba(210,105,30,0.15), rgba(255,105,180,0.12)); }
+@keyframes glazing-drip {
+  0%, 100% { background-position: 0% 50%; filter: drop-shadow(0 0 14px rgba(255,105,180,0.9)); }
+  50% { background-position: 100% 50%; filter: drop-shadow(0 0 20px rgba(210,105,30,1)); }
+}
+
+/* FANUMTAX (5100) – fry golden crispy */
+.make67-page .m67-lb-item.rank-fanumtax .name { color: #ffa500; text-shadow: 0 0 45px rgba(255,165,0,1), 0 0 70px rgba(255,215,0,0.7); animation: fanum-crisp 1.2s ease-in-out infinite; }
+.make67-page .m67-lb-item.rank-fanumtax { border-color: rgba(255,165,0,0.95); background: linear-gradient(135deg, rgba(255,215,0,0.18), rgba(255,165,0,0.12)); }
+@keyframes fanum-crisp {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+/* AURAMAXED (5200) – ethereal white-gold aura */
+.make67-page .m67-lb-item.rank-auramaxed .name {
+  color: #fff;
+  text-shadow: 0 0 20px #fff, 0 0 40px #ffd700, 0 0 60px #fff, 0 0 80px #ffd700;
+  animation: aura-radiate 2s ease-in-out infinite alternate;
+}
+.make67-page .m67-lb-item.rank-auramaxed { border-color: rgba(255,255,255,0.95); background: radial-gradient(ellipse at center, rgba(255,215,0,0.15), transparent 70%); box-shadow: 0 0 30px rgba(255,215,0,0.4); }
+@keyframes aura-radiate {
+  0% { text-shadow: 0 0 20px #fff, 0 0 40px #ffd700, 0 0 60px #fff; }
+  100% { text-shadow: 0 0 30px #ffd700, 0 0 50px #fff, 0 0 80px #ffd700, 0 0 100px #fff; }
+}
+
+/* SIGMAGRIND (5300) – steely blue determination */
+.make67-page .m67-lb-item.rank-sigmagrind .name { color: #708090; text-shadow: 0 0 25px rgba(112,128,144,0.95), 0 0 50px rgba(70,130,180,0.6); animation: sigma-focus 3s ease-in-out infinite; }
+.make67-page .m67-lb-item.rank-sigmagrind { border-color: rgba(70,130,180,0.90); background: linear-gradient(135deg, rgba(112,128,144,0.15), rgba(70,130,180,0.10)); }
+@keyframes sigma-focus {
+  0%, 100% { filter: brightness(1) contrast(1); }
+  50% { filter: brightness(1.1) contrast(1.1); }
+}
+
+/* MEWING (5400) – jaw-defining sharp cyan */
+.make67-page .m67-lb-item.rank-mewing .name { color: #00ffff; text-shadow: 0 0 30px rgba(0,255,255,1), 0 0 60px rgba(0,255,255,0.8), 0 0 90px rgba(0,255,255,0.5); animation: mew-sharpen 1.5s ease-in-out infinite alternate; }
+.make67-page .m67-lb-item.rank-mewing { border-color: rgba(0,255,255,0.98); background: linear-gradient(135deg, rgba(0,255,255,0.15), transparent); box-shadow: 0 0 40px rgba(0,255,255,0.3); }
+@keyframes mew-sharpen {
+  0% { letter-spacing: 0px; }
+  100% { letter-spacing: 1px; }
+}
+
+/* UNPLAYABLE (5500) – ULTIMATE animated multicolor with particles */
+.make67-page .m67-lb-item.rank-unplayable .name {
+  color: #fff;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0088ff, #8800ff, #ff0088, #ff0000);
+  background-size: 400% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: unplayable-spectrum 3s linear infinite;
+  filter: drop-shadow(0 0 15px rgba(255,255,255,0.9)) drop-shadow(0 0 30px rgba(255,0,128,0.7));
+}
+.make67-page .m67-lb-item.rank-unplayable {
+  border: 2px solid transparent;
+  background: linear-gradient(rgba(20,20,30,0.95), rgba(20,20,30,0.95)) padding-box,
+              linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0088ff, #8800ff, #ff0088, #ff0000) border-box;
+  background-size: 100% 100%, 400% 100%;
+  animation: unplayable-border 3s linear infinite;
+  box-shadow: 0 0 40px rgba(255,0,128,0.5), 0 0 80px rgba(0,255,255,0.3), inset 0 0 20px rgba(255,255,255,0.05);
+}
+@keyframes unplayable-spectrum {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 400% 50%; }
+}
+@keyframes unplayable-border {
+  0% { background-position: 100% 100%, 0% 50%; }
+  100% { background-position: 100% 100%, 400% 50%; }
+}
+
 .make67-page .m67-lb-item.top1 .total { color: #fff7c2; text-shadow: 0 0 8px rgba(255,215,0,0.35); }
 
 /* CHEATER – explicit red styling: name in red, CHEATER label bold red */
@@ -2418,6 +2657,137 @@ body.holding-snowball { cursor: none; }
   66% { background: #80c0ff; box-shadow: 0 0 6px #80c0ff; }
 }
 
+/* 4500 - Ohio Corn (Chaotic Menace Yellow) */
+.make67-page[data-color-theme="ohio-corn"] {
+  --theme-primary: #ffd700;
+  --theme-secondary: #ff4500;
+  --theme-glow: rgba(255,215,0,0.7);
+  --accent: #ffd700 !important;
+  --accent-2: #ff4500 !important;
+}
+
+.make67-page[data-color-theme="ohio-corn"] .cards-grid {
+  background: linear-gradient(180deg, rgba(255,215,0,0.12) 0%, rgba(15,12,5,0.98) 100%) !important;
+  box-shadow: 0 0 80px rgba(255,215,0,0.35), 0 0 120px rgba(255,69,0,0.2), inset 0 0 40px rgba(255,215,0,0.08) !important;
+  border: 1px solid rgba(255,215,0,0.45) !important;
+  animation: ohio-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ohio-pulse {
+  0%, 100% { box-shadow: 0 0 80px rgba(255,215,0,0.35), 0 0 120px rgba(255,69,0,0.2); }
+  50% { box-shadow: 0 0 100px rgba(255,69,0,0.45), 0 0 150px rgba(255,215,0,0.3); }
+}
+
+.make67-page[data-color-theme="ohio-corn"] .card {
+  border-color: rgba(255,215,0,0.65) !important;
+  box-shadow: 0 0 35px rgba(255,215,0,0.35), 0 10px 28px rgba(0,0,0,0.5) !important;
+  text-shadow: 0 0 25px var(--theme-glow);
+  color: #fff8dc !important;
+}
+
+.make67-page[data-color-theme="ohio-corn"] .op-btn {
+  border-color: rgba(255,215,0,0.55) !important;
+  box-shadow: 0 0 22px rgba(255,215,0,0.25) !important;
+  color: #fff8dc !important;
+}
+
+/* 5000 - Void Aura (Deep Black with Purple Edges) */
+.make67-page[data-color-theme="void-aura"] {
+  --theme-primary: #8b00ff;
+  --theme-secondary: #000;
+  --theme-glow: rgba(139,0,255,0.6);
+  --accent: #8b00ff !important;
+  --accent-2: #4b0082 !important;
+}
+
+.make67-page[data-color-theme="void-aura"] .cards-grid {
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.99) 0%, rgba(20,0,40,0.98) 50%, rgba(0,0,0,0.99) 100%) !important;
+  box-shadow: 0 0 60px rgba(139,0,255,0.4), 0 0 120px rgba(75,0,130,0.3), inset 0 0 80px rgba(0,0,0,0.9) !important;
+  border: 2px solid rgba(139,0,255,0.6) !important;
+  animation: void-breathe 4s ease-in-out infinite;
+}
+
+@keyframes void-breathe {
+  0%, 100% { box-shadow: 0 0 60px rgba(139,0,255,0.4), 0 0 120px rgba(75,0,130,0.3), inset 0 0 80px rgba(0,0,0,0.9); }
+  50% { box-shadow: 0 0 100px rgba(139,0,255,0.6), 0 0 180px rgba(75,0,130,0.5), inset 0 0 120px rgba(139,0,255,0.1); }
+}
+
+.make67-page[data-color-theme="void-aura"] .card {
+  background: linear-gradient(180deg, rgba(20,0,30,0.98) 0%, rgba(0,0,0,0.99) 100%) !important;
+  border-color: rgba(139,0,255,0.7) !important;
+  box-shadow: 0 0 40px rgba(139,0,255,0.4), 0 10px 30px rgba(0,0,0,0.8) !important;
+  color: #e6d5ff !important;
+}
+
+.make67-page[data-color-theme="void-aura"] .op-btn {
+  background: linear-gradient(180deg, rgba(30,0,50,0.95) 0%, rgba(10,0,20,0.98) 100%) !important;
+  border-color: rgba(139,0,255,0.6) !important;
+  box-shadow: 0 0 25px rgba(139,0,255,0.3) !important;
+  color: #d4b8ff !important;
+}
+
+/* 5500 - God Mode (Ultimate Transcendent White-Gold) */
+.make67-page[data-color-theme="god-mode"] {
+  --theme-primary: #fff;
+  --theme-secondary: #ffd700;
+  --theme-glow: rgba(255,255,255,0.9);
+  --accent: #fff !important;
+  --accent-2: #ffd700 !important;
+}
+
+.make67-page[data-color-theme="god-mode"] .cards-grid {
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.15) 0%, rgba(255,215,0,0.08) 30%, rgba(15,15,20,0.95) 100%) !important;
+  box-shadow:
+    0 0 100px rgba(255,255,255,0.5),
+    0 0 200px rgba(255,215,0,0.4),
+    0 0 300px rgba(255,255,255,0.2),
+    inset 0 0 60px rgba(255,215,0,0.1) !important;
+  border: 2px solid rgba(255,255,255,0.7) !important;
+  animation: god-radiance 3s ease-in-out infinite;
+}
+
+@keyframes god-radiance {
+  0%, 100% {
+    box-shadow: 0 0 100px rgba(255,255,255,0.5), 0 0 200px rgba(255,215,0,0.4), 0 0 300px rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.7);
+  }
+  50% {
+    box-shadow: 0 0 150px rgba(255,215,0,0.6), 0 0 250px rgba(255,255,255,0.5), 0 0 400px rgba(255,215,0,0.3);
+    border-color: rgba(255,215,0,0.9);
+  }
+}
+
+.make67-page[data-color-theme="god-mode"] .card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(25,25,30,0.95) 100%) !important;
+  border: 2px solid rgba(255,255,255,0.8) !important;
+  box-shadow:
+    0 0 50px rgba(255,255,255,0.4),
+    0 0 80px rgba(255,215,0,0.3),
+    0 12px 35px rgba(0,0,0,0.5) !important;
+  color: #fff !important;
+  text-shadow: 0 0 20px rgba(255,215,0,0.8), 0 0 40px rgba(255,255,255,0.6);
+  animation: god-card-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes god-card-glow {
+  0% { box-shadow: 0 0 50px rgba(255,255,255,0.4), 0 0 80px rgba(255,215,0,0.3), 0 12px 35px rgba(0,0,0,0.5); }
+  100% { box-shadow: 0 0 70px rgba(255,215,0,0.5), 0 0 100px rgba(255,255,255,0.4), 0 15px 40px rgba(0,0,0,0.6); }
+}
+
+.make67-page[data-color-theme="god-mode"] .op-btn {
+  background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(20,20,25,0.95) 100%) !important;
+  border: 2px solid rgba(255,255,255,0.7) !important;
+  color: #fff !important;
+  box-shadow: 0 0 30px rgba(255,215,0,0.3) !important;
+}
+
+.make67-page[data-color-theme="god-mode"] .op-btn.active {
+  box-shadow:
+    0 0 50px rgba(255,255,255,0.6),
+    0 0 80px rgba(255,215,0,0.5) !important;
+  border-color: rgba(255,215,0,1) !important;
+}
+
 /* Panel and leaderboard tinting for themes */
 .make67-page[data-color-theme] .panel-left,
 .make67-page[data-color-theme] .leaderboard-container,
@@ -2444,7 +2814,16 @@ body.holding-snowball { cursor: none; }
   .make67-page[data-color-theme="prismatic"] .card,
   .make67-page[data-color-theme="prismatic"],
   .make67-page[data-color-theme="prismatic"] .score-box .spark,
-  .make67-page[data-color-theme="crimson-fire"] .cards-grid {
+  .make67-page[data-color-theme="crimson-fire"] .cards-grid,
+  .make67-page[data-color-theme="ohio-corn"] .cards-grid,
+  .make67-page[data-color-theme="void-aura"] .cards-grid,
+  .make67-page[data-color-theme="god-mode"] .cards-grid,
+  .make67-page[data-color-theme="god-mode"] .card,
+  .make67-page .m67-lb-item.rank-delulu .name,
+  .make67-page .m67-lb-item.rank-gyatt .name,
+  .make67-page .m67-lb-item.rank-skibidi .name,
+  .make67-page .m67-lb-item.rank-unhinged .name,
+  .make67-page .m67-lb-item.rank-unplayable .name {
     animation: none !important;
   }
 }
