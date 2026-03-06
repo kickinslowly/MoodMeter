@@ -205,10 +205,12 @@
   let FX = null; // will hold pixi app + emitters when available
   // Helper: lock body scroll when any modal is open
   function updateBodyLock(){
+    const drawer = document.getElementById('mobileNavDrawer');
     const anyOpen = (invModalRoot && !invModalRoot.hidden)
       || (shopModalRoot && !shopModalRoot.hidden)
       || (bannedRoot && !bannedRoot.hidden)
-      || (chatOverlay && !chatOverlay.hasAttribute('hidden') && chatOverlay.style.display !== 'none');
+      || (chatOverlay && !chatOverlay.hasAttribute('hidden') && chatOverlay.style.display !== 'none')
+      || (drawer && !drawer.hidden);
     document.body.classList.toggle('m67-modal-open', !!anyOpen);
   }
   // Inventory/Shop modal controls
@@ -856,6 +858,8 @@
   // Global ESC to close modals
   document.addEventListener('keydown', (e)=>{
     if (e.key === 'Escape'){
+      const drawer = document.getElementById('mobileNavDrawer');
+      if (drawer && !drawer.hidden) { drawer.hidden = true; updateBodyLock(); return; }
       if (invModalRoot && !invModalRoot.hidden) closeInventory();
       if (shopModalRoot && !shopModalRoot.hidden) closeShop();
       if (bannedRoot && !bannedRoot.hidden) closeBanned();
@@ -2270,6 +2274,51 @@
   // Re-measure once after fonts/images settle
   setTimeout(measureHeader, 300);
 
+  // --- Mobile Navigation Drawer ---
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const mobileNavDrawer = document.getElementById('mobileNavDrawer');
+  const mobileThemeLink = document.getElementById('mobileThemeLink');
+
+  function openMobileNav(){
+    if (!mobileNavDrawer) return;
+    mobileNavDrawer.hidden = false;
+    if (mobileMenuBtn) mobileMenuBtn.setAttribute('aria-expanded', 'true');
+    if (mobileThemeLink){
+      const t = currentTotalLike();
+      mobileThemeLink.style.display = t >= 1500 ? '' : 'none';
+    }
+    updateBodyLock();
+  }
+  function closeMobileNav(){
+    if (!mobileNavDrawer) return;
+    mobileNavDrawer.hidden = true;
+    if (mobileMenuBtn) mobileMenuBtn.setAttribute('aria-expanded', 'false');
+    updateBodyLock();
+  }
+  if (mobileMenuBtn) mobileMenuBtn.addEventListener('click', openMobileNav);
+  if (mobileNavDrawer){
+    mobileNavDrawer.addEventListener('click', (e)=>{
+      const t = e.target;
+      if (t.getAttribute && t.getAttribute('data-close-nav')==='1') closeMobileNav();
+      const action = t.getAttribute && t.getAttribute('data-action');
+      if (action){
+        closeMobileNav();
+        switch(action){
+          case 'inventory': openInventory(); break;
+          case 'shop': openShop(); break;
+          case 'chat':
+            if (chatOverlay){ chatOverlay.hidden = false; updateBodyLock(); }
+            break;
+          case 'leaderboard':
+            if (panelLeft) panelLeft.classList.toggle('mobile-visible');
+            break;
+          case 'sound': openSoundMenu(); break;
+          case 'theme': openThemeMenu(); break;
+        }
+      }
+    });
+  }
+
   // Global click-to-clear: clicking outside cards/ops clears selection
   window.addEventListener('click', (e)=>{
     const t = e.target;
@@ -2279,7 +2328,7 @@
     // Do not clear when clicking inside puzzle controls
     if (t.closest('.make67-page .cards-grid') || t.closest('.make67-page .ops')) return;
     // Do not react inside overlays/modals/drawers
-    if (t.closest('.m67-modal-root') || t.closest('.m67-ban-root') || t.closest('#chat-overlay') || t.closest('.panel-left.mobile-visible')) return;
+    if (t.closest('.m67-modal-root') || t.closest('.m67-ban-root') || t.closest('#chat-overlay') || t.closest('.panel-left.mobile-visible') || t.closest('.mobile-nav-drawer')) return;
     // Clear any current selection/op
     if (typeof clearSelections === 'function') clearSelections();
   }, true);

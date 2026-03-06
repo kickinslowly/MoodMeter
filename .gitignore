@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.idea/
+moodmeter.db
+moodmeter.db-shm
+moodmeter.db-wal
+migrations/__pycache__/
+migrations/versions/__pycache__/

@@ -16,11 +16,9 @@
   }
 
   function fmtTime(sec){
-    if (sec <= 0) return '0s';
-    if (sec < 60) return `${sec}s`;
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}m ${s}s`;
+    sec = Math.max(0, Math.floor(Number(sec)||0));
+    const m = Math.floor(sec/60), s = sec%60;
+    return `${m}:${String(s).padStart(2,'0')}`;
   }
 
   // Binary expression tree helpers to build solvable sets by working backward from TARGET
@@ -179,7 +177,10 @@
     { id: 'hot-pink', label: 'Hot Pink', threshold: 2500, icon: '💗' },
     { id: 'gold-rush', label: 'Gold Rush', threshold: 3000, icon: '🟡' },
     { id: 'crimson-fire', label: 'Crimson Fire', threshold: 3500, icon: '🔴' },
-    { id: 'prismatic', label: 'Prismatic', threshold: 4000, icon: '🌈' }
+    { id: 'prismatic', label: 'Prismatic', threshold: 4000, icon: '🌈' },
+    { id: 'ohio-corn', label: 'Ohio Corn', threshold: 4500, icon: '🌽' },
+    { id: 'void-aura', label: 'Void Aura', threshold: 5000, icon: '🕳️' },
+    { id: 'god-mode', label: 'God Mode', threshold: 5500, icon: '👁️' }
   ];
 
   let bannedCache = [];
@@ -197,6 +198,11 @@
   let lastKnownRankKey = null;
   let lastKnownRankTitle = null;
   let lastKnownAllTime = null;
+  // State version tracking for deduplication (matches Make67)
+  let lastStateVersion = 0;
+  let stateBlockUntil = 0;
+  let stateReqSeq = 0;
+  let stateReqApplied = 0;
 
   function clamp01(x){ return Math.max(0, Math.min(1, x)); }
   let currentEmp = 0;
@@ -213,19 +219,43 @@
 
   function applyEmpowerment(){
     const t = Number(allTime) || 0;
-    const emp = clamp01(t / 500);
-    if (Math.abs(emp - currentEmp) < 1e-6) return;
+    // Dual-scale: 0-1000 → emp 0-0.5, 1000-5500 → emp 0.5-1.0 (matches Make67)
+    const emp = t <= 1000
+      ? clamp01(t / 2000)
+      : clamp01(0.5 + (t - 1000) / 9000);
     currentEmp = emp;
     if (!pageRoot) return;
+    // Remove existing rank-based theme classes
+    pageRoot.classList.remove('theme-elite','theme-mystic','theme-darkking','theme-hero','theme-tycoon');
+    // Only apply rank themes if no user color theme is selected
+    const userTheme = pageRoot.getAttribute('data-color-theme');
+    if (!userTheme) {
+      const theme = pickTheme(t);
+      if (theme) pageRoot.classList.add(theme);
+    }
     pageRoot.style.setProperty('--emp', String(emp));
+    // Charge bar on all-time box
+    if (allTimeBoxEl) {
+      allTimeBoxEl.classList.add('charged');
+      allTimeBoxEl.style.setProperty('--charge', String(emp));
+    }
+    // Sync overlay accent with active theme accent
+    const panel = document.querySelector('.m67-overlay__panel');
+    if (panel) {
+      const cs = getComputedStyle(pageRoot);
+      const accent = cs.getPropertyValue('--accent') || '#9fe3b5';
+      panel.style.setProperty('--accent', accent.trim());
+    }
   }
 
   // Lock body scroll when any modal/overlay is open
   function updateBodyLock(){
+    const drawer = document.getElementById('mobileNavDrawer');
     const anyOpen = (invModalRoot && !invModalRoot.hidden)
       || (shopModalRoot && !shopModalRoot.hidden)
       || (bannedRoot && !bannedRoot.hidden)
-      || (chatOverlay && !chatOverlay.hasAttribute('hidden') && chatOverlay.style.display !== 'none');
+      || (chatOverlay && !chatOverlay.hasAttribute('hidden') && chatOverlay.style.display !== 'none')
+      || (drawer && !drawer.hidden);
     document.body.classList.toggle('m67-modal-open', !!anyOpen);
   }
 
@@ -447,6 +477,67 @@
 
   const ALLOWED_OPS = new Set(['+','-']);
 
+  // Merge animation: clone card and fly it to the target (matches Make67)
+  function animateMerge(fromIdx, toIdx, onDone){
+    const fromEl = cardsEl[fromIdx];
+    const toEl = cardsEl[toIdx];
+    if (!fromEl || !toEl) { onDone && onDone(); return; }
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+    const ghost = fromEl.cloneNode(true);
+    ghost.classList.add('ghost-card');
+    const dx = toRect.left - fromRect.left;
+    const dy = toRect.top - fromRect.top;
+    ghost.style.setProperty('--dx', dx + 'px');
+    ghost.style.setProperty('--dy', dy + 'px');
+    document.body.appendChild(ghost);
+    ghost.style.position = 'fixed';
+    ghost.style.left = fromRect.left + 'px';
+    ghost.style.top = fromRect.top + 'px';
+    ghost.style.width = fromRect.width + 'px';
+    ghost.style.height = fromRect.height + 'px';
+    ghost.addEventListener('animationend', ()=>{
+      ghost.remove();
+      onDone && onDone();
+    }, {once:true});
+    ghost.classList.add('fly-merge');
+  }
+
+  function setRemoved(idx, val){
+    if (val){
+      cardsEl[idx].classList.add('removed');
+      cardsEl[idx].disabled = true;
+    } else {
+      cardsEl[idx].classList.remove('removed');
+      cardsEl[idx].disabled = false;
+    }
+  }
+
+  function checkEnd(){
+    const alive = [0,1,2,3].filter(ix=>!removed.has(ix));
+    if (alive.length !== 1) return false;
+    const val = Number(curCards[alive[0]]);
+    const av = Math.abs(val);
+    if (Math.abs(av - 6) <= TOL || Math.abs(av - 7) <= TOL){
+      score += 1;
+      if (scoreEl) scoreEl.textContent = String(score);
+      try{
+        overlayRoot.hidden = false;
+        const panel = document.querySelector('.m67-overlay__panel');
+        if (panel){ panel.style.transform = 'scale(1.0)'; setTimeout(()=>{ panel.style.transform = ''; }, 200); }
+        playSolveSound();
+        if (allTimeBoxEl) sparkAt(allTimeBoxEl, 5);
+      }catch(_){}
+      submitSolve();
+      return true;
+    } else {
+      // Wrong answer — shake
+      cardsEl[alive[0]].classList.add('deny');
+      setTimeout(()=> cardsEl[alive[0]].classList.remove('deny'), 350);
+      return true; // still end of operations
+    }
+  }
+
   function doOperation(i, j, op){
     if (!ALLOWED_OPS.has(op)) return;
     if (removed.has(i) || removed.has(j)) return;
@@ -458,41 +549,24 @@
       case '-': v = a - b; break;
     }
     if (!Number.isFinite(v)){
-      opsEl.forEach(o=>o.classList.remove('active'));
-      selectedOp = null;
+      cardsEl[j].classList.add('deny');
+      setTimeout(()=>cardsEl[j].classList.remove('deny'), 350);
       return;
     }
-    // Replace one selected (i) with result and remove the other (j)
-    curCards[i] = v;
-    setCard(i, v);
-    removed.add(j);
-    cardsEl[j].classList.add('removed');
-    selectedIndex = null;
-    selectedOp = null;
-    opsEl.forEach(o=>o.classList.remove('active'));
-
-    const alive = [0,1,2,3].filter(ix=>!removed.has(ix));
-    if (alive.length === 1){
-      const val = Number(curCards[alive[0]]);
-      const av = Math.abs(val);
-      if (Math.abs(av - 6) <= TOL || Math.abs(av - 7) <= TOL){
-        // success
-        score += 1;
-        if (scoreEl) scoreEl.textContent = String(score);
-        try{
-          overlayRoot.hidden = false;
-          const panel = document.querySelector('.m67-overlay__panel');
-          if (panel){ panel.style.transform = 'scale(1.0)'; setTimeout(()=>{ panel.style.transform = ''; }, 200); }
-          playSolveSound();
-        }catch(_){}
-        // credit to server
-        submitSolve();
-      } else {
-        play('snd_reload');
+    animateMerge(i, j, ()=>{
+      curCards[j] = v;
+      setCard(j, v);
+      setRemoved(i, true);
+      removed.add(i);
+      cardsEl[j].classList.add('merge-pop');
+      setTimeout(()=>cardsEl[j].classList.remove('merge-pop'), 500);
+      if (!checkEnd()){
+        // Auto-select result card for next operation
+        clearSelections();
+        selectedIndex = j;
+        cardsEl[j].classList.add('selected');
       }
-    } else {
-      // no sound for intermediate steps in this mode
-    }
+    });
   }
 
   function makeLiEmpty(text){
@@ -579,37 +653,67 @@
   const rankUpNamesEl = document.getElementById('rankUpNames');
   const rankUpFlavorEl = document.getElementById('rankUpFlavor');
 
-  const FLAVOR_TEXTS = [
-    "BRAIN EXPANDING...",
-    "KNOWLEDGE ASCENDING...",
-    "MAXIMUM COGNITION...",
-    "NEURONS FIRING...",
-    "ABSOLUTE UNIT...",
-    "CRITICAL THINKING++",
-    "GIGABRAIN MOMENT...",
-    "UNSTOPPABLE FORCE...",
-    "PEAK PERFORMANCE..."
+  // Tiered flavor texts (matches Make67)
+  const FLAVOR_BASIC = [
+    "BRAIN EXPANDING...", "NEURONS FIRING...", "KNOWLEDGE ASCENDING...",
+    "MAXIMUM COGNITION...", "ABSOLUTE UNIT...", "CRITICAL THINKING++"
   ];
+  const FLAVOR_MID = [
+    "GIGABRAIN MOMENT...", "UNSTOPPABLE FORCE...", "PEAK PERFORMANCE...",
+    "CAN'T BE STOPPED...", "BUILT DIFFERENT FR..."
+  ];
+  const FLAVOR_HIGH = [
+    "LEGENDARY STATUS...", "YOU'RE HIM...", "GOATED WITH THE SAUCE...",
+    "ACTUALLY INSANE...", "NO ONE IS SAFE..."
+  ];
+  const FLAVOR_ULTRA = [
+    "OHIO CAN'T CONTAIN YOU...", "MEWING SO HARD RN...",
+    "SKIBIDI TOILET WHO?...", "FANUM TAXING THE GAME...",
+    "AURA IS ASTRONOMICAL..."
+  ];
+  const FLAVOR_GOD = [
+    "LITERALLY UNPLAYABLE...", "DEVS PLZ NERF...",
+    "TOUCHING GRASS IS NOT AN OPTION...", "THE FINAL BOSS WAS YOU...",
+    "THEY WROTE LEGENDS ABOUT THIS..."
+  ];
+
+  function pickFlavorText(t) {
+    if (t >= 5000) return randomChoice(FLAVOR_GOD);
+    if (t >= 4000) return randomChoice(FLAVOR_ULTRA);
+    if (t >= 2500) return randomChoice(FLAVOR_HIGH);
+    if (t >= 1000) return randomChoice(FLAVOR_MID);
+    return randomChoice(FLAVOR_BASIC);
+  }
 
   function triggerRankHype(oldTitle, newTitle) {
     if (!rankUpOverlayEl) return;
+    const t = Number(allTime) || 0;
 
     // Set titles
     if (rankUpNamesEl) {
       rankUpNamesEl.textContent = `${(oldTitle || 'NOOB').toUpperCase()} → ${(newTitle || 'ROOKIE').toUpperCase()}`;
     }
 
-    // Set random flavor text
+    // Set tier-appropriate flavor text
     if (rankUpFlavorEl) {
-      rankUpFlavorEl.textContent = randomChoice(FLAVOR_TEXTS);
+      rankUpFlavorEl.textContent = pickFlavorText(t);
     }
 
     // Show overlay
     rankUpOverlayEl.style.display = 'flex';
 
-    // Generate particles
-    const emojis = ['💯', '🔥', '🧠', '🦍', '🆙', '🚨', '💎', '📈', '🤪', '🤩'];
-    const particleCount = 30;
+    // Tiered emoji pools
+    let emojis = ['💯', '🔥', '🧠', '🦍', '🆙', '🚨', '💎', '📈', '🤪', '🤩'];
+    if (t >= 2500) emojis = emojis.concat(['⚡', '👑', '🗿', '🐐', '💀', '🌀']);
+    if (t >= 5000) emojis = emojis.concat(['🎯', '✨', '🕳️', '👁️', '🧬', '🌈']);
+
+    // Particle count scales with rank
+    let particleCount = 30;
+    if (t >= 5000) particleCount = 60;
+    else if (t >= 4000) particleCount = 50;
+    else if (t >= 2500) particleCount = 40;
+    else if (t >= 1000) particleCount = 35;
+
     const container = rankUpOverlayEl;
 
     // Clear any old emojis just in case
@@ -633,11 +737,12 @@
       container.appendChild(emoji);
     }
 
-    // Auto-cleanup after 3.5s
+    // Extended duration for ultra ranks
+    const duration = t >= 4000 ? 4500 : 3500;
     setTimeout(() => {
       rankUpOverlayEl.style.display = 'none';
       container.querySelectorAll('.rank-up-emoji').forEach(el => el.remove());
-    }, 3500);
+    }, duration);
   }
 
   function sparkAt(el, count){
@@ -657,10 +762,11 @@
   }
 
   function burstCharge(){
-    const el = document.querySelector('.xmas-title');
-    if (!el) return;
-    el.classList.add('celebrate-spark');
-    setTimeout(()=> el.classList.remove('celebrate-spark'), 1000);
+    if (!allTimeBoxEl) return;
+    allTimeBoxEl.classList.remove('charge-burst');
+    // force reflow to restart animation
+    void allTimeBoxEl.offsetWidth;
+    allTimeBoxEl.classList.add('charge-burst');
   }
 
   let _prevLBHash = '';
@@ -904,19 +1010,19 @@
   }
 
   function updateEffectsSummary(fx){
+    effects = fx || effects;
     if (!effectsRoot) return;
     effectsRoot.innerHTML = '';
     const parts = [];
-    if (fx.invisible > 0) parts.push(`Invisible (${fmtTime(fx.invisible)})`);
-    if (fx.boost > 0) parts.push(`Boost (${fmtTime(fx.boost)})`);
-    if (fx.mud > 0) parts.push(`Mud (${fmtTime(fx.mud)})`);
-    if (fx.shield > 0) parts.push(`Shield (${fmtTime(fx.shield)})`);
+    if (effects.invisible > 0) parts.push(`🌫️ Invisible ${fmtTime(effects.invisible)}`);
+    if (effects.boost > 0) parts.push(`⚡ Boost ${fmtTime(effects.boost)}`);
+    if (effects.mud > 0) parts.push(`💩 Slowed ${fmtTime(effects.mud)}`);
+    if (effects.shield > 0) parts.push(`🛡️ Divine Shield ${fmtTime(effects.shield)}`);
 
     if (parts.length === 0){
-      const empty = document.createElement('span');
-      empty.textContent = 'No active effects';
-      empty.style.opacity = '0.5';
-      effectsRoot.appendChild(empty);
+      const span = document.createElement('span');
+      span.textContent = 'No active effects';
+      effectsRoot.appendChild(span);
     } else {
       parts.forEach(p=>{
         const tag = document.createElement('span');
@@ -928,18 +1034,30 @@
   }
 
   async function loadState(){
+    if (!isAuthed) return;
+    if (Date.now() < stateBlockUntil) return;
+    const reqId = ++stateReqSeq;
     try {
       const r = await fetch('/api/make6or7/state');
-      if (!r.ok) return;
-      const data = await r.json();
-      if (!data || !data.ok) return;
-      const st = data.state || {};
+      const d = await r.json().catch(()=>({ok:false}));
+      if (!d.ok) return;
+      const st = d.state || {};
+      const sv = Number(st.state_version || 0);
+      // Drop out-of-order responses
+      if (reqId < stateReqApplied) return;
+      if (sv && lastStateVersion && sv < lastStateVersion) return;
+      stateReqApplied = reqId;
+      if (sv) lastStateVersion = Math.max(lastStateVersion, sv);
       allTime = Number(st.currency||0);
       if (allTimeEl) allTimeEl.textContent = String(allTime);
-      inventory = Array.isArray(st.inventory) ? st.inventory : [];
-      effects = st.effects || {};
+      if (typeof allTime === 'number' && !Number.isNaN(allTime)){
+        lastKnownAllTime = allTime;
+      }
+      if (Array.isArray(st.inventory)) inventory = st.inventory;
+      effects = st.effects || effects;
       renderInventory();
       updateEffectsSummary(effects);
+      applyEmpowerment();
     } catch(_){ }
   }
 
@@ -972,6 +1090,8 @@
       const d = await r.json().catch(()=>({ok:false}));
       if (d.ok){
         play('snd_shop_coins');
+        if (d.state_version) lastStateVersion = Math.max(lastStateVersion, Number(d.state_version||0));
+        stateBlockUntil = Date.now() + 3000;
         loadState();
       } else {
         const err = d.error || '';
@@ -999,7 +1119,9 @@
         else if (it.key === 'boost') play('snd_item_boost');
         else if (it.key === 'sneaky_dust') play('snd_item_dust');
         else if (it.key === 'divine_shield') play('snd_item_shield');
+        stateBlockUntil = Date.now() + 3000;
         loadState();
+        loadLeaderboard();
       }
     } catch(_){ }
   }
@@ -1155,6 +1277,8 @@
   // Global ESC to close any open overlay/modal
   document.addEventListener('keydown', (e)=>{
     if (e.key === 'Escape'){
+      const drawer = document.getElementById('mobileNavDrawer');
+      if (drawer && !drawer.hidden) { drawer.hidden = true; updateBodyLock(); return; }
       if (invModalRoot && !invModalRoot.hidden) closeInventory();
       if (shopModalRoot && !shopModalRoot.hidden) closeShop();
       if (bannedRoot && !bannedRoot.hidden) { bannedRoot.hidden = true; updateBodyLock(); }
@@ -1503,6 +1627,8 @@
   cardsEl.forEach((el, idx)=>{
     el.addEventListener('click', ()=>{
       if (removed.has(idx)) return;
+      el.classList.add('react-hit');
+      setTimeout(()=>el.classList.remove('react-hit'), 200);
       if (selectedIndex == null){
         selectedIndex = idx;
         cardsEl.forEach(e=>e.classList.remove('selected'));
@@ -1547,6 +1673,17 @@
 
   resetBtn.addEventListener('click', ()=>{ resetToBase(); });
   nextBtn.addEventListener('click', ()=>{ overlayRoot.hidden = true; newPuzzle(); });
+
+  // Keyboard shortcuts (matches Make67)
+  window.addEventListener('keydown', (e)=>{
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'r' || e.key === 'R'){
+      if (resetBtn){ e.preventDefault(); resetBtn.click(); }
+    } else if (e.key === 'h' || e.key === 'H'){
+      if (hintBtn){ e.preventDefault(); hintBtn.click(); }
+    }
+  });
 
   function showHint(){
     if (currentHint){
@@ -1598,6 +1735,54 @@
     }
   });
 
+  // --- Mobile Navigation Drawer ---
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const mobileNavDrawer = document.getElementById('mobileNavDrawer');
+  const mobileThemeLink = document.getElementById('mobileThemeLink');
+
+  function openMobileNav(){
+    if (!mobileNavDrawer) return;
+    mobileNavDrawer.hidden = false;
+    if (mobileMenuBtn) mobileMenuBtn.setAttribute('aria-expanded', 'true');
+    // Sync theme link visibility
+    if (mobileThemeLink){
+      const t = (typeof allTime === 'number') ? allTime : 0;
+      mobileThemeLink.style.display = t >= 1500 ? '' : 'none';
+    }
+    updateBodyLock();
+  }
+  function closeMobileNav(){
+    if (!mobileNavDrawer) return;
+    mobileNavDrawer.hidden = true;
+    if (mobileMenuBtn) mobileMenuBtn.setAttribute('aria-expanded', 'false');
+    updateBodyLock();
+  }
+  if (mobileMenuBtn) mobileMenuBtn.addEventListener('click', openMobileNav);
+  if (mobileNavDrawer){
+    mobileNavDrawer.addEventListener('click', (e)=>{
+      const t = e.target;
+      // Close on backdrop or close button
+      if (t.getAttribute && t.getAttribute('data-close-nav')==='1') closeMobileNav();
+      // Handle action buttons
+      const action = t.getAttribute && t.getAttribute('data-action');
+      if (action){
+        closeMobileNav();
+        switch(action){
+          case 'inventory': openInventory(); break;
+          case 'shop': openShop(); break;
+          case 'chat':
+            if (chatOverlay){ chatOverlay.hidden = false; updateBodyLock(); }
+            break;
+          case 'leaderboard':
+            if (panelLeft) panelLeft.classList.toggle('mobile-visible');
+            break;
+          case 'sound': openSoundMenu(); break;
+          case 'theme': openThemeMenu(); break;
+        }
+      }
+    });
+  }
+
   // Initialize
   loadLeaderboard();
   newPuzzle();
@@ -1632,11 +1817,15 @@
 
   let lastId = 0;
   let polling = true;
+  let chatDelay = 2000;
+  const CHAT_DELAY_MIN = 2000;
+  const CHAT_DELAY_MAX = 30000;
   async function pollLoop(){
     while (polling){
       try {
         const res = await fetch(`/api/make6or7/chat/since?last_id=${lastId}`);
         if (res.ok){
+          chatDelay = CHAT_DELAY_MIN; // reset on success
           const items = await res.json();
           if (Array.isArray(items)){
             for (const m of items){
@@ -1644,9 +1833,15 @@
               if (typeof m.id === 'number' && m.id > lastId) lastId = m.id;
             }
           }
+        } else {
+          chatDelay = Math.min(chatDelay * 1.5, CHAT_DELAY_MAX);
         }
-      } catch (_){ }
-      await new Promise(r=>setTimeout(r, 2000));
+      } catch (_){
+        chatDelay = Math.min(chatDelay * 1.5, CHAT_DELAY_MAX);
+      }
+      // Longer interval when tab hidden
+      const delay = document.hidden ? Math.max(chatDelay, 10000) : chatDelay;
+      await new Promise(r=>setTimeout(r, delay));
     }
   }
   pollLoop();

@@ -2084,7 +2084,7 @@ def api_make67_state():
 
 @app.route('/api/make6or7/state', methods=['GET'])
 def api_make6or7_state():
-    return _game_state('make6or7', use_cache=False)
+    return _game_state('make6or7', use_cache=True)
 
 
 @app.route('/api/make67/buy', methods=['POST'])
@@ -2262,10 +2262,12 @@ def api_make6or7_use():
             if getattr(target, 'make67_shield_until', None) and target.make67_shield_until > now_dt:
                 _m67_add_item(u.id, key)
                 return jsonify({'ok': False, 'error': 'THWARTED_SHIELD', 'message': 'Thwarted: target is protected by Divine Shield.'}), 400
+            # Non-stackable: if target is already muddied, reject and return item (matches Make67)
+            if getattr(target, 'make67_mud_until', None) and target.make67_mud_until > now_dt:
+                _m67_add_item(u.id, key)
+                return jsonify({'ok': False, 'error': 'TARGET_EFFECT_ACTIVE', 'effect': 'mud'}), 400
             dur = timedelta(minutes=2)
-            # Re-fetch target just in case, though session.get is usually fine
-            cur_until = getattr(target, 'make67_mud_until', None) or now_dt
-            target.make67_mud_until = max(cur_until, now_dt) + dur
+            target.make67_mud_until = now_dt + dur
             # Mud cancels boost
             target.make67_boost_until = now_dt
         else:
