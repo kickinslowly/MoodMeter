@@ -1116,6 +1116,102 @@ body.m67-mud-mode { cursor: none; }
 }
 .m67-mud-throw.go { animation: mud-throw-fly 420ms cubic-bezier(.2,.9,.1,1) forwards; }
 
+/* --- Toast Notifications --- */
+.m67-toast {
+  position: fixed;
+  top: 18vh;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: rgba(20, 22, 28, 0.92);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 10px 22px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08) inset;
+  z-index: 25000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s, transform 0.35s;
+  max-width: 88vw;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+.m67-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* --- Clown Rain --- */
+.m67-clown-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 24000;
+  pointer-events: none;
+  overflow: hidden;
+}
+.m67-clown-rain span {
+  position: absolute;
+  top: -40px;
+  animation: clown-fall linear forwards;
+}
+@keyframes clown-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+/* --- Earthquake Shake --- */
+.m67-earthquake {
+  animation: eq-shake 0.08s infinite !important;
+}
+@keyframes eq-shake {
+  0%  { transform: translate(2px, 1px) rotate(0.5deg); }
+  25% { transform: translate(-2px, -1px) rotate(-0.5deg); }
+  50% { transform: translate(1px, 2px) rotate(0.3deg); }
+  75% { transform: translate(-1px, -2px) rotate(-0.3deg); }
+  100%{ transform: translate(2px, -1px) rotate(0.5deg); }
+}
+
+/* --- Reverse Card --- */
+.m67-reverse-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: 120px;
+  z-index: 25000;
+  pointer-events: none;
+  animation: reverse-pop 1.8s ease-out forwards;
+  filter: drop-shadow(0 8px 32px rgba(255,68,68,0.6));
+}
+@keyframes reverse-pop {
+  0%   { transform: translate(-50%, -50%) scale(0) rotate(-180deg); opacity: 0; }
+  30%  { transform: translate(-50%, -50%) scale(1.3) rotate(0deg); opacity: 1; }
+  50%  { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.8) rotate(15deg); opacity: 0; }
+}
+
+/* --- Banana Slip --- */
+.m67-banana-slip {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 80px;
+  z-index: 25000;
+  pointer-events: none;
+  text-align: center;
+  animation: banana-slip 1.8s ease-out forwards;
+  filter: drop-shadow(0 6px 24px rgba(255,225,53,0.5));
+}
+@keyframes banana-slip {
+  0%   { transform: translate(-50%, -50%) rotate(0deg) scale(1); opacity: 1; }
+  20%  { transform: translate(-50%, -30%) rotate(-25deg) scale(1.2); }
+  50%  { transform: translate(-50%, -60%) rotate(15deg) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -80%) rotate(0deg) scale(0.6); opacity: 0; }
+}
+
 /* =============================================================================
    RANK STYLING SYSTEM
 

@@ -13,7 +13,7 @@
 - 🔲 Check mobile responsiveness and touch interactions (beyond drawer)
 - 🔲 Review color theme transitions and animation smoothness
 - 🔲 Add Pixi.js particle effects to Make 6 or 7 (Make67 has WebGL particles, Make6or7 does not)
-- 🔲 Add events polling to Make 6 or 7 (real-time effect updates from other players)
+- ✅ Add events polling to Make 6 or 7 (real-time effect updates from other players)
 
 **G2**: Rank Expansion — Ensure players never feel like they've "maxed out." Keep the carrot dangling.
 - 🔲 Add more ranks beyond 5500 (extend the rank ladder)
@@ -36,6 +36,10 @@
 - 🔲 Investigate shared chat bus — `_m67_subscribers` shared between games (potential message leaks)
 
 **G4**: Engagement & Analytics — Track usage patterns, reward dedication, keep players coming back.
+- ✅ Added 5 new shop items: Reverse Card, Clown Horn, Banana Peel, Double or Nothing, Earthquake
+- ✅ Added toast notification system for real-time event feedback
+- ✅ Added events polling to Make 6 or 7 (was missing, needed for new items)
+- ✅ Consolidated duplicate use endpoints into shared `_game_use(game_type)` handler
 - 🔲 Add usage tracking (solves per minute, session duration, streaks)
 - 🔲 Design engagement features (daily challenges, streak bonuses, achievements)
 - 🔲 Consider social features beyond chat (rivalries, friend lists, challenges)

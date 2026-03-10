@@ -13,16 +13,24 @@ Math puzzle: use +, -, *, / to combine 4 cards to make 67. Earn solves as curren
 - 9 user-selectable color themes (unlocked 1500+)
 - 20 unlock sounds (every 200 solves)
 - Empowerment system (--emp CSS variable scales with progress)
-- Shop with 4 items (Sneaky Dust, Boost, Mud, Divine Shield)
+- Shop with 9 items (Sneaky Dust, Boost, Mud, Divine Shield, Reverse Card, Clown Horn, Banana Peel, Double or Nothing, Earthquake)
 - 4-slot inventory with long-press to use
 - Effects system (invisible, boost, mud, shield) with DB-backed timers
+- Banana peel one-shot debuff (in-memory tracking)
+- Reverse Card passive trap (auto-triggers on mud, consumed from inventory)
+- Clown Horn social trolling (emoji rain on target screen)
+- Double or Nothing gambling (+6/-3 solves, 50/50)
+- Earthquake mass chaos (screen shake broadcast to all)
+- Toast notification system for real-time events
 - Live chat (unlocked at 50+ solves, SSE streaming)
 - Real-time leaderboard with presence detection
+- Events polling for real-time item effects from other players
 - Snowball throwing feature
 
 ### Make 6 or 7
 Variant game with shared backend architecture (parameterized handlers).
-- Same shop, effects, inventory system as Make67
+- Same shop, effects, inventory system as Make67 (all 9 items)
+- Events polling for real-time effects (clown horn, earthquake, etc.)
 - Own chat system (ChatMessage6or7 model)
 - Own leaderboard and solve tracking
 - Own all-time solves counter

@@ -162,12 +162,24 @@ User-selectable themes that override auto themes. Button appears at 1500+.
 | boost | Boost | 5 | 2 min double points |
 | mud | Mud | 3 | Slow rival for 2 min (half points) |
 | divine_shield | Divine Shield | 2 (on use) | 5 min immunity to negative effects |
+| reverse_card | Reverse Card | 4 | Passive trap: mud bounces back to attacker (consumed on trigger) |
+| clown_horn | Clown Horn | 1 | Target a player for clown emoji rain on their screen (no gameplay effect) |
+| banana_peel | Banana Peel | 2 | Target's next solve gives 0 credit (one-shot, blocked by shield) |
+| double_or_nothing | Double or Nothing | 3 | 50/50 gamble: win +6 solves or lose 3 |
+| earthquake | Earthquake | 8 | Shake everyone's screen for 5 seconds (broadcast to all) |
 
 ### Inventory
 - 4 slots max
 - Items purchased go to inventory
 - Long-press to use item
-- Mud requires target selection from leaderboard
+- Targeting items (mud, clown_horn, banana_peel) require target selection from leaderboard
+- Reverse Card is passive (never manually used, activates automatically)
+
+### Item Interactions
+- Shield blocks: Mud, Banana Peel
+- Reverse Card: only triggers on Mud (shield takes priority if both present)
+- Clown Horn & Earthquake: not blocked by shield (visual only)
+- Mud + Reverse Card: if target has reverse card, mud reflects to attacker
 
 ## Effects System
 Effects tracked in DB (`make67_*_until` columns on User):
@@ -175,6 +187,9 @@ Effects tracked in DB (`make67_*_until` columns on User):
 - `boost`: Double solve credit
 - `mud`: Half solve credit
 - `shield`: Blocks negative effects, cleanses existing debuffs
+
+Banana Peel tracked in-memory (`_m67_banana_peel` dict):
+- One-shot: consumed on next solve attempt
 
 ## Key Files
 - `make67_ranks.json` - Rank definitions
@@ -214,6 +229,7 @@ Duplicate Make67/Make6or7 endpoints consolidated into parameterized handlers:
 def _game_shop(game_type: str): ...
 def _game_state(game_type: str, use_cache: bool): ...
 def _game_buy(game_type: str): ...
+def _game_use(game_type: str): ...
 def _game_solve(game_type: str): ...
 def _game_leaderboard(game_type: str): ...
 ```

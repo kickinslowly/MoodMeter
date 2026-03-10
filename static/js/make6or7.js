@@ -1102,69 +1102,92 @@
 
   async function useItem(it){
     hideTip();
+    if (!it) return;
+    // Reverse Card is passive
+    if (it.key === 'reverse_card'){
+      showToast('🔄 Reverse Card is passive — it activates when someone muds you!');
+      return;
+    }
     try {
-      let target_id = null;
+      let payload = {item_id: it.id};
+      // Items that need a target
       if (it.key === 'mud'){
-        target_id = await pickMudTarget();
-        if (!target_id) return;
+        const t = await pickItemTarget({text:'choose a target to mud!', emoji:'💩', modeClass:'m67-mud-mode'});
+        if (!t) return;
+        payload.target_id = t;
+      } else if (it.key === 'clown_horn'){
+        const t = await pickItemTarget({text:'HONK someone! 🤡', emoji:'🤡', canTargetMudded:true});
+        if (!t) return;
+        payload.target_id = t;
+      } else if (it.key === 'banana_peel'){
+        const t = await pickItemTarget({text:'place a banana peel! 🍌', emoji:'🍌', canTargetMudded:true});
+        if (!t) return;
+        payload.target_id = t;
       }
       const r = await fetch('/api/make6or7/use', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({item_id: it.id, target_id})
+        body: JSON.stringify(payload)
       });
       const d = await r.json().catch(()=>({ok:false}));
-      if (d.ok){
-        if (it.key === 'mud') play('snd_item_mud');
-        else if (it.key === 'boost') play('snd_item_boost');
-        else if (it.key === 'sneaky_dust') play('snd_item_dust');
-        else if (it.key === 'divine_shield') play('snd_item_shield');
-        stateBlockUntil = Date.now() + 3000;
+      if (!d.ok){
+        const code = d.error || 'ERROR';
+        if (code === 'EFFECT_ACTIVE') showToast('That effect is already active.');
+        else if (code === 'TARGET_EFFECT_ACTIVE') showToast('Target already has that effect.');
+        else if (code === 'THWARTED_SHIELD') showToast(d.message || 'Blocked by Divine Shield!');
+        else if (code === 'PASSIVE_ITEM') showToast(d.message || 'This item is passive.');
         loadState();
-        loadLeaderboard();
+        return;
       }
+      stateBlockUntil = Date.now() + 3000;
+      loadState();
+      loadLeaderboard();
+      // Handle special responses
+      if (d.reversed){
+        showToast('🔄 YOUR MUD WAS REVERSED! UNO!');
+        play('snd_item_shield');
+      } else if (it.key === 'double_or_nothing'){
+        if (d.won){ showToast('🎲 YOU WON! +' + d.delta + ' solves!'); play('snd_shop_coins'); }
+        else { showToast('🎲 YOU LOST! ' + d.delta + ' solves...'); play('snd_item_mud'); }
+      } else if (it.key === 'earthquake'){
+        play('snd_item_boost');
+      } else if (it.key === 'mud') play('snd_item_mud');
+      else if (it.key === 'boost') play('snd_item_boost');
+      else if (it.key === 'sneaky_dust') play('snd_item_dust');
+      else if (it.key === 'divine_shield') play('snd_item_shield');
+      else if (it.key === 'clown_horn') play('snd_brainrot');
+      else if (it.key === 'banana_peel') play('snd_item_mud');
     } catch(_){ }
   }
 
-  function pickMudTarget(){
+  function pickItemTarget(opts){
+    opts = opts || {};
+    const overlayText = opts.text || 'Choose a target!';
+    const cursorEmoji = opts.emoji || '🎯';
+    const modeClass = opts.modeClass || 'm67-mud-mode';
+    const canTargetMudded = opts.canTargetMudded || false;
     return new Promise(resolve=>{
       if (!lbList){ resolve(null); return; }
-
-      // State
       let mouseX = window.innerWidth/2, mouseY = window.innerHeight/2;
       let done = false;
-
-      // Minimize/close any open popups before entering mud targeting mode
-      try {
-        if (typeof closeInventory === 'function' && invModalRoot && !invModalRoot.hidden) closeInventory();
-      } catch(_){}
-      try {
-        if (typeof closeShop === 'function' && shopModalRoot && !shopModalRoot.hidden) closeShop();
-      } catch(_){}
-      try {
-        if (typeof closeBanned === 'function' && bannedRoot && !bannedRoot.hidden) closeBanned();
-      } catch(_){}
-      try {
-        if (chatOverlay && !chatOverlay.hidden) { chatOverlay.hidden = true; }
-        if (chatOverlay && chatOverlay.style.display !== 'none') { chatOverlay.style.display = 'none'; }
-      } catch(_){}
+      try { if (typeof closeInventory === 'function' && invModalRoot && !invModalRoot.hidden) closeInventory(); } catch(_){}
+      try { if (typeof closeShop === 'function' && shopModalRoot && !shopModalRoot.hidden) closeShop(); } catch(_){}
+      try { if (typeof closeBanned === 'function' && bannedRoot && !bannedRoot.hidden) closeBanned(); } catch(_){}
+      try { if (chatOverlay && !chatOverlay.hidden) { chatOverlay.hidden = true; } } catch(_){}
       try { updateBodyLock && updateBodyLock(); } catch(_){}
 
-      // Fullscreen overlay instruction
       const overlay = document.createElement('div');
       overlay.className = 'm67-mud-overlay';
       overlay.setAttribute('role','dialog');
       overlay.setAttribute('aria-live','polite');
-      overlay.textContent = 'choose a target to mud!';
+      overlay.textContent = overlayText;
       document.body.appendChild(overlay);
 
-      // Custom cursor follower (mud ball)
       const cursor = document.createElement('div');
-      cursor.className = 'm67-mud-cursor';
+      cursor.style.cssText = 'position:fixed;left:0;top:0;width:36px;height:36px;margin-left:-18px;margin-top:-18px;display:grid;place-items:center;z-index:20010;pointer-events:none;font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));';
+      cursor.textContent = cursorEmoji;
       document.body.appendChild(cursor);
-
-      // Body class to hide default cursor and block scroll
-      document.body.classList.add('m67-mud-mode');
+      document.body.classList.add(modeClass);
 
       function placeCursor(x,y){
         mouseX = x; mouseY = y;
@@ -1177,7 +1200,6 @@
       };
       window.addEventListener('mousemove', onMove, {passive:true});
       window.addEventListener('touchmove', onMove, {passive:true});
-      // Initialize position near center
       placeCursor(mouseX, mouseY);
 
       function cleanup(){
@@ -1189,28 +1211,25 @@
         document.removeEventListener('click', onBackdrop, true);
         try { overlay.remove(); } catch(_){ }
         try { cursor.remove(); } catch(_){ }
-        document.body.classList.remove('m67-mud-mode');
+        document.body.classList.remove(modeClass);
       }
 
-      function throwMudTo(targetEl){
-        // Create a projectile at current cursor position and animate to target
+      function throwProjectile(targetEl){
         const proj = document.createElement('div');
+        proj.style.cssText = 'position:fixed;left:0;top:0;width:28px;height:28px;margin-left:-14px;margin-top:-14px;z-index:20005;pointer-events:none;font-size:20px;display:grid;place-items:center;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.4));';
+        proj.textContent = cursorEmoji;
         proj.className = 'm67-mud-throw';
         document.body.appendChild(proj);
-        // starting position
         proj.style.left = mouseX + 'px';
         proj.style.top = mouseY + 'px';
-        // destination
         const r = targetEl.getBoundingClientRect();
-        const tx = r.left + r.width*0.15; // towards name area
+        const tx = r.left + r.width*0.15;
         const ty = r.top + r.height*0.5;
-        // next frame to apply transition
         requestAnimationFrame(()=>{
           proj.style.setProperty('--tx', (tx - mouseX) + 'px');
           proj.style.setProperty('--ty', (ty - mouseY) + 'px');
           proj.classList.add('go');
         });
-        // After animation ends, remove
         proj.addEventListener('animationend', ()=>{ try{ proj.remove(); }catch(_){ } }, {once:true});
       }
 
@@ -1218,14 +1237,8 @@
         const li = e.target && e.target.closest && e.target.closest('li.m67-lb-item');
         const id = li && li.dataset && li.dataset.userId;
         if (!li || !id) return;
-        // Prevent selecting already-mudded targets
-        if (li.classList && li.classList.contains('mudded')){
-          return;
-        }
-        // Optimistic FX: add mudded look
-        li.classList.add('mudded');
-        throwMudTo(li);
-        try { sparkAt(li, 4); } catch(_){ }
+        if (!canTargetMudded && li.classList && li.classList.contains('mudded')) return;
+        throwProjectile(li);
         cleanup();
         resolve(id);
       }
@@ -1234,10 +1247,72 @@
       function onKey(e){ if (e.key === 'Escape'){ cleanup(); resolve(null); } }
       document.addEventListener('keydown', onKey);
       function onBackdrop(e){
-        if (e.target === overlay) { cleanup(); resolve(null); }
+        if (!lbList.contains(e.target) && !overlay.contains(e.target)){ cleanup(); resolve(null); }
       }
       document.addEventListener('click', onBackdrop, true);
+
+      const TO = setTimeout(()=>{ cleanup(); resolve(null); }, 15000);
+      const prevCleanup = cleanup;
+      cleanup = function(){ clearTimeout(TO); prevCleanup(); };
     });
+  }
+
+  // --- Visual Effect Functions ---
+  function showToast(text){
+    const el = document.createElement('div');
+    el.className = 'm67-toast';
+    el.textContent = text;
+    document.body.appendChild(el);
+    requestAnimationFrame(()=>{ el.classList.add('show'); });
+    setTimeout(()=>{
+      el.classList.remove('show');
+      setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 500);
+    }, 3500);
+  }
+
+  function showClownRain(){
+    const container = document.createElement('div');
+    container.className = 'm67-clown-rain';
+    const emojis = ['🤡','🤡','🤡','🎪','🎺','🤡','🎈','🤡','🎉','🤡'];
+    for (let i = 0; i < 25; i++){
+      const span = document.createElement('span');
+      span.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      span.style.left = Math.random() * 100 + '%';
+      span.style.animationDelay = Math.random() * 1.2 + 's';
+      span.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+      span.style.fontSize = (20 + Math.random() * 28) + 'px';
+      container.appendChild(span);
+    }
+    document.body.appendChild(container);
+    try { play('snd_brainrot'); } catch(_){}
+    setTimeout(()=>{ try{ container.remove(); }catch(_){} }, 4500);
+  }
+
+  function showEarthquake(userName){
+    const page = document.querySelector('.make67-page');
+    if (page){
+      page.classList.add('m67-earthquake');
+      setTimeout(()=>{ try{ page.classList.remove('m67-earthquake'); }catch(_){} }, 5000);
+    }
+    showToast('💥 ' + userName + ' TRIGGERED AN EARTHQUAKE!');
+    try { play('snd_item_boost'); } catch(_){}
+  }
+
+  function showReverseCard(){
+    const el = document.createElement('div');
+    el.className = 'm67-reverse-card';
+    el.textContent = '🔄';
+    document.body.appendChild(el);
+    setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 2000);
+  }
+
+  function showBananaSlip(){
+    const el = document.createElement('div');
+    el.className = 'm67-banana-slip';
+    el.innerHTML = '🍌<br><span style="font-size:16px;font-weight:900;color:#ffe135;text-shadow:0 2px 8px rgba(0,0,0,.6)">SLIPPED!</span>';
+    document.body.appendChild(el);
+    try { play('snd_item_mud'); } catch(_){}
+    setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 2000);
   }
 
   // Modal helpers with body-lock parity
@@ -1616,6 +1691,7 @@
           applyEmpowerment();
           burstCharge();
           if (allTimeBoxEl) sparkAt(allTimeBoxEl, 5);
+          if (data.banana_slip) showBananaSlip();
         }
       }
       // update leaderboard in background
@@ -1783,6 +1859,78 @@
     });
   }
 
+  // --- Events polling (for real-time effects from other players) ---
+  let eventsPollTimer = 0;
+  let eventsPollDelay = 10000;
+  let eventsLastSeq = 0;
+
+  function handleIncomingEvent(msg){
+    try {
+      if (!msg || !msg.type) return;
+      if (msg.type === 'divine_shield'){
+        const uid = String(msg.user_id || '');
+        if (!uid) return;
+        const li = lbList && lbList.querySelector ? lbList.querySelector(`li.m67-lb-item[data-user-id="${uid}"]`) : null;
+        if (li){
+          try { li.classList.add('shielded'); li.classList.remove('mudded'); } catch(_){}
+          const endsIn = Number(msg.ends_in || 0);
+          if (endsIn > 0) setTimeout(()=>{ try{ li.classList.remove('shielded'); }catch(_){} }, Math.min(endsIn, 600) * 1000);
+        }
+      }
+      if (msg.type === 'clown_horn'){
+        if (String(msg.target_id || '') === myUid) showClownRain();
+        else showToast('🤡 ' + (msg.user_name||'Someone') + ' honked at ' + (msg.target_name||'someone') + '!');
+      }
+      if (msg.type === 'earthquake') showEarthquake(msg.user_name || 'Someone');
+      if (msg.type === 'reverse_card'){
+        const attackerId = String(msg.attacker_id || '');
+        const targetId = String(msg.target_id || '');
+        if (attackerId === myUid){ showReverseCard(); showToast('🔄 Your mud was REVERSED!'); }
+        else if (targetId === myUid) showToast('🔄 Your Reverse Card activated!');
+        else showToast('🔄 ' + (msg.target_name||'Someone') + " reversed " + (msg.attacker_name||"someone") + "'s mud!");
+      }
+      if (msg.type === 'double_or_nothing' && String(msg.user_id || '') !== myUid){
+        if (msg.won) showToast('🎲 ' + (msg.user_name||'Someone') + ' won +' + msg.delta + ' solves!');
+        else showToast('🎲 ' + (msg.user_name||'Someone') + ' lost ' + msg.delta + ' solves...');
+      }
+      if (msg.type === 'banana_peel' && String(msg.target_id || '') === myUid) showToast('🍌 Someone placed a banana peel under you...');
+      if (msg.type === 'banana_slip' && String(msg.user_id || '') !== myUid) showToast('🍌 ' + (msg.user_name||'Someone') + ' slipped on a banana peel!');
+    } catch(_){}
+  }
+
+  function scheduleNextEventsPoll(delay){
+    clearTimeout(eventsPollTimer);
+    eventsPollTimer = setTimeout(eventsPollLoop, delay);
+  }
+
+  async function eventsPollLoop(){
+    if (!isAuthed){ clearTimeout(eventsPollTimer); eventsPollTimer = 0; return; }
+    const delay = document.hidden ? Math.max(15000, eventsPollDelay) : eventsPollDelay;
+    try {
+      const res = await fetch(`/api/make67/events/poll?since=${encodeURIComponent(String(eventsLastSeq||0))}`);
+      const data = await res.json().catch(()=>({ok:false}));
+      if (data && data.ok){
+        const evs = Array.isArray(data.events) ? data.events : [];
+        for (const e of evs) handleIncomingEvent(e);
+        const ls = Number(data.last_seq || eventsLastSeq || 0);
+        if (!Number.isNaN(ls)) eventsLastSeq = Math.max(eventsLastSeq||0, ls);
+        eventsPollDelay = 10000 + Math.floor(Math.random()*3000);
+      } else {
+        eventsPollDelay = Math.min(60000, (eventsPollDelay||10000) * 1.5);
+      }
+    } catch(_){
+      eventsPollDelay = Math.min(60000, (eventsPollDelay||10000) * 1.5);
+    }
+    scheduleNextEventsPoll(delay);
+  }
+
+  function ensureEventsStream(){
+    if (eventsPollTimer || !isAuthed) return;
+    eventsPollDelay = 10000 + Math.floor(Math.random()*3000);
+    scheduleNextEventsPoll(0);
+    window.addEventListener('beforeunload', ()=>{ try{ clearTimeout(eventsPollTimer); }catch(_){} });
+  }
+
   // Initialize
   loadLeaderboard();
   newPuzzle();
@@ -1790,6 +1938,7 @@
   initColorTheme();
   loadShop();
   setTimeout(()=>{ loadState(); }, 1200);
+  setTimeout(()=>{ ensureEventsStream(); }, 2000);
 })();
 
 // --- Live Chat (isolated for Make 6 or 7; own endpoints) ---

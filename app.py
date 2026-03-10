@@ -1507,6 +1507,10 @@ _m67_state_version: dict[str, int] = {}
 _m67_progress_lock = threading.Lock()
 _m67_progress: dict[str, float] = {}
 
+# Banana peel one-shot tracking (target_uid -> {'from': attacker_uid, 'ts': timestamp})
+_m67_banana_lock = threading.Lock()
+_m67_banana_peel: dict[str, dict] = {}
+
 # --- Lightweight gameplay events log for polling clients ---
 _m67_event_lock = threading.Lock()
 _m67_event_seq: int = 0
@@ -1545,6 +1549,46 @@ _M67_CATALOG = {
         'color': '#ffd700',
         'cost': 2,  # Deducted on USE (special-case), not on buy
         'desc': 'Cleanse all bad vibes and become immune to negative effects for 5 minutes. Costs 2 solves when you activate it.'
+    },
+    'reverse_card': {
+        'key': 'reverse_card',
+        'name': 'Reverse Card',
+        'icon': '🔄',
+        'color': '#ff4444',
+        'cost': 4,
+        'desc': 'UNO! Keep this in your inventory — if someone muds you, it bounces right back to them. Consumed on trigger.'
+    },
+    'clown_horn': {
+        'key': 'clown_horn',
+        'name': 'Clown Horn',
+        'icon': '🤡',
+        'color': '#ff6b9d',
+        'cost': 1,
+        'desc': 'HONK HONK! Blast a clown horn at a rival. No damage, just pure disrespect. They see clowns rain on their screen.'
+    },
+    'banana_peel': {
+        'key': 'banana_peel',
+        'name': 'Banana Peel',
+        'icon': '🍌',
+        'color': '#ffe135',
+        'cost': 2,
+        'desc': 'Place a banana peel under a rival. Their next solve slips and gives zero credit. Sneaky one-shot sabotage.'
+    },
+    'double_or_nothing': {
+        'key': 'double_or_nothing',
+        'name': 'Double or Nothing',
+        'icon': '🎲',
+        'color': '#9b59b6',
+        'cost': 3,
+        'desc': 'Feeling lucky? 50/50 gamble — win +6 solves or lose 3. High risk, high reward. No cap fr fr.'
+    },
+    'earthquake': {
+        'key': 'earthquake',
+        'name': 'Earthquake',
+        'icon': '💥',
+        'color': '#e67e22',
+        'cost': 8,
+        'desc': "BOOM! Shake everyone's screen for 5 seconds. Pure chaos energy. The most expensive flex in the game."
     },
 }
 
@@ -1866,26 +1910,34 @@ def _game_solve(game_type: str):
         # Game item effects: boost/mud influence solve credit (DB-backed)
         now_dt = datetime.now(timezone.utc)
         uid = u.id
-        is_mudded = bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt)
-        is_boosted = bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt)
 
-        # Mud overrides boost to normal speed; otherwise mud slows to 0.5
-        if is_mudded:
-            mul = 1.0 if is_boosted else 0.5
+        # Check banana peel (one-shot zero-credit debuff)
+        banana_slipped = False
+        with _m67_banana_lock:
+            if uid in _m67_banana_peel:
+                _m67_banana_peel.pop(uid)
+                banana_slipped = True
+
+        if not banana_slipped:
+            is_mudded = bool(getattr(u, 'make67_mud_until', None) and u.make67_mud_until > now_dt)
+            is_boosted = bool(getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt)
+            # Mud overrides boost to normal speed; otherwise mud slows to 0.5
+            if is_mudded:
+                mul = 1.0 if is_boosted else 0.5
+            else:
+                mul = 2.0 if is_boosted else 1.0
+            # Fractional accumulator per user so slowed progress requires 2 solves
+            add_units = mul
+            with _m67_progress_lock:
+                prev = _m67_progress.get(uid, 0.0)
+                total_units = prev + add_units
+                credit = int(total_units)
+                _m67_progress[uid] = total_units - credit
+            if credit > 0:
+                cur = _get_user_counter(u, game_type)
+                _set_user_counter(u, game_type, cur + credit)
         else:
-            mul = 2.0 if is_boosted else 1.0
-
-        # Fractional accumulator per user so slowed progress requires 2 solves
-        add_units = mul
-        with _m67_progress_lock:
-            prev = _m67_progress.get(uid, 0.0)
-            total_units = prev + add_units
-            credit = int(total_units)
-            _m67_progress[uid] = total_units - credit
-
-        if credit > 0:
-            cur = _get_user_counter(u, game_type)
-            _set_user_counter(u, game_type, cur + credit)
+            credit = 0
 
         # Cheater detection: more than 15 solves in any 60-second window
         now = time.time()
@@ -1907,12 +1959,24 @@ def _game_solve(game_type: str):
         if credit > 0:
             _m67_bump_state_version(u.id)
 
-        return jsonify({
+        resp = {
             'ok': True,
             'all_time_total': _get_user_counter(u, game_type),
             'credited': int(credit),
             'cheater': bool(getattr(u, 'make67_is_cheater', False))
-        })
+        }
+        if banana_slipped:
+            resp['banana_slip'] = True
+            try:
+                _m67_broadcast({
+                    'type': 'banana_slip',
+                    'user_id': uid,
+                    'user_name': _format_display_name(u),
+                    'ts': int(time.time()),
+                })
+            except Exception:
+                pass
+        return jsonify(resp)
     except Exception as e:
         db.session.rollback()
         return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
@@ -2097,8 +2161,8 @@ def api_make6or7_buy():
     return _game_buy('make6or7')
 
 
-@app.route('/api/make67/use', methods=['POST'])
-def api_make67_use():
+def _game_use(game_type: str):
+    """Shared use-item endpoint handler for both game modes."""
     if not getattr(current_user, 'is_authenticated', False):
         return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
     try:
@@ -2114,183 +2178,212 @@ def api_make67_use():
             return jsonify({'ok': False, 'error': 'NOT_IN_INVENTORY'}), 400
         key = it.get('key')
         now_dt = datetime.now(timezone.utc)
-        # Activate effects (DB-backed)
-        if key == 'sneaky_dust':
-            # Non-stackable: if already invisible, reject and return item
-            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'invisible'}), 400
-            dur = timedelta(minutes=30)
-            u.make67_invisible_until = now_dt + dur
-        elif key == 'boost':
-            # Non-stackable: if already boosted, reject and return item
-            if getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'boost'}), 400
-            dur = timedelta(minutes=2)
-            u.make67_boost_until = now_dt + dur
-        elif key == 'divine_shield':
-            # Non-stackable: if already shielded, reject and return item
-            if getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'shield'}), 400
-            # Deduct cost on use (2 solves)
-            cur = int(u.make67_all_time_solves or 0)
-            if cur < 2:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS', 'message': 'Need 2 solves to activate Divine Shield.'}), 400
-            u.make67_all_time_solves = cur - 2
-            # Dispel negative effects
-            u.make67_mud_until = now_dt
-            # Apply shield for 5 minutes
-            dur = timedelta(seconds=300)
-            u.make67_shield_until = now_dt + dur
-        elif key == 'mud':
+
+        def _return_item():
+            _m67_add_item(u.id, key)
+
+        def _make_state(extra=None):
+            new_ver = _m67_bump_state_version(u.id)
+            inv = _m67_get_inventory(u.id)
+            s = {
+                'currency': _get_user_counter(u, game_type),
+                'inventory': inv,
+                'state_version': new_ver,
+            }
+            if extra:
+                s.update(extra)
+            _m67_state_cache_set((u.id, new_ver), s)
+            return s
+
+        def _validate_target():
             target_id = (data.get('target_id') or '').strip()
             if not target_id:
-                # Put item back if target missing
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
+                _return_item()
+                return None, jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
             target = db.session.get(User, target_id)
             if not target:
-                # Put item back if target missing/invalid
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'TARGET_NOT_FOUND'}), 404
-            # Block if target has Divine Shield active
+                _return_item()
+                return None, jsonify({'ok': False, 'error': 'TARGET_NOT_FOUND'}), 404
+            return target, target_id, None
+
+        # --- Sneaky Dust ---
+        if key == 'sneaky_dust':
+            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
+                _return_item()
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'invisible'}), 400
+            u.make67_invisible_until = now_dt + timedelta(minutes=30)
+
+        # --- Boost ---
+        elif key == 'boost':
+            if getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt:
+                _return_item()
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'boost'}), 400
+            u.make67_boost_until = now_dt + timedelta(minutes=2)
+
+        # --- Divine Shield ---
+        elif key == 'divine_shield':
+            if getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt:
+                _return_item()
+                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'shield'}), 400
+            cur = _get_user_counter(u, game_type)
+            if cur < 2:
+                _return_item()
+                return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS', 'message': 'Need 2 solves to activate Divine Shield.'}), 400
+            _set_user_counter(u, game_type, cur - 2)
+            u.make67_mud_until = now_dt  # Dispel mud
+            u.make67_shield_until = now_dt + timedelta(seconds=300)
+
+        # --- Mud (with Reverse Card check) ---
+        elif key == 'mud':
+            result = _validate_target()
+            if result[2] is not None:
+                return result[1], result[2]
+            target, target_id = result[0], result[1]
+            # Shield blocks mud
             if getattr(target, 'make67_shield_until', None) and target.make67_shield_until > now_dt:
-                _m67_add_item(u.id, key)
+                _return_item()
                 return jsonify({'ok': False, 'error': 'THWARTED_SHIELD', 'message': 'Thwarted: target is protected by Divine Shield.'}), 400
-            # Non-stackable: if target is already muddied, reject and return item
+            # Reverse Card check: does target have one in inventory?
+            target_inv = _m67_get_inventory(target_id)
+            reverse_items = [i for i in target_inv if i.get('key') == 'reverse_card']
+            if reverse_items:
+                _m67_pop_item(target_id, reverse_items[0]['id'])
+                # Reflect mud to attacker (unless attacker has shield)
+                if not (getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt):
+                    u.make67_mud_until = now_dt + timedelta(minutes=2)
+                    u.make67_boost_until = now_dt
+                db.session.commit()
+                _m67_bump_state_version(target_id)
+                _m67_broadcast({
+                    'type': 'reverse_card',
+                    'target_id': target_id,
+                    'target_name': _format_display_name(target),
+                    'attacker_id': u.id,
+                    'attacker_name': _format_display_name(u),
+                    'ts': int(time.time()),
+                })
+                return jsonify({'ok': True, 'reversed': True, 'state': _make_state()})
+            # Non-stackable
             if getattr(target, 'make67_mud_until', None) and target.make67_mud_until > now_dt:
-                _m67_add_item(u.id, key)
+                _return_item()
                 return jsonify({'ok': False, 'error': 'TARGET_EFFECT_ACTIVE', 'effect': 'mud'}), 400
-            dur = timedelta(minutes=2)
-            target.make67_mud_until = now_dt + dur
-            # Cancel boost on target while mud is active
+            target.make67_mud_until = now_dt + timedelta(minutes=2)
             target.make67_boost_until = now_dt
+
+        # --- Reverse Card (passive — cannot be manually used) ---
+        elif key == 'reverse_card':
+            _return_item()
+            return jsonify({'ok': False, 'error': 'PASSIVE_ITEM', 'message': 'Reverse Card is passive. It activates automatically when someone muds you!'}), 400
+
+        # --- Clown Horn (social troll, no gameplay effect) ---
+        elif key == 'clown_horn':
+            result = _validate_target()
+            if result[2] is not None:
+                return result[1], result[2]
+            target, target_id = result[0], result[1]
+            # No gameplay effect — just broadcast the honk
+            db.session.commit()
+            _m67_broadcast({
+                'type': 'clown_horn',
+                'user_id': u.id,
+                'user_name': _format_display_name(u),
+                'target_id': target_id,
+                'target_name': _format_display_name(target),
+                'ts': int(time.time()),
+            })
+            return jsonify({'ok': True, 'state': _make_state()})
+
+        # --- Banana Peel (one-shot zero-credit debuff) ---
+        elif key == 'banana_peel':
+            result = _validate_target()
+            if result[2] is not None:
+                return result[1], result[2]
+            target, target_id = result[0], result[1]
+            # Shield blocks banana peel
+            if getattr(target, 'make67_shield_until', None) and target.make67_shield_until > now_dt:
+                _return_item()
+                return jsonify({'ok': False, 'error': 'THWARTED_SHIELD', 'message': 'Target is protected by Divine Shield.'}), 400
+            # Non-stackable: one banana per player
+            with _m67_banana_lock:
+                if target_id in _m67_banana_peel:
+                    _return_item()
+                    return jsonify({'ok': False, 'error': 'TARGET_EFFECT_ACTIVE', 'effect': 'banana'}), 400
+                _m67_banana_peel[target_id] = {'from': u.id, 'ts': time.time()}
+            db.session.commit()
+            _m67_broadcast({
+                'type': 'banana_peel',
+                'user_id': u.id,
+                'user_name': _format_display_name(u),
+                'target_id': target_id,
+                'target_name': _format_display_name(target),
+                'ts': int(time.time()),
+            })
+            return jsonify({'ok': True, 'state': _make_state()})
+
+        # --- Double or Nothing (self-use gamble) ---
+        elif key == 'double_or_nothing':
+            won = random.random() < 0.5
+            cur = _get_user_counter(u, game_type)
+            if won:
+                delta = 6
+                _set_user_counter(u, game_type, cur + delta)
+            else:
+                delta = -min(3, cur)
+                _set_user_counter(u, game_type, max(0, cur - 3))
+            db.session.commit()
+            _m67_broadcast({
+                'type': 'double_or_nothing',
+                'user_id': u.id,
+                'user_name': _format_display_name(u),
+                'won': won,
+                'delta': delta,
+                'ts': int(time.time()),
+            })
+            return jsonify({'ok': True, 'won': won, 'delta': delta, 'state': _make_state()})
+
+        # --- Earthquake (mass chaos broadcast) ---
+        elif key == 'earthquake':
+            db.session.commit()
+            _m67_broadcast({
+                'type': 'earthquake',
+                'user_id': u.id,
+                'user_name': _format_display_name(u),
+                'ts': int(time.time()),
+            })
+            return jsonify({'ok': True, 'state': _make_state()})
+
         else:
+            _return_item()
             return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
-        t_commit0 = time.perf_counter()
+
+        # Common commit + response for effect-based items (sneaky_dust, boost, divine_shield, mud)
         db.session.commit()
-        app.logger.debug("m67_use commit_ms=%d rid=%s", int((time.perf_counter() - t_commit0) * 1000), getattr(g, '__request_id', '-'))
-        # If Divine Shield activated, broadcast to all clients
         if key == 'divine_shield':
             try:
-                payload = {
+                _m67_broadcast({
                     'type': 'divine_shield',
                     'user_id': u.id,
                     'user_name': _format_display_name(u),
                     'ts': int(time.time()),
                     'ends_in': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
                     'expires_at': int((u.make67_shield_until or now_dt).timestamp()),
-                }
-                _m67_broadcast(payload)
+                })
             except Exception:
                 pass
-        # Return updated state
-        inv = _m67_get_inventory(u.id)
-        new_ver = _m67_bump_state_version(u.id)
-        state = {
-            'currency': int(u.make67_all_time_solves or 0),
-            'inventory': inv,
-            'state_version': new_ver,
-        }
-        # Update state cache for this new version to minimize immediate follow-up polls
-        _m67_state_cache_set((u.id, new_ver), state)
-        return jsonify({'ok': True, 'state': state})
+        return jsonify({'ok': True, 'state': _make_state()})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/make67/use', methods=['POST'])
+def api_make67_use():
+    return _game_use('make67')
 
 
 @app.route('/api/make6or7/use', methods=['POST'])
 def api_make6or7_use():
-    if not getattr(current_user, 'is_authenticated', False):
-        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
-    try:
-        u = current_user
-        if not u:
-            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
-        data = request.get_json(silent=True) or {}
-        item_id = (data.get('item_id') or '').strip()
-        if not item_id:
-            return jsonify({'ok': False, 'error': 'ITEM_REQUIRED'}), 400
-        it = _m67_pop_item(u.id, item_id)
-        if not it:
-            return jsonify({'ok': False, 'error': 'NOT_IN_INVENTORY'}), 400
-        key = it.get('key')
-        now_dt = datetime.now(timezone.utc)
-        # Activate effects (shared rules with Make67)
-        if key == 'sneaky_dust':
-            # Non-stackable: if already invisible, reject and return item
-            if getattr(u, 'make67_invisible_until', None) and u.make67_invisible_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'invisible'}), 400
-            dur = timedelta(minutes=30)
-            u.make67_invisible_until = now_dt + dur
-        elif key == 'boost':
-            # Non-stackable: if already boosted, reject and return item
-            if getattr(u, 'make67_boost_until', None) and u.make67_boost_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'boost'}), 400
-            dur = timedelta(minutes=2)
-            u.make67_boost_until = now_dt + dur
-        elif key == 'divine_shield':
-            # Non-stackable: if already shielded, reject and return item
-            if getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'EFFECT_ACTIVE', 'effect': 'shield'}), 400
-            # Deduct cost on use (2 solves)
-            cur = int(u.make6or7_all_time_solves or 0)
-            if cur < 2:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'INSUFFICIENT_FUNDS', 'message': 'Need 2 solves to activate Divine Shield.'}), 400
-            u.make6or7_all_time_solves = cur - 2
-            dur = timedelta(minutes=5)
-            u.make67_shield_until = now_dt + dur
-            # Remove any active mud
-            u.make67_mud_until = now_dt
-        elif key == 'mud':
-            target_id = (data.get('target_id') or '').strip()
-            if not target_id:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'TARGET_REQUIRED'}), 400
-            target = db.session.get(User, target_id)
-            if not target:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'TARGET_NOT_FOUND'}), 404
-            # Respect Divine Shield across modes as a global protection
-            if getattr(target, 'make67_shield_until', None) and target.make67_shield_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'THWARTED_SHIELD', 'message': 'Thwarted: target is protected by Divine Shield.'}), 400
-            # Non-stackable: if target is already muddied, reject and return item (matches Make67)
-            if getattr(target, 'make67_mud_until', None) and target.make67_mud_until > now_dt:
-                _m67_add_item(u.id, key)
-                return jsonify({'ok': False, 'error': 'TARGET_EFFECT_ACTIVE', 'effect': 'mud'}), 400
-            dur = timedelta(minutes=2)
-            target.make67_mud_until = now_dt + dur
-            # Mud cancels boost
-            target.make67_boost_until = now_dt
-        else:
-            return jsonify({'ok': False, 'error': 'INVALID_ITEM'}), 400
-        db.session.commit()
-        new_ver = _m67_bump_state_version(u.id)
-        inv = _m67_get_inventory(u.id)
-        state = {
-            'currency': int(u.make6or7_all_time_solves or 0),
-            'inventory': inv,
-            'effects': {
-                'invisible': _remaining_from_dt(getattr(u, 'make67_invisible_until', None), now_dt),
-                'boost': _remaining_from_dt(getattr(u, 'make67_boost_until', None), now_dt),
-                'mud': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
-                'shield': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
-            },
-            'state_version': new_ver,
-        }
-        # Update state cache for this new version to minimize immediate follow-up polls
-        _m67_state_cache_set((u.id, new_ver), state)
-        return jsonify({'ok': True, 'state': state})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
+    return _game_use('make6or7')
 
 
 def _m67_broadcast(msg: dict):
@@ -2301,7 +2394,7 @@ def _m67_broadcast(msg: dict):
         mtype = str(msg.get('type')) if isinstance(msg, dict) else ''
     except Exception:
         mtype = ''
-    if mtype in {'snowball_hit', 'divine_shield'}:
+    if mtype in {'snowball_hit', 'divine_shield', 'clown_horn', 'earthquake', 'reverse_card', 'double_or_nothing', 'banana_peel', 'banana_slip'}:
         with _m67_event_lock:
             try:
                 # Attach monotonically increasing sequence for ordering

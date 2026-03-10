@@ -1382,32 +1382,137 @@
 
   function handleIncomingEvent(msg){
     try {
-      if (msg && msg.type === 'divine_shield'){
+      if (!msg || !msg.type) return;
+
+      if (msg.type === 'divine_shield'){
         const uid = String(msg.user_id || msg.uid || msg.id || '');
         if (!uid) return;
-        // If target is on leaderboard, flash and set glow
         const li = lbList && lbList.querySelector ? lbList.querySelector(`li.m67-lb-item[data-user-id="${uid}"]`) : null;
         if (li){
           try {
             li.classList.add('shielded');
-            li.classList.remove('mudded'); // immediate dispel in UI
+            li.classList.remove('mudded');
             li.classList.add('flash-shield');
           } catch(_){ }
-          // 1s flash removal
           setTimeout(()=>{ try{ li.classList.remove('flash-shield'); }catch(_){ } }, 1000);
-          // Play shield sfx for all online viewers (avoid double if just played locally)
           if (!lastShieldSfxAt || (Date.now() - lastShieldSfxAt) > 800){
             playSfx('snd_item_shield');
           }
           lastShieldSfxAt = Date.now();
-          // Best effort: remove shielded class after duration; page refresh also handles it
           const endsIn = Number(msg.ends_in || 0);
           if (endsIn > 0){
             setTimeout(()=>{ try{ li.classList.remove('shielded'); }catch(_){ } }, Math.min(endsIn, 600) * 1000);
           }
         }
       }
+
+      // Clown Horn — target sees clown emoji rain
+      if (msg.type === 'clown_horn'){
+        const targetId = String(msg.target_id || '');
+        if (targetId === myUid) showClownRain();
+        else showToast('🤡 ' + (msg.user_name||'Someone') + ' honked at ' + (msg.target_name||'someone') + '!');
+      }
+
+      // Earthquake — everyone's screen shakes
+      if (msg.type === 'earthquake'){
+        showEarthquake(msg.user_name || 'Someone');
+      }
+
+      // Reverse Card — mud was reflected
+      if (msg.type === 'reverse_card'){
+        const attackerId = String(msg.attacker_id || '');
+        const targetId = String(msg.target_id || '');
+        if (attackerId === myUid){
+          showReverseCard();
+          showToast('🔄 Your mud was REVERSED!');
+        } else if (targetId === myUid){
+          showToast('🔄 Your Reverse Card activated! Mud bounced back!');
+        } else {
+          showToast('🔄 ' + (msg.target_name||'Someone') + ' reversed ' + (msg.attacker_name||'someone') + "'s mud!");
+        }
+      }
+
+      // Double or Nothing — gamble result broadcast
+      if (msg.type === 'double_or_nothing'){
+        const uid = String(msg.user_id || '');
+        if (uid !== myUid){
+          if (msg.won) showToast('🎲 ' + (msg.user_name||'Someone') + ' won +' + msg.delta + ' solves!');
+          else showToast('🎲 ' + (msg.user_name||'Someone') + ' lost ' + msg.delta + ' solves...');
+        }
+      }
+
+      // Banana Peel placed on target
+      if (msg.type === 'banana_peel'){
+        const targetId = String(msg.target_id || '');
+        if (targetId === myUid) showToast('🍌 Someone placed a banana peel under you...');
+      }
+
+      // Banana Slip — someone slipped
+      if (msg.type === 'banana_slip'){
+        const uid = String(msg.user_id || '');
+        if (uid !== myUid) showToast('🍌 ' + (msg.user_name||'Someone') + ' slipped on a banana peel!');
+      }
+
     } catch(_){ /* ignore */ }
+  }
+
+  // --- Visual Effect Functions ---
+
+  function showToast(text){
+    const el = document.createElement('div');
+    el.className = 'm67-toast';
+    el.textContent = text;
+    document.body.appendChild(el);
+    requestAnimationFrame(()=>{ el.classList.add('show'); });
+    setTimeout(()=>{
+      el.classList.remove('show');
+      setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 500);
+    }, 3500);
+  }
+
+  function showClownRain(){
+    const container = document.createElement('div');
+    container.className = 'm67-clown-rain';
+    const emojis = ['🤡','🤡','🤡','🎪','🎺','🤡','🎈','🤡','🎉','🤡'];
+    for (let i = 0; i < 25; i++){
+      const span = document.createElement('span');
+      span.textContent = randomChoice(emojis);
+      span.style.left = Math.random() * 100 + '%';
+      span.style.animationDelay = Math.random() * 1.2 + 's';
+      span.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+      span.style.fontSize = (20 + Math.random() * 28) + 'px';
+      container.appendChild(span);
+    }
+    document.body.appendChild(container);
+    try { playSfx('snd_brainrot'); } catch(_){}
+    setTimeout(()=>{ try{ container.remove(); }catch(_){} }, 4500);
+  }
+
+  function showEarthquake(userName){
+    const page = document.querySelector('.make67-page');
+    if (page){
+      page.classList.add('m67-earthquake');
+      setTimeout(()=>{ try{ page.classList.remove('m67-earthquake'); }catch(_){} }, 5000);
+    }
+    showToast('💥 ' + userName + ' TRIGGERED AN EARTHQUAKE!');
+    try { playSfx('snd_item_boost'); } catch(_){}
+  }
+
+  function showReverseCard(){
+    const el = document.createElement('div');
+    el.className = 'm67-reverse-card';
+    el.textContent = '🔄';
+    document.body.appendChild(el);
+    setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 2000);
+  }
+
+  function showBananaSlip(){
+    const el = document.createElement('div');
+    el.className = 'm67-banana-slip';
+    el.innerHTML = '🍌<br><span style="font-size:16px;font-weight:900;color:#ffe135;text-shadow:0 2px 8px rgba(0,0,0,.6)">SLIPPED!</span>';
+    document.body.appendChild(el);
+    try { playSfx('snd_item_mud'); } catch(_){}
+    setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 2000);
   }
 
   function scheduleNextEventsPoll(delay){
@@ -1795,6 +1900,11 @@
 
   async function useItem(it){
     if (!it) return;
+    // Reverse Card is passive — cannot be manually used
+    if (it.key === 'reverse_card'){
+      showToast('🔄 Reverse Card is passive — it activates when someone muds you!');
+      return;
+    }
     // Client-side guard for non-stackable status effects
     try {
       if (it.key === 'boost' && effects && Number(effects.boost||0) > 0){
@@ -1811,9 +1921,17 @@
       }
     } catch(_){ }
     let payload = { item_id: it.id };
+    // Items that need a target
     if (it.key === 'mud'){
-      // pick a target from leaderboard
-      const target = await pickMudTarget();
+      const target = await pickTarget({text:'choose a target to mud!', emoji:'💩', modeClass:'m67-mud-mode'});
+      if (!target) return;
+      payload.target_id = target;
+    } else if (it.key === 'clown_horn'){
+      const target = await pickTarget({text:'HONK someone! 🤡', emoji:'🤡', canTargetMudded:true});
+      if (!target) return;
+      payload.target_id = target;
+    } else if (it.key === 'banana_peel'){
+      const target = await pickTarget({text:'place a banana peel! 🍌', emoji:'🍌', canTargetMudded:true});
       if (!target) return;
       payload.target_id = target;
     }
@@ -1827,11 +1945,14 @@
           alert(`That ${eff} is already active. Please wait until it ends.`);
           loadState();
         } else if (code === 'TARGET_EFFECT_ACTIVE'){
-          alert('That player is already muddied. Pick someone else.');
+          alert('Target already has that effect. Pick someone else.');
           loadState();
         } else if (code === 'THWARTED_SHIELD'){
           const msg = d.message || 'Thwarted: target is protected by Divine Shield.';
           alert(msg);
+          loadState();
+        } else if (code === 'PASSIVE_ITEM'){
+          showToast(d.message || 'This item is passive.');
           loadState();
         }
         return;
@@ -1842,62 +1963,72 @@
       renderInventory();
       loadLeaderboard();
       stateBlockUntil = Date.now() + 3000;
+      // Handle special responses
+      if (d.reversed){
+        showToast('🔄 YOUR MUD WAS REVERSED! UNO!');
+        playSfx('snd_item_shield');
+      } else if (it.key === 'double_or_nothing'){
+        if (d.won){
+          showToast('🎲 YOU WON! +' + d.delta + ' solves!');
+          playSfx('snd_shop_coins');
+        } else {
+          showToast('🎲 YOU LOST! ' + d.delta + ' solves...');
+          playSfx('snd_item_mud');
+        }
+      } else if (it.key === 'earthquake'){
+        playSfx('snd_item_boost');
       // Play item activation sounds
-      if (it.key === 'mud') {
+      } else if (it.key === 'mud') {
         playSfx('snd_item_mud');
       } else if (it.key === 'boost') {
         playSfx('snd_item_boost');
       } else if (it.key === 'sneaky_dust') {
         playSfx('snd_item_dust');
       } else if (it.key === 'divine_shield') {
-        // Play locally on successful activation so the user always hears it
         playSfx('snd_item_shield');
         lastShieldSfxAt = Date.now();
+      } else if (it.key === 'clown_horn') {
+        playSfx('snd_brainrot');
+      } else if (it.key === 'banana_peel') {
+        playSfx('snd_item_mud');
       }
     } catch(_){ }
   }
 
-  function pickMudTarget(){
+  function pickTarget(opts){
+    opts = opts || {};
+    const overlayText = opts.text || 'Choose a target!';
+    const cursorEmoji = opts.emoji || '🎯';
+    const modeClass = opts.modeClass || 'm67-mud-mode';
+    const canTargetMudded = opts.canTargetMudded || false;
     return new Promise(resolve=>{
       if (!lbList){ resolve(null); return; }
 
-      // State
       let mouseX = window.innerWidth/2, mouseY = window.innerHeight/2;
       let done = false;
 
-      // Minimize/close any open popups before entering mud targeting mode
-      try {
-        if (typeof closeInventory === 'function' && invModalRoot && !invModalRoot.hidden) closeInventory();
-      } catch(_){}
-      try {
-        if (typeof closeShop === 'function' && shopModalRoot && !shopModalRoot.hidden) closeShop();
-      } catch(_){}
-      try {
-        if (typeof closeBanned === 'function' && bannedRoot && !bannedRoot.hidden) closeBanned();
-      } catch(_){}
-      try {
-        if (chatOverlay && !chatOverlay.hidden) { chatOverlay.hidden = true; }
-      } catch(_){}
-      try {
-        if (overlayRoot && !overlayRoot.hidden) { overlayRoot.hidden = true; }
-      } catch(_){}
+      // Close any open popups
+      try { if (typeof closeInventory === 'function' && invModalRoot && !invModalRoot.hidden) closeInventory(); } catch(_){}
+      try { if (typeof closeShop === 'function' && shopModalRoot && !shopModalRoot.hidden) closeShop(); } catch(_){}
+      try { if (typeof closeBanned === 'function' && bannedRoot && !bannedRoot.hidden) closeBanned(); } catch(_){}
+      try { if (chatOverlay && !chatOverlay.hidden) { chatOverlay.hidden = true; } } catch(_){}
+      try { if (overlayRoot && !overlayRoot.hidden) { overlayRoot.hidden = true; } } catch(_){}
       try { updateBodyLock && updateBodyLock(); } catch(_){}
 
-      // Fullscreen overlay instruction
       const overlay = document.createElement('div');
       overlay.className = 'm67-mud-overlay';
       overlay.setAttribute('role','dialog');
       overlay.setAttribute('aria-live','polite');
-      overlay.textContent = 'choose a target to mud!';
+      overlay.textContent = overlayText;
       document.body.appendChild(overlay);
 
-      // Custom cursor follower (mud ball)
+      // Emoji cursor follower
       const cursor = document.createElement('div');
-      cursor.className = 'm67-mud-cursor';
+      cursor.style.cssText = 'position:fixed;left:0;top:0;width:36px;height:36px;margin-left:-18px;margin-top:-18px;display:grid;place-items:center;z-index:20010;pointer-events:none;font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));';
+      cursor.textContent = cursorEmoji;
       document.body.appendChild(cursor);
 
-      // Body class to hide default cursor and block scroll
-      document.body.classList.add('m67-mud-mode');
+      document.body.classList.add(modeClass);
 
       function placeCursor(x,y){
         mouseX = x; mouseY = y;
@@ -1910,7 +2041,6 @@
       };
       window.addEventListener('mousemove', onMove, {passive:true});
       window.addEventListener('touchmove', onMove, {passive:true});
-      // Initialize position near center
       placeCursor(mouseX, mouseY);
 
       function cleanup(){
@@ -1922,28 +2052,25 @@
         document.removeEventListener('click', onBackdrop, true);
         try { overlay.remove(); } catch(_){ }
         try { cursor.remove(); } catch(_){ }
-        document.body.classList.remove('m67-mud-mode');
+        document.body.classList.remove(modeClass);
       }
 
-      function throwMudTo(targetEl){
-        // Create a projectile at current cursor position and animate to target
+      function throwProjectile(targetEl){
         const proj = document.createElement('div');
+        proj.style.cssText = 'position:fixed;left:0;top:0;width:28px;height:28px;margin-left:-14px;margin-top:-14px;z-index:20005;pointer-events:none;font-size:20px;display:grid;place-items:center;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.4));';
+        proj.textContent = cursorEmoji;
         proj.className = 'm67-mud-throw';
         document.body.appendChild(proj);
-        // starting position
         proj.style.left = mouseX + 'px';
         proj.style.top = mouseY + 'px';
-        // destination
         const r = targetEl.getBoundingClientRect();
-        const tx = r.left + r.width*0.15; // towards name area
+        const tx = r.left + r.width*0.15;
         const ty = r.top + r.height*0.5;
-        // next frame to apply transition
         requestAnimationFrame(()=>{
           proj.style.setProperty('--tx', (tx - mouseX) + 'px');
           proj.style.setProperty('--ty', (ty - mouseY) + 'px');
           proj.classList.add('go');
         });
-        // After animation ends, remove
         proj.addEventListener('animationend', ()=>{ try{ proj.remove(); }catch(_){ } }, {once:true});
       }
 
@@ -1951,14 +2078,11 @@
         const li = e.target && e.target.closest && e.target.closest('li.m67-lb-item');
         const id = li && li.dataset && li.dataset.userId;
         if (!li || !id) return;
-        // Prevent selecting already-mudded targets
-        if (li.classList && li.classList.contains('mudded')){
+        if (!canTargetMudded && li.classList && li.classList.contains('mudded')){
           try { sparkAt(li, 4); } catch(_){ }
           return;
         }
-        // Optimistic FX: add mudded look
-        li.classList.add('mudded');
-        throwMudTo(li);
+        throwProjectile(li);
         cleanup();
         resolve(id);
       }
@@ -1967,16 +2091,13 @@
       function onKey(e){ if (e.key === 'Escape'){ cleanup(); resolve(null); } }
       document.addEventListener('keydown', onKey);
       function onBackdrop(e){
-        // If click outside leaderboard, treat as cancel (but ignore overlay itself to avoid immediate close)
         if (!lbList.contains(e.target) && !overlay.contains(e.target)){
           cleanup(); resolve(null);
         }
       }
       document.addEventListener('click', onBackdrop, true);
 
-      // Safety timeout
       const TO = setTimeout(()=>{ cleanup(); resolve(null); }, 15000);
-      // Ensure cleanup clears timeout
       const prevCleanup = cleanup;
       cleanup = function(){ clearTimeout(TO); prevCleanup(); };
     });
@@ -2063,6 +2184,8 @@
         if (allTimeEl) allTimeEl.textContent = String(allTime);
         applyEmpowerment();
         burstCharge();
+        // Banana peel: show slip animation instead of celebrating
+        if (data.banana_slip) showBananaSlip();
         // Refresh state (inventory/effects) and leaderboard
         loadState();
       }
