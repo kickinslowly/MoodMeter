@@ -1980,15 +1980,24 @@
   function tourneyHideBanner(){ if(tourneyBanner) tourneyBanner.hidden = true; }
 
   function tourneyOpenPanel(){
-    if(tourneyRoot) tourneyRoot.hidden = false;
+    if(tourneyRoot){
+      tourneyRoot.hidden = false;
+      tourneyRoot.classList.add('tourney-floating');
+    }
     tourneyPanelMinimized = false;
     if(tourneyDockBtn) tourneyDockBtn.hidden = true;
   }
   function tourneyClosePanel(){
-    if(tourneyRoot) tourneyRoot.hidden = true;
+    if(tourneyRoot){
+      tourneyRoot.hidden = true;
+      tourneyRoot.classList.remove('tourney-floating');
+    }
   }
   function tourneyMinimizePanel(){
-    if(tourneyRoot) tourneyRoot.hidden = true;
+    if(tourneyRoot){
+      tourneyRoot.hidden = true;
+      tourneyRoot.classList.remove('tourney-floating');
+    }
     tourneyPanelMinimized = true;
     if(tourneyState && tourneyState.joined && (tourneyState.status==='active'||tourneyState.status==='pending')){
       if(tourneyDockBtn) tourneyDockBtn.hidden = false;

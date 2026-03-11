@@ -4069,6 +4069,84 @@ body.mobile-nav-open {
 .trophy-badge--3 { background: rgba(205, 127, 50, 0.1); border-color: rgba(205, 127, 50, 0.3); color: #cd7f32; }
 .trophy-badge__icon { font-size: 14px; }
 
+/* --- Floating Tournament Widget (non-blocking) --- */
+.m67-tourney-root.tourney-floating {
+  inset: auto;
+  position: fixed;
+  right: 12px;
+  top: 60px;
+  z-index: 10015;
+  width: auto;
+  pointer-events: auto;
+}
+.m67-tourney-root.tourney-floating .m67-modal-overlay {
+  position: static;
+  display: block;
+}
+.m67-tourney-root.tourney-floating .m67-modal__backdrop {
+  display: none;
+}
+.m67-tourney-root.tourney-floating .tourney-panel {
+  width: 250px;
+  max-width: none !important;
+  max-height: 70vh;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(16, 18, 26, 0.94);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 12px rgba(255, 215, 0, 0.08);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.m67-tourney-root.tourney-floating .tourney-panel__header {
+  margin-bottom: 8px;
+}
+.m67-tourney-root.tourney-floating .m67-modal__title {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+.m67-tourney-root.tourney-floating .tourney-panel__status {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.m67-tourney-root.tourney-floating .tourney-panel__timer-big {
+  font-size: 22px;
+  margin: 2px 0 4px;
+}
+.m67-tourney-root.tourney-floating .tourney-panel__sb-title {
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+.m67-tourney-root.tourney-floating .tourney-scoreboard {
+  max-height: 200px;
+}
+.m67-tourney-root.tourney-floating .tourney-scoreboard li {
+  padding: 4px 6px;
+  gap: 6px;
+  margin-bottom: 2px;
+  border-radius: 6px;
+}
+.m67-tourney-root.tourney-floating .tourney-sb__place {
+  font-size: 13px;
+  min-width: 22px;
+}
+.m67-tourney-root.tourney-floating .tourney-sb__name {
+  font-size: 12px;
+}
+.m67-tourney-root.tourney-floating .tourney-sb__solves {
+  font-size: 13px;
+}
+.m67-tourney-root.tourney-floating .m67-modal__close {
+  top: 6px;
+  right: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.m67-tourney-root.tourney-floating .tourney-panel__footer {
+  margin-top: 4px;
+}
+
 /* --- Tournament Mobile --- */
 @media (max-width: 600px) {
   .tourney-banner__inner { padding: 8px 10px; gap: 6px; }
@@ -4079,6 +4157,20 @@ body.mobile-nav-open {
   .tourney-celebration__title { font-size: 20px; letter-spacing: 1px; }
   .tourney-celebration__name { font-size: 18px; }
   .tourney-celebration__runners { gap: 14px; font-size: 12px; }
+  /* Floating widget: bottom-center on mobile */
+  .m67-tourney-root.tourney-floating {
+    right: 50%;
+    transform: translateX(50%);
+    top: auto;
+    bottom: 70px;
+  }
+  .m67-tourney-root.tourney-floating .tourney-panel {
+    width: min(280px, 88vw);
+    max-height: 45vh;
+  }
+  .m67-tourney-root.tourney-floating .tourney-scoreboard {
+    max-height: 140px;
+  }
 }
 
 /* --- Scoreboard "you" row highlight pulse --- */
