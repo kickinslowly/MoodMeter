@@ -56,7 +56,7 @@
 - ✅ Hardening: race conditions, input validation, fairness (equal solves, late-join cutoff, cheater block, 0-solve filter)
 - ✅ Performance: adaptive polling, cached names, batch queries, DB ops outside locks
 - ✅ Resilience: orphaned tournament recovery on server restart
-- 🔲 Super user admin panel for creating tournaments (currently API-only)
+- ✅ Super user admin panel for creating tournaments (crown button in game dock, modal with presets/sliders, active status, cancel, history)
 
 ## Completed Goals
 <!-- None yet -->

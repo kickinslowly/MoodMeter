@@ -2554,29 +2554,46 @@
   function tourneyUpdatePanel(st){
     if (!st) return;
     const statusMap = {pending:'STARTING SOON',active:'LIVE',ended:'FINISHED',cancelled:'CANCELLED'};
+    const statusColors = {pending:'#fbbf24',active:'#4dff88',ended:'#94a3b8',cancelled:'#f87171'};
     if(tourneyStatus){
-      tourneyStatus.textContent = statusMap[st.status] || st.status;
-      tourneyStatus.style.color = st.status==='active' ? '#4dff88' : '#ffd700';
+      const label = st.joined && st.status==='pending' ? '✅ YOU\'RE IN' : (statusMap[st.status] || st.status);
+      tourneyStatus.textContent = label;
+      tourneyStatus.style.color = statusColors[st.status] || '#ffd700';
     }
     if(tourneyTimer){
       const sec = st.status==='pending' ? st.countdown_sec : st.remaining_sec;
       tourneyTimer.textContent = fmtTimer(Math.max(0,sec));
       tourneyTimer.classList.toggle('tourney-urgent', st.status==='active' && sec <= 30);
     }
-    if(tourneySB && st.scoreboard){
-      tourneySB.innerHTML = st.scoreboard.map((e,i) => {
-        const place = i+1;
-        const placeIcons = {1:'🥇',2:'🥈',3:'🥉'};
-        const isMe = e.user_id === myUid;
-        return '<li class="'+(isMe?'tourney-sb__me':'')+'" style="transition:transform 0.3s ease">'+
-          '<span class="tourney-sb__place tourney-sb__place--'+place+'">'+(placeIcons[place]||place)+'</span>'+
-          '<span class="tourney-sb__name">'+escHtml(e.user_name)+(isMe?' (you)':'')+'</span>'+
-          '<span class="tourney-sb__solves">'+e.solves+'</span></li>';
-      }).join('');
+    if(tourneySB){
+      if(st.status==='pending'){
+        // During pending: show participant list instead of scoreboard
+        if(st.scoreboard && st.scoreboard.length){
+          tourneySB.innerHTML = st.scoreboard.map(e => {
+            const isMe = e.user_id === myUid;
+            return '<li class="'+(isMe?'tourney-sb__me':'')+'">'+
+              '<span class="tourney-sb__name">'+escHtml(e.user_name)+(isMe?' (you)':'')+'</span>'+
+              '<span class="tourney-sb__solves" style="color:#4dff88">Ready</span></li>';
+          }).join('');
+        } else {
+          tourneySB.innerHTML = '<li style="color:#888;text-align:center;padding:16px">Waiting for players...</li>';
+        }
+      } else if(st.scoreboard){
+        tourneySB.innerHTML = st.scoreboard.map((e,i) => {
+          const place = i+1;
+          const placeIcons = {1:'🥇',2:'🥈',3:'🥉'};
+          const isMe = e.user_id === myUid;
+          return '<li class="'+(isMe?'tourney-sb__me':'')+'" style="transition:transform 0.3s ease">'+
+            '<span class="tourney-sb__place tourney-sb__place--'+place+'">'+(placeIcons[place]||place)+'</span>'+
+            '<span class="tourney-sb__name">'+escHtml(e.user_name)+(isMe?' (you)':'')+'</span>'+
+            '<span class="tourney-sb__solves">'+e.solves+'</span></li>';
+        }).join('');
+      }
     }
-    // Show participant count
+    // Show participant count + status-specific message
     if(tourneyFooter && st.participant_count !== undefined){
-      tourneyFooter.innerHTML = '<span style="color:#888;font-size:12px">'+st.participant_count+' players</span>';
+      const extra = st.status==='pending' && st.joined ? ' &middot; Get ready!' : '';
+      tourneyFooter.innerHTML = '<span style="color:#888;font-size:12px">'+st.participant_count+' player'+(st.participant_count!==1?'s':'')+extra+'</span>';
     }
   }
 
@@ -2636,15 +2653,22 @@
       tourneyPollDelay = tourneyState.status === 'active' ? 2000 : 5000;
       // Show banner if not dismissed and tournament is pending/active
       if((tourneyState.status==='pending'||tourneyState.status==='active') && !tourneyDismissed){
-        const txt = tourneyState.status==='pending'
-          ? '🏆 Tournament starting in '+fmtTimer(tourneyState.countdown_sec)+'!'
-          : '🏆 Tournament LIVE! '+fmtTimer(tourneyState.remaining_sec)+' left';
+        let txt;
+        if(tourneyState.status==='pending'){
+          txt = tourneyState.joined
+            ? '✅ You\'re in! Starting in '+fmtTimer(tourneyState.countdown_sec)+'...'
+            : '🏆 Tournament starting in '+fmtTimer(tourneyState.countdown_sec)+'!';
+        } else {
+          txt = '🏆 Tournament LIVE! '+fmtTimer(tourneyState.remaining_sec)+' left';
+        }
         tourneyShowBanner(txt, tourneyState.can_join);
         if(tourneyBannerTimer) tourneyBannerTimer.textContent = fmtTimer(
           tourneyState.status==='pending' ? tourneyState.countdown_sec : tourneyState.remaining_sec
         );
+        // Visual feedback: banner changes style when joined
+        if(tourneyBanner) tourneyBanner.classList.toggle('tourney-banner--joined', !!tourneyState.joined);
       }
-      if(tourneyState.joined && tourneyState.status==='active'){
+      if(tourneyState.joined && (tourneyState.status==='active' || tourneyState.status==='pending')){
         tourneyOpenPanel();
       }
       tourneyUpdatePanel(tourneyState);
@@ -2738,6 +2762,165 @@
   // Initial check — single poll, then slow background checks
   if(isAuthed){ setTimeout(tourneyStartPolling, 3000); }
 
+  // --- Tournament Admin Panel (super user only) ---
+  const tourneyAdminBtn = document.getElementById('m67TourneyAdminBtn');
+  const tourneyAdminRoot = document.getElementById('tourneyAdminRoot');
+  if(tourneyAdminBtn && tourneyAdminRoot){
+    const taStatusEl = document.getElementById('tourneyAdminStatus');
+    const taCreateEl = document.getElementById('tourneyAdminCreate');
+    const taBadgeEl = document.getElementById('tourneyAdminBadge');
+    const taInfoEl = document.getElementById('tourneyAdminInfo');
+    const taCancelBtn = document.getElementById('tourneyAdminCancelBtn');
+    const taGameEl = document.getElementById('tourneyAdminGame');
+    const taDurSlider = document.getElementById('tourneyAdminDuration');
+    const taDurLabel = document.getElementById('tourneyAdminDurLabel');
+    const taCdSlider = document.getElementById('tourneyAdminCountdown');
+    const taCdLabel = document.getElementById('tourneyAdminCdLabel');
+    const taLaunchBtn = document.getElementById('tourneyAdminLaunchBtn');
+    const taNoteEl = document.getElementById('tourneyAdminNote');
+    const taHistoryEl = document.getElementById('tourneyAdminHistory');
+    const taPresetsEl = document.getElementById('tourneyAdminPresets');
+
+    // Default game to current page
+    if(taGameEl) taGameEl.value = GAME_TYPE;
+
+    function taFmtDur(s){ return Math.floor(s/60)+':'+(''+(s%60)).padStart(2,'0'); }
+
+    // Slider labels
+    if(taDurSlider && taDurLabel){
+      taDurSlider.addEventListener('input', ()=>{
+        taDurLabel.textContent = taFmtDur(+taDurSlider.value);
+        // Deselect presets
+        if(taPresetsEl) taPresetsEl.querySelectorAll('.tourney-admin__preset').forEach(b=>b.classList.remove('tourney-admin__preset--active'));
+      });
+    }
+    if(taCdSlider && taCdLabel){
+      taCdSlider.addEventListener('input', ()=>{ taCdLabel.textContent = taFmtDur(+taCdSlider.value); });
+    }
+    // Presets
+    if(taPresetsEl){
+      taPresetsEl.addEventListener('click',(e)=>{
+        const btn = e.target.closest('.tourney-admin__preset');
+        if(!btn) return;
+        taPresetsEl.querySelectorAll('.tourney-admin__preset').forEach(b=>b.classList.remove('tourney-admin__preset--active'));
+        btn.classList.add('tourney-admin__preset--active');
+        const sec = +btn.dataset.sec;
+        if(taDurSlider){ taDurSlider.value = sec; }
+        if(taDurLabel){ taDurLabel.textContent = taFmtDur(sec); }
+      });
+    }
+
+    function taOpen(){
+      tourneyAdminRoot.hidden = false;
+      updateBodyLock();
+      taRefreshStatus();
+      taLoadHistory();
+    }
+    function taClose(){
+      tourneyAdminRoot.hidden = true;
+      updateBodyLock();
+    }
+    tourneyAdminBtn.addEventListener('click', taOpen);
+    tourneyAdminRoot.addEventListener('click',(e)=>{
+      if(e.target.dataset.close || e.target.closest('[data-close]')) taClose();
+    });
+
+    function taRefreshStatus(){
+      fetch('/api/tournament/state').then(r=>r.json()).then(d=>{
+        if(d.ok && d.status && d.status !== 'none'){
+          taStatusEl.hidden = false;
+          taCreateEl.style.display = 'none';
+          taBadgeEl.textContent = d.status.toUpperCase();
+          taBadgeEl.className = 'tourney-admin__status-badge tourney-admin__status-badge--' + d.status;
+          const parts = [];
+          if(d.game_type) parts.push('Game: '+(d.game_type==='make67'?'Make 67':'Make 6 or 7'));
+          if(d.participant_count!=null) parts.push('Players: '+d.participant_count);
+          if(d.remaining!=null) parts.push('Time: '+fmtTimer(Math.max(0,d.remaining)));
+          if(d.duration_sec) parts.push('Duration: '+taFmtDur(d.duration_sec));
+          taInfoEl.innerHTML = parts.join('<br>');
+        } else {
+          taStatusEl.hidden = true;
+          taCreateEl.style.display = '';
+        }
+      }).catch(()=>{
+        taStatusEl.hidden = true;
+        taCreateEl.style.display = '';
+      });
+    }
+
+    // Launch
+    taLaunchBtn.addEventListener('click', async ()=>{
+      taNoteEl.textContent = '';
+      taLaunchBtn.disabled = true;
+      try{
+        const body = {
+          game_type: taGameEl.value,
+          duration_sec: +taDurSlider.value,
+          countdown_sec: +taCdSlider.value
+        };
+        const res = await fetch('/api/tournament/create',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(body)
+        });
+        const d = await res.json();
+        if(d.ok){
+          taNoteEl.textContent = 'Tournament launched!';
+          taNoteEl.style.color = '#4ade80';
+          taRefreshStatus();
+          // Kick off our own polling
+          tourneyStartPolling();
+        } else {
+          taNoteEl.textContent = d.error || 'Failed to create.';
+          taNoteEl.style.color = '#f87171';
+        }
+      }catch(e){
+        taNoteEl.textContent = 'Network error.';
+        taNoteEl.style.color = '#f87171';
+      }
+      taLaunchBtn.disabled = false;
+    });
+
+    // Cancel
+    taCancelBtn.addEventListener('click', async ()=>{
+      if(!confirm('Cancel the active tournament?')) return;
+      try{
+        const res = await fetch('/api/tournament/cancel',{method:'POST'});
+        const d = await res.json();
+        if(d.ok){
+          showToast('Tournament cancelled.');
+          taRefreshStatus();
+        } else {
+          showToast(d.error || 'Failed to cancel.');
+        }
+      }catch(_){ showToast('Network error.'); }
+    });
+
+    // History
+    async function taLoadHistory(){
+      try{
+        const res = await fetch('/api/tournament/history');
+        const d = await res.json();
+        if(!d.ok || !d.tournaments || !d.tournaments.length){
+          taHistoryEl.textContent = 'No tournaments yet.';
+          return;
+        }
+        taHistoryEl.innerHTML = d.tournaments.map(t=>{
+          const game = t.game_type==='make67'?'Make 67':'Make 6 or 7';
+          const stat = t.status === 'ended' ? (t.champion ? 'Won by '+escHtml(t.champion) : 'Ended') : t.status;
+          const dur = taFmtDur(t.duration_sec||0);
+          const date = t.created_at ? new Date(t.created_at).toLocaleDateString() : '';
+          return '<div class="tourney-admin__history-item">'+
+            '<span class="tourney-admin__history-game">'+game+'</span> '+
+            '<span class="tourney-admin__history-dur">'+dur+'</span> '+
+            '<span class="tourney-admin__history-stat">'+stat+'</span> '+
+            '<span class="tourney-admin__history-date">'+date+'</span>'+
+            '</div>';
+        }).join('');
+      }catch(_){ taHistoryEl.textContent = 'Failed to load.'; }
+    }
+  }
+
   // Chat overlay toggle
   if (btnToggleChat && chatOverlay){
     btnToggleChat.addEventListener('click', ()=>{
@@ -2824,6 +3007,9 @@
             break;
           case 'sound': openSoundMenu(); break;
           case 'theme': openThemeMenu(); break;
+          case 'tourney-admin':
+            if(tourneyAdminBtn) tourneyAdminBtn.click();
+            break;
         }
       }
     });

@@ -476,14 +476,16 @@ def make67_page():
     """Fun math mini-game: Make 67 from 4 cards using + - * /.
     Standalone page; does not affect the rest of the site.
     """
-    return render_template('make67.html', make67_chat_eligible=_is_make67_chat_eligible())
+    is_super = getattr(current_user, 'role', '') == 'super' if getattr(current_user, 'is_authenticated', False) else False
+    return render_template('make67.html', make67_chat_eligible=_is_make67_chat_eligible(), is_super=is_super)
 
 
 @app.route('/make6or7')
 def make6or7_page():
     """Exact duplicate of Make67 page, but target is 6 or 7 and score is independent."""
     # Preserve independent chat eligibility rules for Make 6 or 7
-    return render_template('make6or7.html', make67_chat_eligible=_is_make6or7_chat_eligible())
+    is_super = getattr(current_user, 'role', '') == 'super' if getattr(current_user, 'is_authenticated', False) else False
+    return render_template('make6or7.html', make67_chat_eligible=_is_make6or7_chat_eligible(), is_super=is_super)
 
 
 @app.route('/moodmeter/api/last-entry', methods=['GET'])

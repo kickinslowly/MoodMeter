@@ -26,6 +26,7 @@
           <button id="btn-mobile-rank" class="dock-btn mobile-only" title="Rank">🏆</button>
           <button id="m67SoundBtn" class="dock-btn" title="Select Solve Sound" aria-haspopup="listbox" aria-expanded="false">🔊</button>
           <button id="m67ThemeBtn" class="dock-btn" title="Color Theme" aria-haspopup="listbox" aria-expanded="false" style="display:none;">🎨</button>
+          {% if is_super %}<button id="m67TourneyAdminBtn" class="dock-btn dock-btn--admin" title="Tournament Admin">👑</button>{% endif %}
         </div>
         <div class="auth-actions">
           {% if current_user.is_authenticated %}
@@ -66,6 +67,7 @@
           <button class="mobile-nav-link" data-action="leaderboard">🏆 Leaderboard</button>
           <button class="mobile-nav-link" data-action="sound">🔊 Solve Sound</button>
           <button class="mobile-nav-link" data-action="theme" id="mobileThemeLink" style="display:none;">🎨 Color Theme</button>
+          {% if is_super %}<button class="mobile-nav-link" data-action="tourney-admin">👑 Tournament Admin</button>{% endif %}
         </div>
 
         <div class="mobile-nav-section mobile-nav-auth">
@@ -208,6 +210,64 @@
       </div>
     </div>
 
+    {% if is_super %}
+    <!-- Tournament Admin Panel (super user only) -->
+    <div class="m67-modal-root m67-tourney-admin-root" id="tourneyAdminRoot" hidden>
+      <div class="m67-modal-overlay">
+        <div class="m67-modal__backdrop" data-close="1"></div>
+        <div class="m67-modal__panel tourney-admin-panel" role="dialog" aria-modal="true" aria-labelledby="tourneyAdminTitle">
+          <button class="m67-modal__close" aria-label="Close" data-close="1">&#10005;</button>
+          <h3 id="tourneyAdminTitle" class="m67-modal__title">👑 Tournament Admin</h3>
+
+          <!-- Active tournament status -->
+          <div id="tourneyAdminStatus" class="tourney-admin__status" hidden>
+            <div class="tourney-admin__status-badge" id="tourneyAdminBadge">ACTIVE</div>
+            <div class="tourney-admin__status-info" id="tourneyAdminInfo"></div>
+            <button class="tourney-admin__cancel-btn neon-btn neon-btn--danger" id="tourneyAdminCancelBtn">Cancel Tournament</button>
+          </div>
+
+          <!-- Create form -->
+          <div id="tourneyAdminCreate" class="tourney-admin__create">
+            <div class="tourney-admin__field">
+              <label>Game</label>
+              <select id="tourneyAdminGame" class="tourney-admin__select">
+                <option value="make67">Make 67</option>
+                <option value="make6or7">Make 6 or 7</option>
+              </select>
+            </div>
+            <div class="tourney-admin__field">
+              <label>Duration</label>
+              <div class="tourney-admin__presets" id="tourneyAdminPresets">
+                <button class="tourney-admin__preset" data-sec="180">3 min</button>
+                <button class="tourney-admin__preset tourney-admin__preset--active" data-sec="300">5 min</button>
+                <button class="tourney-admin__preset" data-sec="600">10 min</button>
+              </div>
+              <div class="tourney-admin__custom-dur">
+                <input type="range" id="tourneyAdminDuration" min="60" max="1800" value="300" step="30">
+                <span id="tourneyAdminDurLabel">5:00</span>
+              </div>
+            </div>
+            <div class="tourney-admin__field">
+              <label>Countdown</label>
+              <div class="tourney-admin__custom-dur">
+                <input type="range" id="tourneyAdminCountdown" min="10" max="300" value="60" step="10">
+                <span id="tourneyAdminCdLabel">1:00</span>
+              </div>
+            </div>
+            <button class="tourney-admin__launch-btn neon-btn neon-btn--gold" id="tourneyAdminLaunchBtn">🏆 Launch Tournament</button>
+            <div class="tourney-admin__note" id="tourneyAdminNote"></div>
+          </div>
+
+          <!-- History -->
+          <details class="tourney-admin__history">
+            <summary>Recent Tournaments</summary>
+            <div id="tourneyAdminHistory" class="tourney-admin__history-list">Loading...</div>
+          </details>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Tournament Notification Banner -->
     <div id="tourneyBanner" class="tourney-banner" hidden>
       <div class="tourney-banner__inner">
@@ -264,6 +324,6 @@
 {% endblock %}
 
 {% block scripts %}
-  <script src="{{ url_for('static', filename='js/make6or7.js') }}?v=20260310e"></script>
+  <script src="{{ url_for('static', filename='js/make6or7.js') }}?v=20260310f"></script>
   {% include '_audio_elements.html' %}
 {% endblock %}
