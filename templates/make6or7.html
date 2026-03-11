@@ -208,6 +208,51 @@
       </div>
     </div>
 
+    <!-- Tournament Notification Banner -->
+    <div id="tourneyBanner" class="tourney-banner" hidden>
+      <div class="tourney-banner__inner">
+        <span class="tourney-banner__icon">🏆</span>
+        <span class="tourney-banner__text" id="tourneyBannerText">Tournament starting!</span>
+        <span class="tourney-banner__timer" id="tourneyBannerTimer"></span>
+        <button class="tourney-banner__join neon-btn" id="tourneyJoinBtn">Join</button>
+        <button class="tourney-banner__dismiss" id="tourneyDismissBtn" aria-label="Dismiss">✕</button>
+      </div>
+    </div>
+
+    <!-- Tournament Panel Modal -->
+    <div class="m67-modal-root m67-tourney-root" hidden>
+      <div class="m67-modal-overlay">
+        <div class="m67-modal__backdrop" data-close="1"></div>
+        <div class="m67-modal__panel tourney-panel" role="dialog" aria-modal="true" aria-labelledby="tourneyTitle">
+          <button class="m67-modal__close" aria-label="Close" data-close="1">✕</button>
+          <div class="tourney-panel__header">
+            <h3 id="tourneyTitle" class="m67-modal__title">🏆 Tournament</h3>
+            <div class="tourney-panel__status" id="tourneyStatus">Waiting...</div>
+            <div class="tourney-panel__timer-big" id="tourneyTimer">--:--</div>
+          </div>
+          <div class="tourney-panel__scoreboard">
+            <h4 class="tourney-panel__sb-title">Live Scoreboard</h4>
+            <ol id="tourneyScoreboard" class="tourney-scoreboard"></ol>
+          </div>
+          <div class="tourney-panel__footer" id="tourneyPanelFooter"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tournament Champion Celebration -->
+    <div id="tourneyCelebration" class="tourney-celebration" style="display:none; pointer-events:none;">
+      <div class="tourney-celebration__content">
+        <div class="tourney-celebration__crown">👑</div>
+        <h2 class="tourney-celebration__title">TOURNAMENT CHAMPION</h2>
+        <div class="tourney-celebration__name" id="tourneyChamName">---</div>
+        <div class="tourney-celebration__stats" id="tourneyChamStats"></div>
+        <div class="tourney-celebration__runners" id="tourneyRunners"></div>
+      </div>
+    </div>
+
+    <!-- Trophy Display (on game board) -->
+    <div id="trophyDisplay" class="trophy-display" hidden></div>
+
   </div>
 
   <button
@@ -219,6 +264,6 @@
 {% endblock %}
 
 {% block scripts %}
-  <script src="{{ url_for('static', filename='js/make6or7.js') }}?v=20260310c"></script>
+  <script src="{{ url_for('static', filename='js/make6or7.js') }}?v=20260310e"></script>
   {% include '_audio_elements.html' %}
 {% endblock %}

@@ -26,6 +26,8 @@ Math puzzle: use +, -, *, / to combine 4 cards to make 67. Earn solves as curren
 - Real-time leaderboard with presence detection
 - Events polling for real-time item effects from other players
 - Snowball throwing feature
+- Global tournament system (live scoreboard, champion trophies)
+- Swipe-to-solve gesture for mobile/touch
 
 ### Make 6 or 7
 Variant game with shared backend architecture (parameterized handlers).
@@ -34,6 +36,8 @@ Variant game with shared backend architecture (parameterized handlers).
 - Own chat system (ChatMessage6or7 model)
 - Own leaderboard and solve tracking
 - Own all-time solves counter
+- Global tournament system (shared with Make67)
+- Swipe-to-solve gesture for mobile/touch
 
 ## Mood Meter
 Core mood tracking tool for students.
@@ -99,8 +103,14 @@ Core mood tracking tool for students.
 | `/api/make67/events/poll` | GET | Poll events |
 | `/api/make67/snowball` | POST | Throw snowball |
 | `/api/make6or7/*` | Various | Mirror of Make67 APIs for Make 6 or 7 |
+| `/api/tournament/create` | POST | Create tournament (super user) |
+| `/api/tournament/join` | POST | Join active tournament |
+| `/api/tournament/state` | GET | Tournament state + scoreboard |
+| `/api/tournament/cancel` | POST | Cancel tournament (super user) |
+| `/api/tournament/history` | GET | Past tournaments |
+| `/api/tournament/trophies` | GET | User's trophies |
 
-## Database Models (8)
+## Database Models (11)
 
 | Model | Key Fields |
 |-------|-----------|
@@ -112,6 +122,9 @@ Core mood tracking tool for students.
 | MoodSubmission | id, x, y, label, chosen_at, user_id, ip, created_at |
 | ChatMessage | id, user_id, display_name, text, created_at |
 | ChatMessage6or7 | id, user_id, display_name, text, created_at |
+| Tournament | id, game_type, status, duration_sec, created_by, starts_at, ends_at, champion_id |
+| TournamentParticipant | id, tournament_id, user_id, solves, joined_at |
+| TournamentTrophy | id, tournament_id, user_id, place, game_type, solves, awarded_at |
 
 ## Templates (9)
 base.html, home.html, index.html, make67.html, make6or7.html, student_dashboard.html, teacher_dashboard.html, teacher_groups.html, _audio_elements.html
@@ -125,7 +138,7 @@ base.html, home.html, index.html, make67.html, make6or7.html, student_dashboard.
 
 ## Infrastructure
 - SQLite (local) / PostgreSQL (prod via Render)
-- Alembic migrations (13 versions)
+- Alembic migrations (14 versions)
 - LRU state cache (max 500 entries)
 - Leaderboard TTL cache (2s)
 - Periodic cleanup for stale rate-limit data

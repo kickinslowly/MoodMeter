@@ -174,7 +174,6 @@ def _auto_upgrade_db():
 # Run migrations right after extensions initialization, before any DB usage
 _auto_upgrade_db()
 
-
 # Models
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
@@ -221,6 +220,48 @@ class M67UserItem(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
 
     user = db.relationship('User', backref=db.backref('m67_items', lazy=True, cascade='all, delete-orphan'))
+
+
+class Tournament(db.Model):
+    __tablename__ = 'tournaments'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    game_type = db.Column(db.String(20), nullable=False)        # 'make67' or 'make6or7'
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending, active, ended, cancelled
+    duration_sec = db.Column(db.Integer, nullable=False, default=300)
+    created_by = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    starts_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    ends_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    champion_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    creator = db.relationship('User', foreign_keys=[created_by])
+    champion = db.relationship('User', foreign_keys=[champion_id])
+    participants = db.relationship('TournamentParticipant', backref='tournament', lazy=True, cascade='all, delete-orphan')
+
+
+class TournamentParticipant(db.Model):
+    __tablename__ = 'tournament_participants'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tournament_id = db.Column(db.String(36), db.ForeignKey('tournaments.id'), nullable=False, index=True)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
+    solves = db.Column(db.Integer, nullable=False, default=0)
+    joined_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User')
+
+
+class TournamentTrophy(db.Model):
+    __tablename__ = 'tournament_trophies'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tournament_id = db.Column(db.String(36), db.ForeignKey('tournaments.id'), nullable=False, index=True)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
+    place = db.Column(db.Integer, nullable=False)              # 1, 2, or 3
+    game_type = db.Column(db.String(20), nullable=False)
+    solves = db.Column(db.Integer, nullable=False, default=0)
+    awarded_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    tournament = db.relationship('Tournament')
+    user = db.relationship('User', backref=db.backref('trophies', lazy=True))
 
 
 class Group(db.Model):
@@ -292,6 +333,20 @@ class ChatMessage6or7(db.Model):
 def load_user(user_id: str):
     # Basic user loader for Flask-Login; will be used once Google auth is added
     return db.session.get(User, user_id)
+
+
+# Recover orphaned tournaments from previous server instance
+try:
+    with app.app_context():
+        _orphaned = Tournament.query.filter(Tournament.status.in_(['pending', 'active'])).all()
+        for _t in _orphaned:
+            _t.status = 'cancelled'
+            app.logger.info("Cancelled orphaned tournament %s", _t.id)
+        if _orphaned:
+            db.session.commit()
+        del _orphaned
+except Exception:
+    pass
 
 
 # Utility to get client IP (accounts for reverse proxy like Render)
@@ -1516,6 +1571,15 @@ _m67_event_lock = threading.Lock()
 _m67_event_seq: int = 0
 _m67_event_log: deque = deque(maxlen=2000)
 
+# --- Tournament in-memory state (process-local) ---
+_tourney_lock = threading.Lock()
+_tourney_active: dict | None = None        # Current active tournament state
+# Structure when active: {
+#   'id': str, 'game_type': str, 'starts_at': datetime, 'ends_at': datetime,
+#   'solves': {uid: int}, 'participants': set[uid], 'status': str,
+#   'flush_dirty': set[uid], 'names': {uid: str}   # cached display names
+# }
+
 # Static shop catalog
 _M67_CATALOG = {
     'sneaky_dust': {
@@ -1828,6 +1892,7 @@ def _game_state(game_type: str, use_cache: bool = True):
                 'shield': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
             },
             'state_version': ver,
+            'trophies': _get_user_trophies_summary(uid, game_type),
         }
 
         # Update cache if enabled
@@ -1959,6 +2024,10 @@ def _game_solve(game_type: str):
         if credit > 0:
             _m67_bump_state_version(u.id)
 
+        # --- Tournament solve hook ---
+        if credit > 0:
+            _tourney_record_solve(uid, game_type, credit)
+
         resp = {
             'ok': True,
             'all_time_total': _get_user_counter(u, game_type),
@@ -2053,6 +2122,7 @@ def _game_leaderboard(game_type: str):
                     'mud_ends_in': _remaining_from_dt(getattr(u, 'make67_mud_until', None), now_dt),
                     'is_shielded': bool(getattr(u, 'make67_shield_until', None) and u.make67_shield_until > now_dt),
                     'shield_ends_in': _remaining_from_dt(getattr(u, 'make67_shield_until', None), now_dt),
+                    'trophies': _get_user_trophies_summary(u.id, game_type),
                 })
 
             # Banned users (cheaters): show in separate list (wall of shame)
@@ -2394,7 +2464,7 @@ def _m67_broadcast(msg: dict):
         mtype = str(msg.get('type')) if isinstance(msg, dict) else ''
     except Exception:
         mtype = ''
-    if mtype in {'snowball_hit', 'divine_shield', 'clown_horn', 'earthquake', 'reverse_card', 'double_or_nothing', 'banana_peel', 'banana_slip'}:
+    if mtype in {'snowball_hit', 'divine_shield', 'clown_horn', 'earthquake', 'reverse_card', 'double_or_nothing', 'banana_peel', 'banana_slip', 'tournament_invite', 'tournament_start', 'tournament_end', 'tournament_cancel', 'tournament_solve'}:
         with _m67_event_lock:
             try:
                 # Attach monotonically increasing sequence for ordering
@@ -2950,6 +3020,514 @@ def api_make67_leaderboard():
 @app.route('/api/make6or7/leaderboard', methods=['GET'])
 def api_make6or7_leaderboard():
     return _game_leaderboard('make6or7')
+
+
+# ────────────────────────────────────────────────────────────────
+# Tournament System
+# ────────────────────────────────────────────────────────────────
+
+def _tourney_record_solve(uid: str, game_type: str, credit: int):
+    """Record a solve against the active tournament (if any and matching game type).
+    Tournament solves always count as 1 per solve regardless of boost/mud (fairness)."""
+    broadcast_data = None
+    with _tourney_lock:
+        t = _tourney_active
+        if t is None or t['status'] != 'active' or t['game_type'] != game_type:
+            return
+        if uid not in t['participants']:
+            return
+        now = datetime.now(timezone.utc)
+        if now > t['ends_at']:
+            return
+        # Always +1 per solve for fairness (ignore boost/mud credit amount)
+        t['solves'][uid] = t['solves'].get(uid, 0) + 1
+        t['flush_dirty'].add(uid)
+        # Snapshot data inside lock for broadcast
+        broadcast_data = {
+            'type': 'tournament_solve',
+            'tournament_id': t['id'],
+            'user_id': uid,
+            'solves': t['solves'][uid],
+            'ts': int(time.time()),
+        }
+    if broadcast_data:
+        try:
+            _m67_broadcast(broadcast_data)
+        except Exception:
+            pass
+
+
+def _tourney_flush_solves():
+    """Flush in-memory tournament solve counts to DB. Called periodically."""
+    with _tourney_lock:
+        t = _tourney_active
+        if t is None or not t['flush_dirty']:
+            return
+        dirty = dict()
+        for uid in t['flush_dirty']:
+            dirty[uid] = t['solves'].get(uid, 0)
+        t['flush_dirty'].clear()
+        tid = t['id']
+    # Outside lock: DB writes
+    try:
+        for uid, count in dirty.items():
+            p = TournamentParticipant.query.filter_by(tournament_id=tid, user_id=uid).first()
+            if p:
+                p.solves = count
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _tourney_check_lifecycle():
+    """Lazy lifecycle: transition pending->active or active->ended based on time."""
+    action = None
+    tid = None
+    game_type = None
+    ends_at_iso = None
+    end_data = None
+
+    with _tourney_lock:
+        t = _tourney_active
+        if t is None:
+            return
+        now = datetime.now(timezone.utc)
+        if t['status'] == 'pending' and now >= t['starts_at']:
+            t['status'] = 'active'
+            action = 'start'
+            tid = t['id']
+            game_type = t['game_type']
+            ends_at_iso = t['ends_at'].isoformat()
+        elif t['status'] == 'active' and now >= t['ends_at']:
+            action = 'end'
+            end_data = _tourney_end_active_locked()
+
+    # DB writes and broadcasts outside lock
+    if action == 'start':
+        try:
+            tour = db.session.get(Tournament, tid)
+            if tour:
+                tour.status = 'active'
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        try:
+            _m67_broadcast({
+                'type': 'tournament_start',
+                'tournament_id': tid,
+                'game_type': game_type,
+                'ends_at': ends_at_iso,
+                'ts': int(time.time()),
+            })
+        except Exception:
+            pass
+    elif action == 'end' and end_data:
+        _tourney_finalize_end(end_data)
+
+
+def _tourney_end_active_locked() -> dict | None:
+    """Snapshot tournament results while holding lock. Returns data for finalization."""
+    t = _tourney_active
+    if t is None:
+        return None
+    t['status'] = 'ended'
+    tid = t['id']
+    game_type = t['game_type']
+    solves = dict(t['solves'])
+    names = dict(t.get('names', {}))
+    participant_count = len(t['participants'])
+
+    # Filter out 0-solve participants from winners
+    ranked = sorted(((uid, c) for uid, c in solves.items() if c > 0), key=lambda x: x[1], reverse=True)
+    winners = ranked[:3]
+
+    return {
+        'tid': tid, 'game_type': game_type, 'solves': solves,
+        'names': names, 'winners': winners, 'participant_count': participant_count,
+    }
+
+
+def _tourney_finalize_end(data: dict):
+    """Do DB writes and broadcast for ended tournament. Called outside lock."""
+    tid = data['tid']
+    game_type = data['game_type']
+    solves = data['solves']
+    names = data['names']
+    winners = data['winners']
+    participant_count = data['participant_count']
+
+    try:
+        tour = db.session.get(Tournament, tid)
+        if tour:
+            tour.status = 'ended'
+            if winners:
+                tour.champion_id = winners[0][0]
+
+        # Flush all final solve counts
+        for uid, count in solves.items():
+            p = TournamentParticipant.query.filter_by(tournament_id=tid, user_id=uid).first()
+            if p:
+                p.solves = count
+
+        # Award trophies (top 3, only if they actually solved something)
+        for place, (uid, solve_count) in enumerate(winners, 1):
+            trophy = TournamentTrophy(
+                tournament_id=tid,
+                user_id=uid,
+                place=place,
+                game_type=game_type,
+                solves=solve_count,
+            )
+            db.session.add(trophy)
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    # Build results for broadcast (use cached names, no DB)
+    results = []
+    for place, (uid, solve_count) in enumerate(winners, 1):
+        results.append({
+            'place': place,
+            'user_id': uid,
+            'user_name': names.get(uid, 'Player'),
+            'solves': solve_count,
+        })
+
+    try:
+        _m67_broadcast({
+            'type': 'tournament_end',
+            'tournament_id': tid,
+            'game_type': game_type,
+            'results': results,
+            'participant_count': participant_count,
+            'ts': int(time.time()),
+        })
+    except Exception:
+        pass
+
+
+def _tourney_get_scoreboard(t: dict) -> list:
+    """Build sorted scoreboard from in-memory tournament state. No DB queries."""
+    entries = []
+    names = t.get('names', {})
+    for uid, count in t['solves'].items():
+        entries.append({
+            'user_id': uid,
+            'user_name': names.get(uid, 'Player'),
+            'solves': count,
+        })
+    entries.sort(key=lambda x: x['solves'], reverse=True)
+    return entries
+
+
+@app.route('/api/tournament/create', methods=['POST'])
+def api_tournament_create():
+    """Super user creates a tournament."""
+    global _tourney_active
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    if getattr(current_user, 'role', '') != 'super':
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
+
+    # Check no active tournament
+    with _tourney_lock:
+        if _tourney_active is not None and _tourney_active['status'] in ('pending', 'active'):
+            return jsonify({'ok': False, 'error': 'TOURNAMENT_EXISTS', 'detail': 'A tournament is already running.'}), 409
+
+    data = request.get_json(silent=True) or {}
+    game_type = data.get('game_type', 'make67')
+    if game_type not in ('make67', 'make6or7'):
+        return jsonify({'ok': False, 'error': 'INVALID_GAME_TYPE'}), 400
+
+    try:
+        duration_sec = max(60, min(3600, int(data.get('duration_sec', 300))))
+    except (ValueError, TypeError):
+        duration_sec = 300
+
+    try:
+        countdown_sec = max(10, min(300, int(data.get('countdown_sec', 30))))
+    except (ValueError, TypeError):
+        countdown_sec = 30
+
+    now = datetime.now(timezone.utc)
+    starts_at = now + timedelta(seconds=countdown_sec)
+    ends_at = starts_at + timedelta(seconds=duration_sec)
+
+    try:
+        tour = Tournament(
+            game_type=game_type,
+            status='pending',
+            duration_sec=duration_sec,
+            created_by=current_user.id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+        db.session.add(tour)
+        db.session.commit()
+
+        with _tourney_lock:
+            _tourney_active = {
+                'id': tour.id,
+                'game_type': game_type,
+                'starts_at': starts_at,
+                'ends_at': ends_at,
+                'status': 'pending',
+                'solves': {},
+                'participants': set(),
+                'flush_dirty': set(),
+                'names': {},
+            }
+
+        # Broadcast invite to all players
+        _m67_broadcast({
+            'type': 'tournament_invite',
+            'tournament_id': tour.id,
+            'game_type': game_type,
+            'duration_sec': duration_sec,
+            'starts_at': starts_at.isoformat(),
+            'ends_at': ends_at.isoformat(),
+            'created_by': _format_display_name(current_user),
+            'ts': int(time.time()),
+        })
+
+        return jsonify({
+            'ok': True,
+            'tournament_id': tour.id,
+            'starts_at': starts_at.isoformat(),
+            'ends_at': ends_at.isoformat(),
+            'game_type': game_type,
+            'duration_sec': duration_sec,
+            'countdown_sec': countdown_sec,
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'ok': False, 'error': 'DB_ERROR', 'detail': str(e)}), 500
+
+
+@app.route('/api/tournament/join', methods=['POST'])
+def api_tournament_join():
+    """Player joins the active tournament."""
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+
+    _tourney_check_lifecycle()
+
+    # Block cheaters
+    if getattr(current_user, 'make67_is_cheater', False):
+        return jsonify({'ok': False, 'error': 'CHEATER_BLOCKED'}), 403
+
+    with _tourney_lock:
+        t = _tourney_active
+        if t is None or t['status'] not in ('pending', 'active'):
+            return jsonify({'ok': False, 'error': 'NO_TOURNAMENT'}), 404
+
+        uid = current_user.id
+        if uid in t['participants']:
+            return jsonify({'ok': True, 'already_joined': True})
+
+        # Late join cutoff: can't join if less than 20% of duration remains
+        if t['status'] == 'active':
+            now = datetime.now(timezone.utc)
+            remaining = (t['ends_at'] - now).total_seconds()
+            total = (t['ends_at'] - t['starts_at']).total_seconds()
+            if total > 0 and remaining / total < 0.2:
+                return jsonify({'ok': False, 'error': 'TOO_LATE', 'detail': 'Tournament is almost over. Join next time!'}), 409
+
+        t['participants'].add(uid)
+        t['solves'][uid] = 0
+        t['names'][uid] = _format_display_name(current_user)
+        tid = t['id']
+
+    # Write to DB outside lock
+    try:
+        p = TournamentParticipant(
+            tournament_id=tid,
+            user_id=uid,
+            solves=0,
+        )
+        db.session.add(p)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    return jsonify({'ok': True, 'joined': True})
+
+
+@app.route('/api/tournament/state', methods=['GET'])
+def api_tournament_state():
+    """Get current tournament state for polling."""
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+
+    _tourney_check_lifecycle()
+
+    # Periodically flush solves
+    _tourney_flush_solves()
+
+    with _tourney_lock:
+        t = _tourney_active
+        if t is None:
+            return jsonify({'ok': True, 'tournament': None})
+
+        now = datetime.now(timezone.utc)
+        remaining = max(0, int((t['ends_at'] - now).total_seconds())) if t['status'] in ('pending', 'active') else 0
+        countdown = max(0, int((t['starts_at'] - now).total_seconds())) if t['status'] == 'pending' else 0
+
+        uid = current_user.id
+        scoreboard = _tourney_get_scoreboard(t)
+
+        total_dur = int((t['ends_at'] - t['starts_at']).total_seconds())
+        # Can still join? (pending always yes; active only if >20% remaining)
+        can_join = t['status'] == 'pending' or (t['status'] == 'active' and total_dur > 0 and remaining / total_dur >= 0.2)
+
+        state = {
+            'id': t['id'],
+            'game_type': t['game_type'],
+            'status': t['status'],
+            'starts_at': t['starts_at'].isoformat(),
+            'ends_at': t['ends_at'].isoformat(),
+            'duration_sec': total_dur,
+            'remaining_sec': remaining,
+            'countdown_sec': countdown,
+            'participant_count': len(t['participants']),
+            'joined': uid in t['participants'],
+            'can_join': can_join and uid not in t['participants'],
+            'my_solves': t['solves'].get(uid, 0),
+            'scoreboard': scoreboard[:20],
+        }
+
+    return jsonify({'ok': True, 'tournament': state})
+
+
+@app.route('/api/tournament/cancel', methods=['POST'])
+def api_tournament_cancel():
+    """Super user cancels the active tournament."""
+    global _tourney_active
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    if getattr(current_user, 'role', '') != 'super':
+        return jsonify({'ok': False, 'error': 'FORBIDDEN'}), 403
+
+    with _tourney_lock:
+        t = _tourney_active
+        if t is None or t['status'] not in ('pending', 'active'):
+            return jsonify({'ok': False, 'error': 'NO_TOURNAMENT'}), 404
+        tid = t['id']
+        _tourney_active = None
+
+    try:
+        tour = db.session.get(Tournament, tid)
+        if tour:
+            tour.status = 'cancelled'
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    _m67_broadcast({
+        'type': 'tournament_cancel',
+        'tournament_id': tid,
+        'ts': int(time.time()),
+    })
+
+    return jsonify({'ok': True, 'cancelled': True})
+
+
+@app.route('/api/tournament/history', methods=['GET'])
+def api_tournament_history():
+    """Get past tournaments."""
+    try:
+        tours = (
+            Tournament.query
+            .filter(Tournament.status.in_(['ended', 'cancelled']))
+            .order_by(Tournament.created_at.desc())
+            .limit(20)
+            .all()
+        )
+        results = []
+        for t in tours:
+            champion_name = None
+            if t.champion:
+                champion_name = _format_display_name(t.champion)
+            results.append({
+                'id': t.id,
+                'game_type': t.game_type,
+                'status': t.status,
+                'duration_sec': t.duration_sec,
+                'created_by': _format_display_name(t.creator) if t.creator else 'Unknown',
+                'champion': champion_name,
+                'starts_at': t.starts_at.isoformat() if t.starts_at else None,
+                'ends_at': t.ends_at.isoformat() if t.ends_at else None,
+                'created_at': t.created_at.isoformat() if t.created_at else None,
+            })
+        return jsonify({'ok': True, 'tournaments': results})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/tournament/trophies', methods=['GET'])
+def api_tournament_trophies():
+    """Get trophies for a user (defaults to current user)."""
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': True, 'trophies': []})
+    uid = request.args.get('user_id', current_user.id)
+    try:
+        trophies = (
+            TournamentTrophy.query
+            .filter_by(user_id=uid)
+            .order_by(TournamentTrophy.awarded_at.desc())
+            .limit(50)
+            .all()
+        )
+        results = []
+        for t in trophies:
+            results.append({
+                'id': t.id,
+                'tournament_id': t.tournament_id,
+                'place': t.place,
+                'game_type': t.game_type,
+                'solves': t.solves,
+                'awarded_at': t.awarded_at.isoformat() if t.awarded_at else None,
+            })
+        return jsonify({'ok': True, 'trophies': results})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# Inject trophy data into game state
+def _get_user_trophies_summary(uid: str, game_type: str) -> list:
+    """Return list of trophy dicts for display on game board."""
+    try:
+        trophies = (
+            TournamentTrophy.query
+            .filter_by(user_id=uid, game_type=game_type)
+            .order_by(TournamentTrophy.awarded_at.desc())
+            .limit(10)
+            .all()
+        )
+        if not trophies:
+            return []
+        # Batch-fetch participant counts for all tournaments in one query
+        tids = list({t.tournament_id for t in trophies})
+        pcounts = {}
+        try:
+            rows = (
+                db.session.query(TournamentParticipant.tournament_id, db.func.count(TournamentParticipant.id))
+                .filter(TournamentParticipant.tournament_id.in_(tids))
+                .group_by(TournamentParticipant.tournament_id)
+                .all()
+            )
+            pcounts = {tid: cnt for tid, cnt in rows}
+        except Exception:
+            pass
+        return [{
+            'place': t.place,
+            'solves': t.solves,
+            'players': pcounts.get(t.tournament_id, 0),
+            'date': t.awarded_at.strftime('%Y-%m-%d') if t.awarded_at else '',
+        } for t in trophies]
+    except Exception:
+        return []
 
 
 if __name__ == '__main__':

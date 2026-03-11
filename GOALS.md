@@ -28,6 +28,7 @@
 - ✅ Enable state caching for Make6or7 (was explicitly disabled)
 - 🔲 Test shop purchase flow end-to-end (buy, inventory, use, effects)
 - 🔲 Test item interactions (mud + shield, boost stacking, invisibility edge cases)
+- ✅ Fix allTime score mismatch — loadState() race condition overwrote HUD with stale cached currency; also fixed make6or7 buy/use handlers not updating allTime/inventory
 - 🔲 Verify leaderboard accuracy with effects active
 - 🔲 Check chat eligibility and message delivery
 - 🔲 Test edge cases: rapid clicking, expired effects, concurrent users
@@ -43,6 +44,19 @@
 - 🔲 Add usage tracking (solves per minute, session duration, streaks)
 - 🔲 Design engagement features (daily challenges, streak bonuses, achievements)
 - 🔲 Consider social features beyond chat (rivalries, friend lists, challenges)
+
+**G5**: Global Tournament System — Super user can launch timed tournaments, players get invite notifications, compete on a live scoreboard, champion gets permanent trophy.
+- ✅ Database: Tournament, TournamentParticipant, TournamentTrophy models + Alembic migration
+- ✅ Backend: In-memory state, tournament lifecycle helpers, solve integration hook
+- ✅ API: create, join, state, cancel, history, trophies endpoints
+- ✅ Frontend: notification banner with countdown, join flow
+- ✅ Frontend: tournament panel with live scoreboard + timer
+- ✅ Frontend: champion celebration overlay + trophy display on game board/leaderboard
+- ✅ CSS: banner, panel, timer, celebration, trophy badges, responsive
+- ✅ Hardening: race conditions, input validation, fairness (equal solves, late-join cutoff, cheater block, 0-solve filter)
+- ✅ Performance: adaptive polling, cached names, batch queries, DB ops outside locks
+- ✅ Resilience: orphaned tournament recovery on server restart
+- 🔲 Super user admin panel for creating tournaments (currently API-only)
 
 ## Completed Goals
 <!-- None yet -->
