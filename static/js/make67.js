@@ -1602,10 +1602,13 @@
     ghost.style.top = r.top + 'px';
     ghost.style.width = r.width + 'px';
     ghost.style.height = r.height + 'px';
-    ghost.addEventListener('animationend', ()=>{
-      ghost.remove();
-      onDone && onDone();
-    }, {once:true});
+    let done = false;
+    function finish(){ if (done) return; done = true; ghost.remove(); onDone && onDone(); }
+    // Fallback timeout in case animationend never fires
+    const fallback = setTimeout(finish, 600);
+    ghost.addEventListener('animationend', ()=>{ clearTimeout(fallback); finish(); }, {once:true});
+    // Force reflow so browser sees element before animation class
+    ghost.getBoundingClientRect();
     ghost.classList.add('fly-merge');
   }
 
