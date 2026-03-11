@@ -4098,6 +4098,7 @@ body.mobile-nav-open {
   .tourney-banner { animation-duration: 1ms; }
   .tourney-banner__icon, .tourney-banner__join, .tourney-panel__timer-big.tourney-urgent { animation: none; }
   .tourney-celebration, .tourney-celebration__content, .tourney-celebration__crown { animation: none; }
+  .dock-btn--tourney { animation: none; }
 }
 
 /* =============================================================================
@@ -4113,6 +4114,33 @@ body.mobile-nav-open {
 .dock-btn--admin:hover {
   box-shadow: 0 0 16px rgba(251, 191, 36, .5);
   transform: scale(1.1);
+}
+.dock-btn--tourney {
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%) !important;
+  color: #fff !important;
+  font-size: 13px;
+  border: 1px solid rgba(245, 158, 11, .5) !important;
+  box-shadow: 0 0 10px rgba(245, 158, 11, .35);
+  animation: tourney-dock-pulse 2s ease-in-out infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  padding: 4px 10px;
+}
+.dock-btn--tourney span {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: .5px;
+}
+.dock-btn--tourney:hover {
+  box-shadow: 0 0 18px rgba(245, 158, 11, .6);
+  transform: scale(1.08);
+}
+@keyframes tourney-dock-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, .35); }
+  50% { box-shadow: 0 0 18px rgba(239, 68, 68, .55); }
 }
 
 .tourney-admin-panel {

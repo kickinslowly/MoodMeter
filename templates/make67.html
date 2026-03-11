@@ -27,6 +27,7 @@
           <button id="m67SoundBtn" class="dock-btn" title="Select Solve Sound" aria-haspopup="listbox" aria-expanded="false">🔊</button>
           <button id="m67ThemeBtn" class="dock-btn" title="Color Theme" aria-haspopup="listbox" aria-expanded="false" style="display:none;">🎨</button>
           {% if is_super %}<button id="m67TourneyAdminBtn" class="dock-btn dock-btn--admin" title="Tournament Admin">👑</button>{% endif %}
+          <button id="tourneyDockBtn" class="dock-btn dock-btn--tourney" hidden title="Open Tournament">⚔️ <span id="tourneyDockTimer"></span></button>
         </div>
         <div class="auth-actions">
           {% if current_user.is_authenticated %}
@@ -329,6 +330,6 @@
 {% block scripts %}
   <!-- Lightweight WebGL renderer for particle FX (optional). Loaded only on Make67 page. -->
   <script defer src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
-  <script src="{{ url_for('static', filename='js/make67.js') }}?v=20260310f"></script>
+  <script src="{{ url_for('static', filename='js/make67.js') }}?v=20260311a"></script>
   {% include '_audio_elements.html' %}
 {% endblock %}

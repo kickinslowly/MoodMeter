@@ -2514,11 +2514,19 @@
   const tourneyChamStats = document.getElementById('tourneyChamStats');
   const tourneyRunners = document.getElementById('tourneyRunners');
   const trophyDisplay = document.getElementById('trophyDisplay');
+  const tourneyDockBtn = document.getElementById('tourneyDockBtn');
+  const tourneyDockTimer = document.getElementById('tourneyDockTimer');
 
   let tourneyState = null;
   let tourneyPollTimer = null;
   let tourneyDismissed = false;
   let tourneyCelebShown = false;
+  let tourneyPanelMinimized = false;
+  let tourneyPanelOpenedOnce = false;
+  // Smooth local countdown
+  let tourneyLocalSec = 0;
+  let tourneyLocalBase = 0;
+  let tourneyLocalTickId = null;
 
   function fmtTimer(sec){
     const m = Math.floor(sec/60);
@@ -2546,9 +2554,55 @@
 
   function tourneyOpenPanel(){
     if(tourneyRoot) tourneyRoot.hidden = false;
+    tourneyPanelMinimized = false;
+    if(tourneyDockBtn) tourneyDockBtn.hidden = true;
   }
   function tourneyClosePanel(){
     if(tourneyRoot) tourneyRoot.hidden = true;
+  }
+  function tourneyMinimizePanel(){
+    if(tourneyRoot) tourneyRoot.hidden = true;
+    tourneyPanelMinimized = true;
+    // Show dock indicator when tournament is active/pending and user has joined
+    if(tourneyState && tourneyState.joined && (tourneyState.status==='active'||tourneyState.status==='pending')){
+      if(tourneyDockBtn) tourneyDockBtn.hidden = false;
+    }
+  }
+  // Smooth local timer: ticks every 1s between polls
+  function tourneyStartLocalTick(){
+    if(tourneyLocalTickId) return;
+    tourneyLocalTickId = setInterval(tourneyLocalTick, 1000);
+  }
+  function tourneyStopLocalTick(){
+    if(tourneyLocalTickId){ clearInterval(tourneyLocalTickId); tourneyLocalTickId = null; }
+  }
+  function tourneyLocalTick(){
+    if(!tourneyState) return;
+    const elapsed = Math.floor((Date.now() - tourneyLocalBase) / 1000);
+    const sec = Math.max(0, tourneyLocalSec - elapsed);
+    // Update panel timer
+    if(tourneyTimer){
+      tourneyTimer.textContent = fmtTimer(sec);
+      tourneyTimer.classList.toggle('tourney-urgent', tourneyState.status==='active' && sec <= 30);
+    }
+    // Update banner timer
+    if(tourneyBannerTimer && !tourneyBanner.hidden){
+      tourneyBannerTimer.textContent = fmtTimer(sec);
+    }
+    // Update banner text
+    if(tourneyBannerText && !tourneyBanner.hidden && !tourneyDismissed){
+      if(tourneyState.status==='pending'){
+        tourneyBannerText.textContent = tourneyState.joined
+          ? '\u2705 You\'re in! Starting in '+fmtTimer(sec)+'...'
+          : '\uD83C\uDFC6 Tournament starting in '+fmtTimer(sec)+'!';
+      } else if(tourneyState.status==='active'){
+        tourneyBannerText.textContent = '\uD83C\uDFC6 Tournament LIVE! '+fmtTimer(sec)+' left';
+      }
+    }
+    // Update dock timer
+    if(tourneyDockBtn && !tourneyDockBtn.hidden && tourneyDockTimer){
+      tourneyDockTimer.textContent = fmtTimer(sec);
+    }
   }
 
   function tourneyUpdatePanel(st){
@@ -2638,42 +2692,55 @@
       if(!tourneyState){
         tourneyHideBanner();
         tourneyClosePanel();
+        tourneyStopLocalTick();
+        if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+        tourneyPanelOpenedOnce = false;
         tourneyNullCount++;
-        // Slow down polling when no tournament (exponential backoff)
         if(tourneyNullCount > 3) tourneyPollDelay = Math.min(60000, tourneyPollDelay * 1.5);
         return;
       }
       tourneyNullCount = 0;
-      // Filter by game type
       if(tourneyState.game_type !== GAME_TYPE){
         tourneyHideBanner();
         return;
       }
+      // Sync local timer from server
+      const serverSec = tourneyState.status==='pending' ? tourneyState.countdown_sec : tourneyState.remaining_sec;
+      tourneyLocalSec = serverSec;
+      tourneyLocalBase = Date.now();
+      tourneyStartLocalTick();
       // Fast polling during active tournament
       tourneyPollDelay = tourneyState.status === 'active' ? 2000 : 5000;
-      // Show banner if not dismissed and tournament is pending/active
+      // Show banner if not dismissed
       if((tourneyState.status==='pending'||tourneyState.status==='active') && !tourneyDismissed){
+        const sec = Math.max(0, serverSec);
         let txt;
         if(tourneyState.status==='pending'){
           txt = tourneyState.joined
-            ? '✅ You\'re in! Starting in '+fmtTimer(tourneyState.countdown_sec)+'...'
-            : '🏆 Tournament starting in '+fmtTimer(tourneyState.countdown_sec)+'!';
+            ? '\u2705 You\'re in! Starting in '+fmtTimer(sec)+'...'
+            : '\uD83C\uDFC6 Tournament starting in '+fmtTimer(sec)+'!';
         } else {
-          txt = '🏆 Tournament LIVE! '+fmtTimer(tourneyState.remaining_sec)+' left';
+          txt = '\uD83C\uDFC6 Tournament LIVE! '+fmtTimer(sec)+' left';
         }
         tourneyShowBanner(txt, tourneyState.can_join);
-        if(tourneyBannerTimer) tourneyBannerTimer.textContent = fmtTimer(
-          tourneyState.status==='pending' ? tourneyState.countdown_sec : tourneyState.remaining_sec
-        );
-        // Visual feedback: banner changes style when joined
+        if(tourneyBannerTimer) tourneyBannerTimer.textContent = fmtTimer(sec);
         if(tourneyBanner) tourneyBanner.classList.toggle('tourney-banner--joined', !!tourneyState.joined);
       }
+      // Only auto-open panel ONCE on first join, not every poll
       if(tourneyState.joined && (tourneyState.status==='active' || tourneyState.status==='pending')){
-        tourneyOpenPanel();
+        if(!tourneyPanelOpenedOnce){
+          tourneyPanelOpenedOnce = true;
+          tourneyOpenPanel();
+        }
+        // Keep dock indicator visible if panel is minimized
+        if(tourneyPanelMinimized && tourneyDockBtn) tourneyDockBtn.hidden = false;
       }
       tourneyUpdatePanel(tourneyState);
       if(tourneyState.status==='ended'){
         tourneyHideBanner();
+        tourneyStopLocalTick();
+        if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+        tourneyPanelOpenedOnce = false;
       }
     }catch(_){}
   }
@@ -2697,7 +2764,9 @@
     if(msg.game_type && msg.game_type !== GAME_TYPE) return;
     tourneyCelebShown = false;
     tourneyDismissed = false;
-    tourneyShowBanner('🏆 '+escHtml(msg.created_by||'Admin')+' started a tournament! Starting soon...', true);
+    tourneyPanelOpenedOnce = false;
+    tourneyPanelMinimized = false;
+    tourneyShowBanner('\uD83C\uDFC6 '+escHtml(msg.created_by||'Admin')+' started a tournament! Starting soon...', true);
     tourneyStartPolling();
   }
   function tourneyHandleStart(msg){
@@ -2708,6 +2777,10 @@
   }
   function tourneyHandleEnd(msg){
     tourneyHideBanner();
+    tourneyStopLocalTick();
+    if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+    tourneyPanelOpenedOnce = false;
+    tourneyPanelMinimized = false;
     if(msg.results && msg.results.length){
       tourneyShowCelebration(msg.results, msg.participant_count);
     }
@@ -2718,6 +2791,10 @@
     tourneyHideBanner();
     tourneyClosePanel();
     tourneyStopPolling();
+    tourneyStopLocalTick();
+    if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+    tourneyPanelOpenedOnce = false;
+    tourneyPanelMinimized = false;
     tourneyState = null;
     showToast('🏆 Tournament was cancelled.');
   }
@@ -2744,10 +2821,10 @@
     tourneyDismissBtn.addEventListener('click', ()=>{ tourneyDismissed=true; tourneyHideBanner(); });
   }
 
-  // Close panel via modal system
+  // Close panel via modal system — minimizes instead of hard-close
   if(tourneyRoot){
     tourneyRoot.addEventListener('click',(e)=>{
-      if(e.target.dataset.close || e.target.closest('[data-close]')) tourneyClosePanel();
+      if(e.target.dataset.close || e.target.closest('[data-close]')) tourneyMinimizePanel();
     });
   }
 
@@ -2756,6 +2833,14 @@
     tourneyBanner.addEventListener('click',(e)=>{
       if(e.target===tourneyJoinBtn||e.target===tourneyDismissBtn) return;
       if(tourneyState && tourneyState.joined) tourneyOpenPanel();
+    });
+  }
+
+  // Dock button click reopens panel
+  if(tourneyDockBtn){
+    tourneyDockBtn.addEventListener('click', ()=>{
+      tourneyOpenPanel();
+      if(tourneyState) tourneyUpdatePanel(tourneyState);
     });
   }
 

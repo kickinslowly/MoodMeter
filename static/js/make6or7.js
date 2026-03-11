@@ -1939,11 +1939,19 @@
   const tourneyChamStats = document.getElementById('tourneyChamStats');
   const tourneyRunners = document.getElementById('tourneyRunners');
   const trophyDisplay = document.getElementById('trophyDisplay');
+  const tourneyDockBtn = document.getElementById('tourneyDockBtn');
+  const tourneyDockTimer = document.getElementById('tourneyDockTimer');
 
   let tourneyState = null;
   let tourneyPollTimer = null;
   let tourneyDismissed = false;
   let tourneyCelebShown = false;
+  let tourneyPanelMinimized = false;
+  let tourneyPanelOpenedOnce = false;
+  // Smooth local countdown
+  let tourneyLocalSec = 0;
+  let tourneyLocalBase = 0;
+  let tourneyLocalTickId = null;
 
   function fmtTimerT(sec){
     const m = Math.floor(sec/60);
@@ -1971,8 +1979,53 @@
   }
   function tourneyHideBanner(){ if(tourneyBanner) tourneyBanner.hidden = true; }
 
-  function tourneyOpenPanel(){ if(tourneyRoot) tourneyRoot.hidden = false; }
-  function tourneyClosePanel(){ if(tourneyRoot) tourneyRoot.hidden = true; }
+  function tourneyOpenPanel(){
+    if(tourneyRoot) tourneyRoot.hidden = false;
+    tourneyPanelMinimized = false;
+    if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+  }
+  function tourneyClosePanel(){
+    if(tourneyRoot) tourneyRoot.hidden = true;
+  }
+  function tourneyMinimizePanel(){
+    if(tourneyRoot) tourneyRoot.hidden = true;
+    tourneyPanelMinimized = true;
+    if(tourneyState && tourneyState.joined && (tourneyState.status==='active'||tourneyState.status==='pending')){
+      if(tourneyDockBtn) tourneyDockBtn.hidden = false;
+    }
+  }
+  // Smooth local timer: ticks every 1s between polls
+  function tourneyStartLocalTick(){
+    if(tourneyLocalTickId) return;
+    tourneyLocalTickId = setInterval(tourneyLocalTick, 1000);
+  }
+  function tourneyStopLocalTick(){
+    if(tourneyLocalTickId){ clearInterval(tourneyLocalTickId); tourneyLocalTickId = null; }
+  }
+  function tourneyLocalTick(){
+    if(!tourneyState) return;
+    const elapsed = Math.floor((Date.now() - tourneyLocalBase) / 1000);
+    const sec = Math.max(0, tourneyLocalSec - elapsed);
+    if(tourneyTimer){
+      tourneyTimer.textContent = fmtTimerT(sec);
+      tourneyTimer.classList.toggle('tourney-urgent', tourneyState.status==='active' && sec <= 30);
+    }
+    if(tourneyBannerTimer && !tourneyBanner.hidden){
+      tourneyBannerTimer.textContent = fmtTimerT(sec);
+    }
+    if(tourneyBannerText && !tourneyBanner.hidden && !tourneyDismissed){
+      if(tourneyState.status==='pending'){
+        tourneyBannerText.textContent = tourneyState.joined
+          ? '\u2705 You\'re in! Starting in '+fmtTimerT(sec)+'...'
+          : '\uD83C\uDFC6 Tournament starting in '+fmtTimerT(sec)+'!';
+      } else if(tourneyState.status==='active'){
+        tourneyBannerText.textContent = '\uD83C\uDFC6 Tournament LIVE! '+fmtTimerT(sec)+' left';
+      }
+    }
+    if(tourneyDockBtn && !tourneyDockBtn.hidden && tourneyDockTimer){
+      tourneyDockTimer.textContent = fmtTimerT(sec);
+    }
+  }
 
   function tourneyUpdatePanel(st){
     if (!st) return;
@@ -2055,31 +2108,50 @@
       tourneyState = d.tournament;
       if(!tourneyState){
         tourneyHideBanner(); tourneyClosePanel();
+        tourneyStopLocalTick();
+        if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+        tourneyPanelOpenedOnce = false;
         tourneyNullCount++;
         if(tourneyNullCount > 3) tourneyPollDelay = Math.min(60000, tourneyPollDelay * 1.5);
         return;
       }
       tourneyNullCount = 0;
       if(tourneyState.game_type !== GAME_TYPE){ tourneyHideBanner(); return; }
+      // Sync local timer from server
+      const serverSec = tourneyState.status==='pending' ? tourneyState.countdown_sec : tourneyState.remaining_sec;
+      tourneyLocalSec = serverSec;
+      tourneyLocalBase = Date.now();
+      tourneyStartLocalTick();
       tourneyPollDelay = tourneyState.status === 'active' ? 2000 : 5000;
       if((tourneyState.status==='pending'||tourneyState.status==='active') && !tourneyDismissed){
+        const sec = Math.max(0, serverSec);
         let txt;
         if(tourneyState.status==='pending'){
           txt = tourneyState.joined
-            ? '✅ You\'re in! Starting in '+fmtTimerT(tourneyState.countdown_sec)+'...'
-            : '🏆 Tournament starting in '+fmtTimerT(tourneyState.countdown_sec)+'!';
+            ? '\u2705 You\'re in! Starting in '+fmtTimerT(sec)+'...'
+            : '\uD83C\uDFC6 Tournament starting in '+fmtTimerT(sec)+'!';
         } else {
-          txt = '🏆 Tournament LIVE! '+fmtTimerT(tourneyState.remaining_sec)+' left';
+          txt = '\uD83C\uDFC6 Tournament LIVE! '+fmtTimerT(sec)+' left';
         }
         tourneyShowBanner(txt, tourneyState.can_join);
-        if(tourneyBannerTimer) tourneyBannerTimer.textContent = fmtTimerT(
-          tourneyState.status==='pending' ? tourneyState.countdown_sec : tourneyState.remaining_sec
-        );
+        if(tourneyBannerTimer) tourneyBannerTimer.textContent = fmtTimerT(sec);
         if(tourneyBanner) tourneyBanner.classList.toggle('tourney-banner--joined', !!tourneyState.joined);
       }
-      if(tourneyState.joined && (tourneyState.status==='active' || tourneyState.status==='pending')) tourneyOpenPanel();
+      // Only auto-open panel ONCE on first join
+      if(tourneyState.joined && (tourneyState.status==='active' || tourneyState.status==='pending')){
+        if(!tourneyPanelOpenedOnce){
+          tourneyPanelOpenedOnce = true;
+          tourneyOpenPanel();
+        }
+        if(tourneyPanelMinimized && tourneyDockBtn) tourneyDockBtn.hidden = false;
+      }
       tourneyUpdatePanel(tourneyState);
-      if(tourneyState.status==='ended') tourneyHideBanner();
+      if(tourneyState.status==='ended'){
+        tourneyHideBanner();
+        tourneyStopLocalTick();
+        if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+        tourneyPanelOpenedOnce = false;
+      }
     }catch(_){}
   }
 
@@ -2099,24 +2171,32 @@
   function tourneyHandleInvite(msg){
     if(msg.game_type && msg.game_type !== GAME_TYPE) return;
     tourneyCelebShown = false; tourneyDismissed = false;
-    tourneyShowBanner('🏆 '+escHtmlT(msg.created_by||'Admin')+' started a tournament! Starting soon...', true);
+    tourneyPanelOpenedOnce = false; tourneyPanelMinimized = false;
+    tourneyShowBanner('\uD83C\uDFC6 '+escHtmlT(msg.created_by||'Admin')+' started a tournament! Starting soon...', true);
     tourneyStartPolling();
   }
   function tourneyHandleStart(msg){
     if(msg.game_type && msg.game_type !== GAME_TYPE) return;
     tourneyDismissed = false;
-    tourneyShowBanner('🏆 Tournament is LIVE!', false);
+    tourneyShowBanner('\uD83C\uDFC6 Tournament is LIVE!', false);
     tourneyStartPolling();
   }
   function tourneyHandleEnd(msg){
     tourneyHideBanner();
+    tourneyStopLocalTick();
+    if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+    tourneyPanelOpenedOnce = false; tourneyPanelMinimized = false;
     if(msg.results && msg.results.length) tourneyShowCelebration(msg.results, msg.participant_count);
     tourneyUpdatePanel(tourneyState);
     setTimeout(()=>{ tourneyClosePanel(); tourneyStopPolling(); tourneyState=null; }, 10000);
   }
   function tourneyHandleCancel(msg){
-    tourneyHideBanner(); tourneyClosePanel(); tourneyStopPolling(); tourneyState=null;
-    showToast('🏆 Tournament was cancelled.');
+    tourneyHideBanner(); tourneyClosePanel(); tourneyStopPolling();
+    tourneyStopLocalTick();
+    if(tourneyDockBtn) tourneyDockBtn.hidden = true;
+    tourneyPanelOpenedOnce = false; tourneyPanelMinimized = false;
+    tourneyState=null;
+    showToast('\uD83C\uDFC6 Tournament was cancelled.');
   }
 
   if(tourneyJoinBtn){
@@ -2141,13 +2221,19 @@
   }
   if(tourneyRoot){
     tourneyRoot.addEventListener('click',(e)=>{
-      if(e.target.dataset.close || e.target.closest('[data-close]')) tourneyClosePanel();
+      if(e.target.dataset.close || e.target.closest('[data-close]')) tourneyMinimizePanel();
     });
   }
   if(tourneyBanner){
     tourneyBanner.addEventListener('click',(e)=>{
       if(e.target===tourneyJoinBtn||e.target===tourneyDismissBtn) return;
       if(tourneyState && tourneyState.joined) tourneyOpenPanel();
+    });
+  }
+  if(tourneyDockBtn){
+    tourneyDockBtn.addEventListener('click', ()=>{
+      tourneyOpenPanel();
+      if(tourneyState) tourneyUpdatePanel(tourneyState);
     });
   }
   if(isAuthed){ setTimeout(tourneyStartPolling, 3000); }
