@@ -2354,6 +2354,138 @@
     }
   });
 
+  // --- Swipe-to-solve (touch devices) ---
+  // Touch a card, swipe through an operation, swipe to a second card, release to merge.
+  (function initSwipeSolve(){
+    if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
+    let sw = null;
+    let dotTime = 0;
+
+    function getHit(x, y){
+      // Hide cursor so elementFromPoint finds the game element underneath
+      if (sw && sw.cursor) sw.cursor.style.display = 'none';
+      const el = document.elementFromPoint(x, y);
+      if (sw && sw.cursor) sw.cursor.style.display = '';
+      if (!el) return null;
+      const card = el.closest && el.closest('.card');
+      if (card){
+        const idx = cardsEl.indexOf(card);
+        if (idx >= 0 && !removed.has(idx)) return {type:'card', idx, el:card};
+      }
+      const opEl = el.closest && el.closest('.op-btn[data-op]');
+      if (opEl && opEl.dataset.op) return {type:'op', value:opEl.dataset.op, el:opEl};
+      return null;
+    }
+
+    function spawnDot(x, y){
+      const now = performance.now();
+      if (now - dotTime < 30) return;
+      dotTime = now;
+      const d = document.createElement('div');
+      d.className = 'swipe-dot';
+      d.style.left = x + 'px';
+      d.style.top = y + 'px';
+      document.body.appendChild(d);
+      setTimeout(()=>{ try{ d.remove(); }catch(_){} }, 500);
+    }
+
+    function teardown(){
+      cardsEl.forEach(c => c.classList.remove('swipe-from', 'swipe-target'));
+      opsEl.forEach(o => o.classList.remove('swipe-op'));
+      if (sw && sw.cursor){ try{ sw.cursor.remove(); }catch(_){} }
+      document.querySelectorAll('.swipe-dot').forEach(d => { try{ d.remove(); }catch(_){} });
+    }
+
+    function updateCursor(){
+      if (!sw || !sw.cursor) return;
+      sw.cursor.classList.toggle('swipe-ready', !!(sw.op && sw.to != null));
+      sw.cursor.classList.toggle('swipe-has-op', !!(sw.op && sw.to == null));
+    }
+
+    function onMove(e){
+      if (!sw) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const dx = t.clientX - sw.x0;
+      const dy = t.clientY - sw.y0;
+
+      if (!sw.active){
+        if (dx * dx + dy * dy < 225) return; // 15 px threshold
+        sw.active = true;
+        cardsEl[sw.from].classList.add('swipe-from');
+        clearSelections();
+        sw.cursor = document.createElement('div');
+        sw.cursor.className = 'swipe-cursor';
+        document.body.appendChild(sw.cursor);
+      }
+
+      e.preventDefault(); // block scroll during swipe
+
+      // Move cursor & leave trail
+      sw.cursor.style.left = t.clientX + 'px';
+      sw.cursor.style.top = t.clientY + 'px';
+      spawnDot(t.clientX, t.clientY);
+
+      const hit = getHit(t.clientX, t.clientY);
+
+      // Clear transient target highlight
+      cardsEl.forEach(c => c.classList.remove('swipe-target'));
+
+      if (!hit){ sw.to = null; updateCursor(); return; }
+
+      if (hit.type === 'op'){
+        if (sw.op !== hit.value){
+          sw.op = hit.value;
+          opsEl.forEach(o => o.classList.remove('swipe-op'));
+          hit.el.classList.add('swipe-op');
+          try{ if (navigator.vibrate) navigator.vibrate(12); }catch(_){}
+        }
+        sw.to = null;
+      } else if (hit.type === 'card' && hit.idx !== sw.from){
+        if (sw.op){
+          if (sw.to !== hit.idx){
+            sw.to = hit.idx;
+            hit.el.classList.add('swipe-target');
+            try{ if (navigator.vibrate) navigator.vibrate(12); }catch(_){}
+          }
+        }
+      } else {
+        sw.to = null;
+      }
+      updateCursor();
+    }
+
+    function onEnd(){
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+
+      if (!sw || !sw.active){ sw = null; return; }
+
+      const from = sw.from, op = sw.op, to = sw.to;
+      teardown();
+      sw = null;
+
+      if (from != null && op && to != null){
+        clearSelections();
+        doOperation(from, to, op);
+        try{ if (navigator.vibrate) navigator.vibrate(25); }catch(_){}
+      }
+    }
+
+    cardsEl.forEach((el, idx) => {
+      el.addEventListener('touchstart', (e) => {
+        if (removed.has(idx) || sw) return;
+        const t = e.touches[0];
+        if (!t) return;
+        sw = {from:idx, op:null, to:null, x0:t.clientX, y0:t.clientY, active:false, cursor:null};
+        document.addEventListener('touchmove', onMove, {passive:false});
+        document.addEventListener('touchend', onEnd);
+        document.addEventListener('touchcancel', onEnd);
+      }, {passive:true});
+    });
+  })();
+
   // Chat overlay toggle
   if (btnToggleChat && chatOverlay){
     btnToggleChat.addEventListener('click', ()=>{
