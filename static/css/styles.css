@@ -4235,6 +4235,11 @@ body.mobile-nav-open {
   50% { box-shadow: 0 0 18px rgba(239, 68, 68, .55); }
 }
 
+/* Swipe toggle dock button */
+#m67SwipeToggle { opacity: .5; }
+#m67SwipeToggle.dock-btn--active { opacity: 1; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; box-shadow: 0 0 10px rgba(6,182,212,.4); }
+#m67SwipeToggle.dock-btn--active:hover { box-shadow: 0 0 16px rgba(6,182,212,.6); }
+
 .tourney-admin-panel {
   max-width: 420px;
   width: 92vw;

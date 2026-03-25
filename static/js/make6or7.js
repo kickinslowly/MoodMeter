@@ -1795,8 +1795,40 @@
 
   // --- Swipe-to-solve (touch devices) ---
   // Touch a card, swipe through an operation, swipe to a second card, release to merge.
+  // Toggleable via dock button; preference stored in localStorage.
   (function initSwipeSolve(){
-    if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
+    const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints;
+    const swipeToggleBtn = document.getElementById('m67SwipeToggle');
+    if (!isTouch){ return; }
+
+    // Show toggle button on touch devices
+    if (swipeToggleBtn) swipeToggleBtn.style.display = '';
+
+    const _prefSwipeKey = 'm6or7_pref_swipe:' + (myUid || 'anon');
+    function getSwipePref(){
+      try { const v = window.localStorage.getItem(_prefSwipeKey); return v === '1'; } catch(_){ return false; }
+    }
+    function setSwipePref(on){
+      try { window.localStorage.setItem(_prefSwipeKey, on ? '1' : '0'); } catch(_){ }
+    }
+
+    let swipeEnabled = getSwipePref();
+
+    function updateToggleBtn(){
+      if (!swipeToggleBtn) return;
+      swipeToggleBtn.classList.toggle('dock-btn--active', swipeEnabled);
+      swipeToggleBtn.title = swipeEnabled ? 'Swipe-to-Solve: ON' : 'Swipe-to-Solve: OFF';
+    }
+    updateToggleBtn();
+
+    if (swipeToggleBtn){
+      swipeToggleBtn.addEventListener('click', () => {
+        swipeEnabled = !swipeEnabled;
+        setSwipePref(swipeEnabled);
+        updateToggleBtn();
+      });
+    }
+
     let sw = null;
     let dotTime = 0;
 
@@ -1911,7 +1943,7 @@
 
     cardsEl.forEach((el, idx) => {
       el.addEventListener('touchstart', (e) => {
-        if (removed.has(idx) || sw) return;
+        if (!swipeEnabled || removed.has(idx) || sw) return;
         const t = e.touches[0];
         if (!t) return;
         sw = {from:idx, op:null, to:null, x0:t.clientX, y0:t.clientY, active:false, cursor:null};
