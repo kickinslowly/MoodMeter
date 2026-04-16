@@ -27,7 +27,7 @@ Math puzzle: use +, -, *, / to combine 4 cards to make 67. Earn solves as curren
 - Events polling for real-time item effects from other players
 - Snowball throwing feature
 - Global tournament system (live scoreboard, champion trophies)
-- Swipe-to-solve gesture for mobile/touch
+- One-time "Mr. A decided to make it rain!" celebration (triggers at >100 all-time solves in either game: fills inventory, grants 20-min boost, emoji-rain overlay; client-ACK via `/api/mr_a_rain/ack` so overlay fires reliably across deploy boundaries)
 
 ### Make 6 or 7
 Variant game with shared backend architecture (parameterized handlers).
@@ -37,7 +37,6 @@ Variant game with shared backend architecture (parameterized handlers).
 - Own leaderboard and solve tracking
 - Own all-time solves counter
 - Global tournament system (shared with Make67)
-- Swipe-to-solve gesture for mobile/touch
 
 ## Mood Meter
 Core mood tracking tool for students.
@@ -109,12 +108,13 @@ Core mood tracking tool for students.
 | `/api/tournament/cancel` | POST | Cancel tournament (super user) |
 | `/api/tournament/history` | GET | Past tournaments |
 | `/api/tournament/trophies` | GET | User's trophies |
+| `/api/mr_a_rain/ack` | POST | ACK Mr. A rain overlay display (flips `users.mr_a_rain_displayed`) |
 
 ## Database Models (11)
 
 | Model | Key Fields |
 |-------|-----------|
-| User | id, name, email, role, make67_all_time_solves, make6or7_all_time_solves, effect timestamps, is_cheater |
+| User | id, name, email, role, make67_all_time_solves, make6or7_all_time_solves, effect timestamps, is_cheater, mr_a_rain_claimed, mr_a_rain_displayed |
 | M67UserItem | id, user_id, item_key, created_at |
 | Group | id, name, teacher_id |
 | GroupMember | id, group_id, student_id |
@@ -138,7 +138,7 @@ base.html, home.html, index.html, make67.html, make6or7.html, student_dashboard.
 
 ## Infrastructure
 - SQLite (local) / PostgreSQL (prod via Render)
-- Alembic migrations (14 versions)
+- Alembic migrations (16 versions)
 - LRU state cache (max 500 entries)
 - Leaderboard TTL cache (2s)
 - Periodic cleanup for stale rate-limit data

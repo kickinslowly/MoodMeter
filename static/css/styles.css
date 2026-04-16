@@ -822,63 +822,6 @@ button, .btn, .google-login-btn, .logout-btn, input, select {
 .deny { box-shadow: 0 0 0 2px rgba(255,85,85,0.6) inset !important; }
 .shake { animation: shake 600ms ease both; }
 
-/* Swipe-to-solve gesture (touch devices) */
-.make67-page .card.swipe-from {
-  box-shadow: 0 0 0 3px rgba(100, 200, 255, 0.8), 0 0 28px rgba(100, 200, 255, 0.35) !important;
-  transform: scale(0.95) !important;
-  z-index: 3;
-  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
-}
-.make67-page .card.swipe-target {
-  box-shadow: 0 0 0 3px rgba(100, 255, 160, 0.8), 0 0 28px rgba(100, 255, 160, 0.35) !important;
-  transform: scale(1.05) !important;
-  z-index: 3;
-  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
-}
-.make67-page .op-btn.swipe-op {
-  box-shadow: 0 0 0 3px rgba(255, 200, 80, 0.8), 0 0 28px rgba(255, 200, 80, 0.35) !important;
-  transform: scale(1.15) !important;
-  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
-}
-.swipe-cursor {
-  position: fixed;
-  width: 36px; height: 36px;
-  margin-left: -18px; margin-top: -18px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(100, 200, 255, 0.6) 0%, transparent 70%);
-  box-shadow: 0 0 18px rgba(100, 200, 255, 0.35);
-  pointer-events: none;
-  z-index: 10001;
-}
-.swipe-cursor.swipe-has-op {
-  background: radial-gradient(circle, rgba(255, 200, 80, 0.6) 0%, transparent 70%);
-  box-shadow: 0 0 18px rgba(255, 200, 80, 0.35);
-}
-.swipe-cursor.swipe-ready {
-  background: radial-gradient(circle, rgba(100, 255, 160, 0.7) 0%, transparent 70%);
-  box-shadow: 0 0 22px rgba(100, 255, 160, 0.45);
-}
-.swipe-dot {
-  position: fixed;
-  width: 8px; height: 8px;
-  margin-left: -4px; margin-top: -4px;
-  border-radius: 50%;
-  background: rgba(100, 200, 255, 0.5);
-  pointer-events: none;
-  z-index: 10000;
-  animation: swipe-dot-fade 400ms ease-out forwards;
-}
-@keyframes swipe-dot-fade {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.2); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .swipe-dot { animation-duration: 1ms; }
-  .make67-page .card.swipe-from,
-  .make67-page .card.swipe-target,
-  .make67-page .op-btn.swipe-op { transition-duration: 1ms !important; }
-}
-
 /* Success overlay */
 .m67-overlay-root { position: fixed; inset: 0; z-index: 10020; display: block; }
 .m67-overlay-root[hidden] { display: none !important; }
@@ -4373,11 +4316,6 @@ body.mobile-nav-open {
   0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, .35); }
   50% { box-shadow: 0 0 18px rgba(239, 68, 68, .55); }
 }
-
-/* Swipe toggle dock button */
-#m67SwipeToggle { opacity: .5; }
-#m67SwipeToggle.dock-btn--active { opacity: 1; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; box-shadow: 0 0 10px rgba(6,182,212,.4); }
-#m67SwipeToggle.dock-btn--active:hover { box-shadow: 0 0 16px rgba(6,182,212,.6); }
 
 .tourney-admin-panel {
   max-width: 420px;
