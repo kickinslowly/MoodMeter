@@ -1370,6 +1370,7 @@
     }
     try { play('snd_rain'); } catch(_){}
     try { if (navigator.vibrate) navigator.vibrate([80, 40, 120]); } catch(_){}
+    try { fetch('/api/mr_a_rain/ack', { method: 'POST' }).catch(()=>{}); } catch(_){}
     const dismiss = () => {
       overlay.classList.add('m67-mra-fade');
       setTimeout(()=>{ try{ overlay.remove(); }catch(_){} }, 600);

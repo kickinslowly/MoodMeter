@@ -199,6 +199,10 @@ class User(db.Model, UserMixin):
     # One-time "Mr. A decided to make it rain!" event flag (persists across browsers/devices).
     # Tied to the user's Google login so cookie wipes can't replay the event.
     mr_a_rain_claimed = db.Column(db.Boolean, nullable=False, default=False)
+    # Separate flag for client-side ACK: claimed sets inventory+boost atomically,
+    # displayed flips only after the overlay has rendered and client calls /ack.
+    # Prevents deploy-race losses where the client JS predates the handler.
+    mr_a_rain_displayed = db.Column(db.Boolean, nullable=False, default=False)
 
 
 # If using SQLite locally, enable WAL mode to reduce writer blocking and improve read concurrency.
@@ -1845,6 +1849,31 @@ _MR_A_RAIN_THRESHOLD = 100
 _MR_A_RAIN_BOOST_SEC = 20 * 60
 
 
+def _mr_a_rain_pending_payload(uid: str) -> dict | None:
+    """Return a lite rain payload if the user has claimed but not ACKed the display.
+
+    Does not modify any DB rows — caller should already know grant has fired.
+    Returns None if user is fully done (displayed=True) or never eligible.
+    """
+    try:
+        u = db.session.get(User, uid)
+        if not u:
+            return None
+        if not bool(getattr(u, 'mr_a_rain_claimed', False)):
+            return None
+        if bool(getattr(u, 'mr_a_rain_displayed', False)):
+            return None
+        return {
+            'granted': False,
+            'pending': True,
+            'boost_sec': _MR_A_RAIN_BOOST_SEC,
+            'message': 'Mr. A decided to make it rain!',
+            'subtext': f'DOUBLE POINTS FOR {_MR_A_RAIN_BOOST_SEC // 60} MINUTES!',
+        }
+    except Exception:
+        return None
+
+
 def _try_grant_mr_a_rain(uid: str) -> dict | None:
     """Atomically grant the one-time Mr. A rain event to the user.
 
@@ -1941,7 +1970,9 @@ def _game_state(game_type: str, use_cache: bool = True):
 
         # One-time Mr. A rain event — try before cache check so grant bumps
         # version and the fresh state (with new items & boost) is returned.
-        mr_a_rain = _try_grant_mr_a_rain(uid)
+        # If already claimed but not yet displayed (e.g., client JS predated the
+        # handler during a deploy), keep sending a lite payload until ACKed.
+        mr_a_rain = _try_grant_mr_a_rain(uid) or _mr_a_rain_pending_payload(uid)
 
         ver = _m67_get_state_version(uid)
 
@@ -2304,6 +2335,28 @@ def api_make67_state():
 @app.route('/api/make6or7/state', methods=['GET'])
 def api_make6or7_state():
     return _game_state('make6or7', use_cache=True)
+
+
+@app.route('/api/mr_a_rain/ack', methods=['POST'])
+def api_mr_a_rain_ack():
+    if not getattr(current_user, 'is_authenticated', False):
+        return jsonify({'ok': False, 'error': 'UNAUTHENTICATED'}), 401
+    try:
+        uid = current_user.get_id()
+        if not uid:
+            return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
+        db.session.query(User).filter(User.id == uid).update(
+            {'mr_a_rain_displayed': True}, synchronize_session=False
+        )
+        db.session.commit()
+        _m67_bump_state_version(uid)
+        return jsonify({'ok': True})
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
 
 
 @app.route('/api/make67/buy', methods=['POST'])
