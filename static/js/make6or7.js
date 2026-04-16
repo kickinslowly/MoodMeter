@@ -448,12 +448,14 @@
         'snd_shop_open','snd_shop_coins','snd_item_mud','snd_item_boost','snd_item_dust','snd_item_shield',
         // Level up sounds
         'snd_levelup_brainrot','snd_levelup_coffin','snd_levelup_funnysong',
-        'snd_levelup_ruletheworld','snd_levelup_thai','snd_levelup_xenogenesis'
+        'snd_levelup_ruletheworld','snd_levelup_thai','snd_levelup_xenogenesis',
+        // Mr. A rain event
+        'snd_rain'
       ];
       // Optimization: on mobile, only unlock a few critical sounds to avoid triggering massive downloads
       // since preload is set to "none".
       if (window.innerWidth < 820) {
-        ids = ['snd_brainrot', 'snd_levelup_brainrot', 'snd_levelup_coffin', 'snd_shop_open'];
+        ids = ['snd_brainrot', 'snd_levelup_brainrot', 'snd_levelup_coffin', 'snd_shop_open', 'snd_rain'];
       }
       ids.forEach(id=>{
         const el = document.getElementById(id);
@@ -1044,6 +1046,7 @@
       const r = await fetch('/api/make6or7/state');
       const d = await r.json().catch(()=>({ok:false}));
       if (!d.ok) return;
+      if (d.mr_a_rain) { try { showMrARain(d.mr_a_rain); } catch(_){} }
       const st = d.state || {};
       const sv = Number(st.state_version || 0);
       // Drop out-of-order responses
@@ -1331,6 +1334,49 @@
     document.body.appendChild(el);
     try { play('snd_item_mud'); } catch(_){}
     setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 2000);
+  }
+
+  let _mrARainShown = false;
+  function showMrARain(payload){
+    if (_mrARainShown) return;
+    _mrARainShown = true;
+    try { localStorage.setItem('mrARainSeen', '1'); } catch(_){}
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const message = (payload && payload.message) || 'Mr. A decided to make it rain!';
+    const subtext = (payload && payload.subtext) || 'DOUBLE POINTS FOR 20 MINUTES!';
+    const icons = ['🌫️','⚡','🪣','🛡️','🔄','🤡','🍌','🎲','💥','💰','✨','🎁','🌟'];
+    const overlay = document.createElement('div');
+    overlay.className = 'm67-mra-overlay';
+    overlay.innerHTML = `
+      <div class="m67-mra-rain"></div>
+      <div class="m67-mra-center">
+        <div class="m67-mra-title">${message}</div>
+        <div class="m67-mra-subtitle">${subtext}</div>
+        <div class="m67-mra-hint">Tap anywhere to dismiss</div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const rain = overlay.querySelector('.m67-mra-rain');
+    const count = reduced ? 18 : 80;
+    for (let i = 0; i < count; i++){
+      const span = document.createElement('span');
+      span.className = 'm67-mra-drop';
+      span.textContent = icons[Math.floor(Math.random()*icons.length)];
+      span.style.left = (Math.random() * 100) + '%';
+      span.style.animationDelay = (Math.random() * 3) + 's';
+      span.style.animationDuration = (2 + Math.random() * 2.5) + 's';
+      span.style.fontSize = (24 + Math.random() * 36) + 'px';
+      rain.appendChild(span);
+    }
+    try { play('snd_rain'); } catch(_){}
+    try { if (navigator.vibrate) navigator.vibrate([80, 40, 120]); } catch(_){}
+    const dismiss = () => {
+      overlay.classList.add('m67-mra-fade');
+      setTimeout(()=>{ try{ overlay.remove(); }catch(_){} }, 600);
+    };
+    overlay.addEventListener('click', dismiss, { once: true });
+    setTimeout(dismiss, 10000);
+    try { loadState(); } catch(_){}
   }
 
   // Modal helpers with body-lock parity

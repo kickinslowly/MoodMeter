@@ -196,6 +196,9 @@ class User(db.Model, UserMixin):
     make67_mud_until = db.Column(db.DateTime(timezone=True), nullable=True)
     # Divine Shield: blocks negative effects for a duration
     make67_shield_until = db.Column(db.DateTime(timezone=True), nullable=True)
+    # One-time "Mr. A decided to make it rain!" event flag (persists across browsers/devices).
+    # Tied to the user's Google login so cookie wipes can't replay the event.
+    mr_a_rain_claimed = db.Column(db.Boolean, nullable=False, default=False)
 
 
 # If using SQLite locally, enable WAL mode to reduce writer blocking and improve read concurrency.
@@ -1837,6 +1840,76 @@ def _set_user_counter(user, game_type: str, value: int):
         user.make6or7_all_time_solves = value
 
 
+# One-time "Mr. A decided to make it rain!" event
+_MR_A_RAIN_THRESHOLD = 100
+_MR_A_RAIN_BOOST_SEC = 20 * 60
+
+
+def _try_grant_mr_a_rain(uid: str) -> dict | None:
+    """Atomically grant the one-time Mr. A rain event to the user.
+
+    Eligibility: user has > _MR_A_RAIN_THRESHOLD all-time solves in either game
+    and has not yet claimed. Fills inventory up to 4 with random shop items and
+    grants a 20-minute boost. The DB flag `mr_a_rain_claimed` makes this
+    persistent across browsers/devices (ties to Google login, not cookies).
+
+    Returns a payload dict on successful grant, else None.
+    """
+    try:
+        u_pre = db.session.get(User, uid)
+        if not u_pre:
+            return None
+        if bool(getattr(u_pre, 'mr_a_rain_claimed', False)):
+            return None
+        solves67 = int(getattr(u_pre, 'make67_all_time_solves', 0) or 0)
+        solves6or7 = int(getattr(u_pre, 'make6or7_all_time_solves', 0) or 0)
+        if solves67 <= _MR_A_RAIN_THRESHOLD and solves6or7 <= _MR_A_RAIN_THRESHOLD:
+            return None
+
+        # Atomic claim: only one concurrent request wins. Subsequent calls
+        # (or racing polls) see 0 affected rows and bail.
+        claimed = (
+            db.session.query(User)
+            .filter(User.id == uid, User.mr_a_rain_claimed.is_(False))
+            .update({'mr_a_rain_claimed': True}, synchronize_session=False)
+        )
+        if not claimed:
+            db.session.rollback()
+            return None
+
+        # Fill inventory to 4 slots with random items (inventory is shared
+        # across games, so filling once covers both modes).
+        current_inv = _m67_get_inventory(uid)
+        slots_available = max(0, 4 - len(current_inv))
+        granted_items: list[dict] = []
+        if slots_available > 0:
+            pool = list(_M67_CATALOG.keys())
+            for _ in range(slots_available):
+                granted_items.append(_m67_add_item(uid, random.choice(pool)))
+
+        # Grant 20-minute boost (boost_until column is shared between games)
+        u = db.session.get(User, uid)
+        now_dt = datetime.now(timezone.utc)
+        u.make67_boost_until = now_dt + timedelta(seconds=_MR_A_RAIN_BOOST_SEC)
+
+        db.session.commit()
+        _m67_bump_state_version(uid)
+
+        return {
+            'granted': True,
+            'items_added': granted_items,
+            'boost_sec': _MR_A_RAIN_BOOST_SEC,
+            'message': 'Mr. A decided to make it rain!',
+            'subtext': f'DOUBLE POINTS FOR {_MR_A_RAIN_BOOST_SEC // 60} MINUTES!',
+        }
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return None
+
+
 def _game_shop(game_type: str):
     """Shared shop endpoint handler for both game modes."""
     try:
@@ -1866,6 +1939,10 @@ def _game_state(game_type: str, use_cache: bool = True):
         if not uid:
             return jsonify({'ok': False, 'error': 'NOT_FOUND'}), 404
 
+        # One-time Mr. A rain event — try before cache check so grant bumps
+        # version and the fresh state (with new items & boost) is returned.
+        mr_a_rain = _try_grant_mr_a_rain(uid)
+
         ver = _m67_get_state_version(uid)
 
         # Check cache if enabled
@@ -1875,7 +1952,10 @@ def _game_state(game_type: str, use_cache: bool = True):
                 cached = _m67_state_cache.get(cache_key)
             if cached is not None:
                 app.logger.debug("%s_state cache_hit=True ver=%s", game_type, ver)
-                return jsonify({'ok': True, 'state': cached})
+                resp = {'ok': True, 'state': cached}
+                if mr_a_rain:
+                    resp['mr_a_rain'] = mr_a_rain
+                return jsonify(resp)
 
         # Cache miss or caching disabled: load from DB
         u = db.session.get(User, uid) if use_cache else current_user
@@ -1905,7 +1985,10 @@ def _game_state(game_type: str, use_cache: bool = True):
                 game_type, ver, int((time.perf_counter() - t0) * 1000)
             )
 
-        return jsonify({'ok': True, 'state': state})
+        resp = {'ok': True, 'state': state}
+        if mr_a_rain:
+            resp['mr_a_rain'] = mr_a_rain
+        return jsonify(resp)
     except Exception as e:
         return jsonify({'ok': False, 'error': 'SERVER_ERROR', 'detail': str(e)}), 500
 
